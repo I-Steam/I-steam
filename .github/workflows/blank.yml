@@ -1,0 +1,20 @@
+name: GitLab Sync
+on: [push, create, delete, workflow_dispatch]
+
+jobs:
+  sync:
+    name: GitLab Sync
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Required to mirror all branches and tags.
+          fetch-depth: 0
+
+      - uses: action-pack/gitlab-sync@v3
+        with:
+          username: your-gitlab-username
+          url: https://gitlab.com/your-gitlab-namespace/your-repo.git
+          # Personal access token with write access to the target GitLab repository.
+          token: ${{ secrets.GITLAB_TOKEN }}
