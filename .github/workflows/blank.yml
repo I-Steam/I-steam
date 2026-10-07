@@ -14,7 +14,7 @@ jobs:
 
       - uses: action-pack/gitlab-sync@v3
         with:
-          username: chantinlongxthrx
+          username: Xthrx
           url: https://gitlab.com/chantinlongxthrx/i-steam.git
           # Personal access token with write access to the target GitLab repository.
           token: ${{ secrets.GITLAB_TOKEN }}
