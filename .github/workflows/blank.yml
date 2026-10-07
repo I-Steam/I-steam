@@ -1,20 +1,43 @@
 name: GitLab Sync
-on: [push, create, delete, workflow_dispatch]
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
   sync:
-    name: GitLab Sync
+    name: GitHub → GitLab
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout GitHub repository
+        uses: actions/checkout@v4
         with:
-          # Required to mirror all branches and tags.
           fetch-depth: 0
 
-      - uses: action-pack/gitlab-sync@v3
-        with:
-          username: Xthrx
-          url: https://gitlab.com/chantinlongxthrx/i-steam.git
-          # Personal access token with write access to the target GitLab repository.
-          token: ${{ secrets.GITLAB_TOKEN }}
+      - name: Sync to GitLab
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        run: |
+          set -e
+
+          git config user.name "Xthrx"
+          git config user.email "Xthrx@users.noreply.github.com"
+
+          git remote add gitlab \
+            "https://oauth2:${GITLAB_TOKEN}@gitlab.com/chantinlongxthrx/i-steam.git"
+
+          git fetch gitlab main
+
+          # GitLab main is protected, so do NOT force-push.
+          # Merge GitLab's existing history while keeping
+          # the GitHub version of files when conflicts occur.
+          git merge gitlab/main \
+            --allow-unrelated-histories \
+            -X ours \
+            --no-edit
+
+          # Normal push — compatible with a protected branch
+          git push gitlab HEAD:main
