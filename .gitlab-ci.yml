@@ -13,3 +13,4 @@ sync_to_github:
     - git config user.email "sync@i-steam.local"
     - git remote set-url origin "https://oauth2:${GITHUB_SYNC_TOKEN}@github.com/chantinlongxthrx/I-steam.git"
     - git push --force origin HEAD:main
+#:)
