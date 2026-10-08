@@ -7,41 +7,42 @@ final class FramePacer {
     private var link: CADisplayLink?
     private var lastTimestamp: CFTimeInterval = 0
     private var frames = 0
-
     private init() {}
 
     func start() {
         stop()
-        link = CADisplayLink(target: self, selector: #selector(tick(_:)))
+        lastTimestamp = 0
+        frames = 0
+        let display = CADisplayLink(target: self, selector: #selector(tick(_:)))
+        let maximum = max(1, UIScreen.main.maximumFramesPerSecond)
+        let target = min(max(24, RuntimeSettings.shared.frameRate.value), maximum)
         if #available(iOS 15.0, *) {
-            let maxRate = UIScreen.main.maximumFramesPerSecond
-            let requested = min(RuntimeSettings.shared.frameRate.value, maxRate)
-            link?.preferredFrameRateRange = CAFrameRateRange(
-                minimum: Float(min(24, maxRate)),
-                maximum: Float(maxRate),
-                preferred: Float(requested)
+            display.preferredFrameRateRange = CAFrameRateRange(
+                minimum: Float(min(24, maximum)),
+                maximum: Float(maximum),
+                preferred: Float(target)
             )
         } else {
-            link?.preferredFramesPerSecond = min(RuntimeSettings.shared.frameRate.value, 60)
+            display.preferredFramesPerSecond = target
         }
-        link?.add(to: .main, forMode: .common)
+        link = display
+        display.add(to: .main, forMode: .common)
     }
 
     func stop() {
         link?.invalidate()
         link = nil
+        lastTimestamp = 0
+        frames = 0
     }
 
-    @objc private func tick(_ link: CADisplayLink) {
+    @objc private func tick(_ display: CADisplayLink) {
         frames += 1
-        guard lastTimestamp != 0 else {
-            lastTimestamp = link.timestamp
-            return
-        }
-        let elapsed = link.timestamp - lastTimestamp
+        guard lastTimestamp != 0 else { lastTimestamp = display.timestamp; return }
+        let elapsed = display.timestamp - lastTimestamp
         guard elapsed >= 0.5 else { return }
         currentFPS = Double(frames) / elapsed
         frames = 0
-        lastTimestamp = link.timestamp
+        lastTimestamp = display.timestamp
     }
 }

@@ -9,35 +9,30 @@ final class MetalGPUBackend: NSObject, GPUBackend {
     let width: Int
     let height: Int
     let view: MTKView
-
     private let queue: MTLCommandQueue?
     private var texture: MTLTexture?
     private let targetFrameRate: Int
+    private let textureLock = NSLock()
 
     init(width: Int, height: Int, frameRate: Int) {
-        self.width = width
-        self.height = height
-        self.targetFrameRate = frameRate
+        self.width = max(1, width)
+        self.height = max(1, height)
+        self.targetFrameRate = max(1, frameRate)
         let device = MTLCreateSystemDefaultDevice()
-        self.view = MTKView(frame: .zero, device: device)
-        self.queue = device?.makeCommandQueue()
+        view = MTKView(frame: .zero, device: device)
+        queue = device?.makeCommandQueue()
         super.init()
-
         view.colorPixelFormat = .bgra8Unorm
-        view.framebufferOnly = false
+        view.framebufferOnly = true
         view.enableSetNeedsDisplay = true
         view.isPaused = true
-        view.preferredFramesPerSecond = min(frameRate, UIScreen.main.maximumFramesPerSecond)
+        view.preferredFramesPerSecond = min(self.targetFrameRate, UIScreen.main.maximumFramesPerSecond)
         view.delegate = self
-
+        view.autoResizeDrawable = true
         if let device {
-            let descriptor = MTLTextureDescriptor.texture2DDescriptor(
-                pixelFormat: .bgra8Unorm,
-                width: max(1, width),
-                height: max(1, height),
-                mipmapped: false
-            )
-            descriptor.usage = [.shaderRead, .shaderWrite, .renderTarget]
+            let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: self.width, height: self.height, mipmapped: false)
+            descriptor.storageMode = .shared
+            descriptor.usage = [.shaderRead]
             texture = device.makeTexture(descriptor: descriptor)
         }
     }
@@ -45,22 +40,16 @@ final class MetalGPUBackend: NSObject, GPUBackend {
     func start() {
         submit(frame: Self.testPattern(width: width, height: height), width: width, height: height)
     }
-
     func stop() {}
 
     func submit(frame: Data, width: Int, height: Int) {
-        guard width == self.width, height == self.height, let texture else { return }
-        guard frame.count >= width * height * 4 else { return }
-
+        guard width == self.width, height == self.height, frame.count >= width * height * 4, let texture else { return }
+        textureLock.lock()
         frame.withUnsafeBytes { raw in
             guard let base = raw.baseAddress else { return }
-            texture.replace(
-                region: MTLRegionMake2D(0, 0, width, height),
-                mipmapLevel: 0,
-                withBytes: base,
-                bytesPerRow: width * 4
-            )
+            texture.replace(region: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0, withBytes: base, bytesPerRow: width * 4)
         }
+        textureLock.unlock()
         DispatchQueue.main.async { [weak self] in self?.view.setNeedsDisplay() }
     }
 
@@ -81,22 +70,15 @@ final class MetalGPUBackend: NSObject, GPUBackend {
 
 extension MetalGPUBackend: MTKViewDelegate {
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
-
     func draw(in view: MTKView) {
-        guard let drawable = view.currentDrawable,
-              let commandBuffer = queue?.makeCommandBuffer(),
-              let source = texture else { return }
-        let blit = commandBuffer.makeBlitCommandEncoder()
+        guard let drawable = view.currentDrawable, let commandBuffer = queue?.makeCommandBuffer(), let source = texture else { return }
+        textureLock.lock()
+        defer { textureLock.unlock() }
+        guard let blit = commandBuffer.makeBlitCommandEncoder() else { return }
         let w = min(source.width, drawable.texture.width)
         let h = min(source.height, drawable.texture.height)
-        blit?.copy(
-            from: source, sourceSlice: 0, sourceLevel: 0,
-            sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
-            sourceSize: MTLSize(width: w, height: h, depth: 1),
-            to: drawable.texture, destinationSlice: 0, destinationLevel: 0,
-            destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0)
-        )
-        blit?.endEncoding()
+        blit.copy(from: source, sourceSlice: 0, sourceLevel: 0, sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0), sourceSize: MTLSize(width: w, height: h, depth: 1), to: drawable.texture, destinationSlice: 0, destinationLevel: 0, destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
+        blit.endEncoding()
         commandBuffer.present(drawable)
         commandBuffer.commit()
     }
