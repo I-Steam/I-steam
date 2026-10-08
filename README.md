@@ -1,29 +1,37 @@
 # i-Steam
 
-Native iOS Xcode project for a Box64/BoxiOS-based launcher/runtime.
+A native iOS emulation frontend being reworked around a UTM-style layered architecture.
 
 ## Architecture
-- iOS 16+
-- arm64 + arm64e device target
-- native Swift/C runtime bridge
-- explicit memory entitlements
 
-## JIT
-Implements the universal arm64 breakpoint entry points documented by StikDebug/StikJIT and adds a StikDebug URL coordinator using the current PID and bundle ID. The UI offers **Wait for Debugger** and **StikDebug**.
+- `src/Core` — VM configuration, lifecycle and emulation logging.
+- `src/QEMU` — QEMU-style machine and command configuration.
+- `src/GPU` — VirtIO-GPU-oriented graphics backend and Metal renderer.
+- `src/Display` — iOS VM display surface using MetalKit.
+- `iSteam/` — existing iOS UI, Box64 compatibility runtime, JIT coordination and app storage.
 
-The current BoxiOS snapshot itself has dynarec/JIT disabled, so the iOS JIT integration does not enable Box64 dynarec by itself.
+The target architecture is **QEMU + VirtIO GPU + Metal**, following the same layered approach used by UTM.
 
-## Memory
-The target declares:
-- `com.apple.developer.kernel.increased-memory-limit`
-- `com.apple.developer.kernel.extended-virtual-addressing`
+## GPU emulation
 
-GetMoreRam is a signing/App ID capability tool, not a framework. If the provisioning profile drops the increased-memory capability, enable it through the appropriate signing flow before installing. The source entitlement alone cannot override a provisioning profile.
+The first GPU layer is now in the source tree:
 
-## GitHub Actions
-The workflow builds the BoxiOS static library, builds the StikJIT framework as a reference artifact, builds the Xcode project for arm64/arm64e, and packages an unsigned `iSteam-SideStore.ipa`.
+- VirtIO GPU device selection: `virtio-gpu-pci`, `virtio-gpu-gl-pci`, and `virtio-ramfb-gl`.
+- MetalKit display backend.
+- CPU-to-GPU framebuffer submission.
+- 60 FPS display target.
+- QEMU command generation for GL-capable virtual GPUs.
 
-The IPA is intended to be signed by SideStore rather than distributed through the App Store.
+This is the host rendering and framebuffer layer. It is **not yet a complete guest 3D driver implementation**. Full 3D acceleration still requires the UTM/QEMU graphics stack, including virglrenderer and ANGLE/Metal.
 
-## OS versions
-The source deployment target is iOS 16. The JIT protocol code compiles for arm64/arm64e and the app can run on iOS 16, 17, 26 and 27. Built-in StikJIT helper-process integration is not enabled in this first build because that requires a separate iOS 17.4+ helper extension.
+## Runtime
+
+Box64 remains available for compatible x86-64 Linux executables. The new QEMU backend is the long-term full-system path so i-Steam can eventually boot complete Linux/Windows guests instead of only launching individual ELF files.
+
+## JIT and memory
+
+The existing StikDebug integration and memory entitlements remain in place. JIT is important for practical QEMU TCG performance on iOS.
+
+## Build
+
+GitHub Actions generates the Xcode project from `project.yml`, builds the Box64 runtime, builds the new Metal GPU layer, and packages an unsigned `iSteam-SideStore.ipa` for SideStore signing.
