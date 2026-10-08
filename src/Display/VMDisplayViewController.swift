@@ -7,7 +7,11 @@ final class VMDisplayViewController: UIViewController {
     private let status = UILabel()
 
     init(configuration: VMConfiguration) {
-        let backend = MetalGPUBackend(width: configuration.displayWidth, height: configuration.displayHeight)
+        let backend = MetalGPUBackend(
+            width: configuration.displayWidth,
+            height: configuration.displayHeight,
+            frameRate: RuntimeSettings.shared.frameRate.value
+        )
         self.gpu = backend
         self.virtioGPU = VirtIOGPU(backend: backend)
         self.engine = VMEngine(configuration: configuration)
@@ -30,7 +34,7 @@ final class VMDisplayViewController: UIViewController {
         status.textColor = .white
         status.backgroundColor = UIColor.black.withAlphaComponent(0.7)
         status.font = .monospacedSystemFont(ofSize: 12, weight: .medium)
-        status.text = "VirtIO GPU • Metal"
+        status.text = "VirtIO GPU • Metal • (RuntimeSettings.shared.frameRate.rawValue)"
         status.textAlignment = .center
         status.layer.cornerRadius = 8
         status.clipsToBounds = true
@@ -43,7 +47,7 @@ final class VMDisplayViewController: UIViewController {
             gpu.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             status.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
             status.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
-            status.widthAnchor.constraint(greaterThanOrEqualToConstant: 150),
+            status.widthAnchor.constraint(greaterThanOrEqualToConstant: 190),
             status.heightAnchor.constraint(equalToConstant: 30)
         ])
 

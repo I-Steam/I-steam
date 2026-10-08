@@ -11,10 +11,12 @@ final class MetalGPUBackend: NSObject, GPUBackend {
 
     private let queue: MTLCommandQueue?
     private var texture: MTLTexture?
+    private let targetFrameRate: Int
 
-    init(width: Int, height: Int) {
+    init(width: Int, height: Int, frameRate: Int) {
         self.width = width
         self.height = height
+        self.targetFrameRate = frameRate
         let device = MTLCreateSystemDefaultDevice()
         self.view = MTKView(frame: .zero, device: device)
         self.queue = device?.makeCommandQueue()
@@ -25,7 +27,16 @@ final class MetalGPUBackend: NSObject, GPUBackend {
         view.enableSetNeedsDisplay = true
         view.isPaused = true
         view.delegate = self
-        view.preferredFramesPerSecond = 60
+        view.preferredFramesPerSecond = min(frameRate, UIScreen.main.maximumFramesPerSecond)
+
+        if #available(iOS 15.0, *) {
+            let maximum = UIScreen.main.maximumFramesPerSecond
+            view.preferredFrameRateRange = CAFrameRateRange(
+                minimum: min(24, maximum),
+                maximum: min(frameRate, maximum),
+                preferred: min(frameRate, maximum)
+            )
+        }
 
         if let device {
             let descriptor = MTLTextureDescriptor.texture2DDescriptor(

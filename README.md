@@ -1,37 +1,77 @@
 # i-Steam
 
-A native iOS emulation frontend being reworked around a UTM-style layered architecture.
+i-Steam is an iOS Steam-focused compatibility runtime and Windows VM frontend.
 
-## Architecture
+The architecture now combines the **LiveExec32-style guest-process model** with an optional **QEMU full-system VM**:
 
-- `src/Core` — VM configuration, lifecycle and emulation logging.
-- `src/QEMU` — QEMU-style machine and command configuration.
-- `src/GPU` — VirtIO-GPU-oriented graphics backend and Metal renderer.
-- `src/Display` — iOS VM display surface using MetalKit.
-- `iSteam/` — existing iOS UI, Box64 compatibility runtime, JIT coordination and app storage.
+```
+Steam game / Windows executable
+        ↓
+Guest process runtime
+        ↓
+x86-64 translation + JIT
+        ↓
+Windows API / DLL compatibility layer
+        ↓
+Virtual GPU / D3D translation
+        ↓
+Metal
+        ↓
+iOS
+```
 
-The target architecture is **QEMU + VirtIO GPU + Metal**, following the same layered approach used by UTM.
+## Runtime modes
 
-## GPU emulation
+- **Windows Runtime** — LiveExec-style process execution path. This is the fast path for compatible software.
+- **Windows VM** — QEMU full-system Windows path for software that needs a complete guest OS.
+- **Linux VM** — development/compatibility VM.
 
-The first GPU layer is now in the source tree:
+The VM backend uses QEMU TCG/JIT on iOS. Apple's Hypervisor.framework is not available to normal iOS applications, so the Hypervisor option is exposed in Settings for capability reporting but is disabled when unavailable.
 
-- VirtIO GPU device selection: `virtio-gpu-pci`, `virtio-gpu-gl-pci`, and `virtio-ramfb-gl`.
-- MetalKit display backend.
-- CPU-to-GPU framebuffer submission.
-- 60 FPS display target.
-- QEMU command generation for GL-capable virtual GPUs.
+## LiveExec-inspired architecture
 
-This is the host rendering and framebuffer layer. It is **not yet a complete guest 3D driver implementation**. Full 3D acceleration still requires the UTM/QEMU graphics stack, including virglrenderer and ANGLE/Metal.
+The runtime is split into:
 
-## Runtime
+- Guest process and PE loading
+- Guest memory and thread management
+- x86-64 translation/JIT
+- Windows API/DLL compatibility
+- Root filesystem
+- Crash diagnostics
+- persistent translation cache
 
-Box64 remains available for compatible x86-64 Linux executables. The new QEMU backend is the long-term full-system path so i-Steam can eventually boot complete Linux/Windows guests instead of only launching individual ELF files.
+The uploaded LiveExec32 source is used as an architectural reference. Its ARM32/Darwin-specific implementation is not blindly reused for x86-64 Windows binaries.
 
-## JIT and memory
+## Graphics
 
-The existing StikDebug integration and memory entitlements remain in place. JIT is important for practical QEMU TCG performance on iOS.
+The host display path supports:
+
+- 24 FPS minimum frame pacing
+- 60 FPS
+- 120 FPS on displays that expose 120 Hz
+- Metal-backed VirtIO framebuffer presentation
+- persistent shader-cache infrastructure
+- adaptive resolution hooks
+
+120 FPS is only available when the physical display and OS expose a 120 Hz refresh rate.
+
+## Performance
+
+MeloNX-inspired ideas are represented by:
+
+- persistent translation caching
+- shader caching
+- JIT-aware memory management
+- thermal/performance monitoring
+- frame pacing
+- reduced-resolution performance mode
+
+These are infrastructure components; they do not guarantee a particular FPS in every game.
+
+## Windows / Steam
+
+The project is designed around Windows Steam games, but compatibility still depends on the Windows runtime, graphics API, game dependencies and anti-cheat requirements. i-Steam does not bypass or defeat kernel anti-cheat systems.
 
 ## Build
 
-GitHub Actions generates the Xcode project from `project.yml`, builds the Box64 runtime, builds the new Metal GPU layer, and packages an unsigned `iSteam-SideStore.ipa` for SideStore signing.
+GitHub Actions generates the Xcode project, builds the Box64 compatibility runtime and packages an unsigned `iSteam-SideStore.ipa`.
