@@ -33,6 +33,40 @@ enum VMAccelerationBackend: String, CaseIterable {
     static var hypervisorAvailable: Bool { false }
 }
 
+enum DisplayResolution: String, CaseIterable {
+    case p720 = "1280 × 720"
+    case p1080 = "1920 × 1080"
+    case p1440 = "2560 × 1440"
+    case p2160 = "3840 × 2160 (4K)"
+
+    var width: Int {
+        switch self {
+        case .p720: return 1280
+        case .p1080: return 1920
+        case .p1440: return 2560
+        case .p2160: return 3840
+        }
+    }
+
+    var height: Int {
+        switch self {
+        case .p720: return 720
+        case .p1080: return 1080
+        case .p1440: return 1440
+        case .p2160: return 2160
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .p720: return "Lowest GPU and memory load"
+        case .p1080: return "Full HD"
+        case .p1440: return "QHD"
+        case .p2160: return "4K UHD internal render target"
+        }
+    }
+}
+
 enum DisplayFrameRate: String, CaseIterable {
     case fps24 = "24 FPS"
     case fps60 = "60 FPS"
@@ -69,6 +103,11 @@ final class RuntimeSettings {
     var acceleration: VMAccelerationBackend {
         get { VMAccelerationBackend(rawValue: defaults.string(forKey: "iSteam.acceleration") ?? "") ?? .automatic }
         set { defaults.set(newValue.rawValue, forKey: "iSteam.acceleration") }
+    }
+
+    var resolution: DisplayResolution {
+        get { DisplayResolution(rawValue: defaults.string(forKey: "iSteam.resolution") ?? "") ?? .p1080 }
+        set { defaults.set(newValue.rawValue, forKey: "iSteam.resolution") }
     }
 
     var frameRate: DisplayFrameRate {
