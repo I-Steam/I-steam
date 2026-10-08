@@ -16,6 +16,7 @@ targets:
     platform: iOS
     sources:
       - path: iSteam
+      - path: src
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.chantinlongx.iSteam
@@ -25,3 +26,7 @@ targets:
         OTHER_LDFLAGS:
           - "$(inherited)"
           - "-ObjC"
+          - "-framework"
+          - "Metal"
+          - "-framework"
+          - "MetalKit"

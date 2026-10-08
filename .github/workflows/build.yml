@@ -26,6 +26,10 @@ jobs:
         run: |
           xcodebuild -version
           cmake --version
+          brew --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
 
       - name: Build BoxiOS static library
         shell: bash
@@ -41,7 +45,9 @@ jobs:
           mkdir -p box64-build/lib
           find third_party/box64-build -type f -name 'libbox64.a' -exec cp {} box64-build/lib/libbox64.a \;
           test -f box64-build/lib/libbox64.a
-          lipo -info box64-build/lib/libbox64.a || true
+
+      - name: Generate Xcode project
+        run: xcodegen generate --spec project.yml
 
       - name: Build iSteam
         shell: bash
@@ -50,7 +56,7 @@ jobs:
           rm -rf build
           mkdir -p build
 
-          xcodebuild             -project iSteam.xcodeproj             -scheme iSteam             -configuration Release             -sdk iphoneos             -destination 'generic/platform=iOS'             -archivePath "$PWD/build/iSteam.xcarchive"             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             CODE_SIGN_IDENTITY=""             ARCHS="arm64 arm64e"             ONLY_ACTIVE_ARCH=NO             LIBRARY_SEARCH_PATHS="$PWD/box64-build/lib"             OTHER_LDFLAGS="-ObjC -force_load $PWD/box64-build/lib/libbox64.a"             archive
+          xcodebuild             -project iSteam.xcodeproj             -scheme iSteam             -configuration Release             -sdk iphoneos             -destination 'generic/platform=iOS'             -archivePath "$PWD/build/iSteam.xcarchive"             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             CODE_SIGN_IDENTITY=""             ARCHS="arm64 arm64e"             ONLY_ACTIVE_ARCH=NO             LIBRARY_SEARCH_PATHS="$PWD/box64-build/lib"             OTHER_LDFLAGS="-ObjC -framework Metal -framework MetalKit -force_load $PWD/box64-build/lib/libbox64.a"             archive
 
       - name: Package unsigned SideStore IPA
         shell: bash
@@ -58,13 +64,10 @@ jobs:
           set -euo pipefail
           APP="$PWD/build/iSteam.xcarchive/Products/Applications/iSteam.app"
           test -d "$APP"
-
           rm -rf build/Payload
           mkdir -p build/Payload
           cp -R "$APP" build/Payload/iSteam.app
-
-          /usr/bin/ditto -c -k --sequesterRsrc --keepParent             build/Payload build/iSteam-SideStore.ipa
-
+          /usr/bin/ditto -c -k --sequesterRsrc --keepParent build/Payload build/iSteam-SideStore.ipa
           unzip -t build/iSteam-SideStore.ipa >/dev/null
 
       - name: Upload SideStore IPA
