@@ -4,6 +4,7 @@ final class SettingsViewController: UITableViewController {
     private let jitMethods = JITMethod.allCases
     private let vmModes = VMExecutionMode.allCases
     private let accelerators = VMAccelerationBackend.allCases
+    private let resolutions = DisplayResolution.allCases
     private let frameRates = DisplayFrameRate.allCases
 
     override func viewDidLoad() {
@@ -13,20 +14,21 @@ final class SettingsViewController: UITableViewController {
         tableView.tableFooterView = UIView()
     }
 
-    override func numberOfSections(in tableView: UITableView) -> Int { 6 }
+    override func numberOfSections(in tableView: UITableView) -> Int { 7 }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         switch section {
         case 0: return vmModes.count
         case 1: return accelerators.count
-        case 2: return frameRates.count
-        case 3: return jitMethods.count
+        case 2: return resolutions.count
+        case 3: return frameRates.count
+        case 4: return jitMethods.count
         default: return 1
         }
     }
 
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        ["Windows Runtime", "VM / Hypervisor", "Display", "JIT", "Diagnostics", "Performance"][section]
+        ["Windows Runtime", "VM / Hypervisor", "Resolution", "Display", "JIT", "Diagnostics", "Performance"][section]
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -46,15 +48,20 @@ final class SettingsViewController: UITableViewController {
             c.secondaryText = backend.detail
             cell.accessoryType = RuntimeSettings.shared.acceleration == backend ? .checkmark : .none
         case 2:
+            let resolution = resolutions[indexPath.row]
+            c.text = resolution.rawValue
+            c.secondaryText = resolution.detail
+            cell.accessoryType = RuntimeSettings.shared.resolution == resolution ? .checkmark : .none
+        case 3:
             let rate = frameRates[indexPath.row]
             c.text = rate.rawValue
             c.secondaryText = rate.detail
             cell.accessoryType = RuntimeSettings.shared.frameRate == rate ? .checkmark : .none
-        case 3:
+        case 4:
             let method = jitMethods[indexPath.row]
             c.text = method.rawValue
             cell.accessoryType = JITCoordinator.shared.selectedMethod == method ? .checkmark : .none
-        case 4:
+        case 5:
             c.text = "Crash Log"
             c.secondaryText = "View saved crash information"
             cell.accessoryType = .disclosureIndicator
@@ -79,12 +86,15 @@ final class SettingsViewController: UITableViewController {
             RuntimeSettings.shared.acceleration = accelerators[indexPath.row]
             tableView.reloadSections(IndexSet(integer: 1), with: .automatic)
         case 2:
-            RuntimeSettings.shared.frameRate = frameRates[indexPath.row]
+            RuntimeSettings.shared.resolution = resolutions[indexPath.row]
             tableView.reloadSections(IndexSet(integer: 2), with: .automatic)
         case 3:
-            JITCoordinator.shared.selectedMethod = jitMethods[indexPath.row]
+            RuntimeSettings.shared.frameRate = frameRates[indexPath.row]
             tableView.reloadSections(IndexSet(integer: 3), with: .automatic)
         case 4:
+            JITCoordinator.shared.selectedMethod = jitMethods[indexPath.row]
+            tableView.reloadSections(IndexSet(integer: 4), with: .automatic)
+        case 5:
             navigationController?.pushViewController(CrashLogViewController(), animated: true)
         default:
             let alert = UIAlertController(title: "Performance", message: PerformanceManager.shared.detailedSummary, preferredStyle: .alert)
