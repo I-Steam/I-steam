@@ -1,0 +1,126 @@
+// !$*UTF8*$!
+{
+ archiveVersion = 1;
+ classes = {};
+ objectVersion = 56;
+ objects = {
+
+/* Begin PBXBuildFile section */
+ B00000000000000000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000001 /* AppDelegate.swift */; };
+ B00000000000000000000002 /* Box64Bridge.c in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000002 /* Box64Bridge.c */; };
+ B00000000000000000000003 /* Box64Bridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000003 /* Box64Bridge.swift */; };
+ B00000000000000000000004 /* ConsoleViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000004 /* ConsoleViewController.swift */; };
+ B00000000000000000000005 /* ELFValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000005 /* ELFValidator.swift */; };
+ B00000000000000000000006 /* GameStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000006 /* GameStore.swift */; };
+ B00000000000000000000007 /* LibraryViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000007 /* LibraryViewController.swift */; };
+ B00000000000000000000008 /* JIT26Protocol.c in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000008 /* JIT26Protocol.c */; };
+ B00000000000000000000009 /* JITCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000009 /* JITCoordinator.swift */; };
+ B00000000000000000000010 /* MemoryDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000010 /* MemoryDiagnostics.swift */; };
+ B00000000000000000000011 /* SettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000011 /* SettingsViewController.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+ F00000000000000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+ F00000000000000000000002 /* Box64Bridge.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = Box64Bridge.c; sourceTree = "<group>"; };
+ F00000000000000000000003 /* Box64Bridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Box64Bridge.swift; sourceTree = "<group>"; };
+ F00000000000000000000004 /* ConsoleViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleViewController.swift; sourceTree = "<group>"; };
+ F00000000000000000000005 /* ELFValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ELFValidator.swift; sourceTree = "<group>"; };
+ F00000000000000000000006 /* GameStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameStore.swift; sourceTree = "<group>"; };
+ F00000000000000000000007 /* LibraryViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViewController.swift; sourceTree = "<group>"; };
+ F00000000000000000000008 /* JIT26Protocol.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = JIT26Protocol.c; sourceTree = "<group>"; };
+ F00000000000000000000009 /* JITCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JITCoordinator.swift; sourceTree = "<group>"; };
+ F00000000000000000000010 /* MemoryDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryDiagnostics.swift; sourceTree = "<group>"; };
+ F00000000000000000000011 /* SettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewController.swift; sourceTree = "<group>"; };
+ F00000000000000000000024 /* iSteam-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = iSteam-Bridging-Header.h; sourceTree = "<group>"; };
+ F00000000000000000000025 /* Box64Bridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Box64Bridge.h; sourceTree = "<group>"; };
+ F00000000000000000000026 /* JIT26Protocol.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JIT26Protocol.h; sourceTree = "<group>"; };
+ F00000000000000000000027 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+ F00000000000000000000028 /* iSteam.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = iSteam.entitlements; sourceTree = "<group>"; };
+ F00000000000000000000029 /* iSteam.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iSteam.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+ F00000000000000000000030 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+ F00000000000000000000031 = {isa = PBXGroup; children = (F00000000000000000000032,F00000000000000000000033); sourceTree = "<group>"; };
+ F00000000000000000000032 = {isa = PBXGroup; children = (F00000000000000000000001,F00000000000000000000002,F00000000000000000000003,F00000000000000000000004,F00000000000000000000005,F00000000000000000000006,F00000000000000000000007,F00000000000000000000008,F00000000000000000000009,F00000000000000000000010,F00000000000000000000011,F00000000000000000000024,F00000000000000000000025,F00000000000000000000026,F00000000000000000000027,F00000000000000000000028); name = iSteam; path = iSteam; sourceTree = "<group>"; };
+ F00000000000000000000033 = {isa = PBXGroup; children = (F00000000000000000000029); name = Products; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+ F00000000000000000000034 = {isa = PBXNativeTarget; buildConfigurationList = F00000000000000000000035; buildPhases = (F00000000000000000000036,F00000000000000000000030,F00000000000000000000037); buildRules = (); dependencies = (); name = iSteam; productName = iSteam; productReference = F00000000000000000000029; productType = "com.apple.product-type.application"; };
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+ F00000000000000000000038 = {isa = PBXProject; attributes = {LastUpgradeCheck = 2600;}; buildConfigurationList = F00000000000000000000039; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; mainGroup = F00000000000000000000031; productRefGroup = F00000000000000000000033; projectDirPath = ""; projectRoot = ""; targets = (F00000000000000000000034); };
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+ F00000000000000000000037 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+ F00000000000000000000036 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (B00000000000000000000001,B00000000000000000000002,B00000000000000000000003,B00000000000000000000004,B00000000000000000000005,B00000000000000000000006,B00000000000000000000007,B00000000000000000000008,B00000000000000000000009,B00000000000000000000010,B00000000000000000000011); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+ F00000000000000000000040 = {isa = XCBuildConfiguration; buildSettings = {
+  ALWAYS_SEARCH_USER_PATHS = NO;
+  ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+  CLANG_ENABLE_MODULES = YES;
+  CLANG_ENABLE_OBJC_ARC = YES;
+  CODE_SIGN_ENTITLEMENTS = iSteam/iSteam.entitlements;
+  CODE_SIGN_STYLE = Manual;
+  CODE_SIGNING_ALLOWED = YES;
+  CODE_SIGNING_REQUIRED = NO;
+  CURRENT_PROJECT_VERSION = 2;
+  INFOPLIST_FILE = iSteam/Info.plist;
+  IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+  LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+  PRODUCT_BUNDLE_IDENTIFIER = com.chantinlongx.iSteam;
+  PRODUCT_NAME = "$(TARGET_NAME)";
+  SWIFT_OBJC_BRIDGING_HEADER = iSteam/iSteam-Bridging-Header.h;
+  SWIFT_VERSION = 5.9;
+  TARGETED_DEVICE_FAMILY = "1,2";
+  SUPPORTS_MACCATALYST = NO;
+  ENABLE_BITCODE = NO;
+  ARCHS = "arm64 arm64e";
+  EXCLUDED_ARCHS[sdk=iphonesimulator*] = arm64e;
+ };
+ name = Debug; };
+ F00000000000000000000041 = {isa = XCBuildConfiguration; buildSettings = {
+  ALWAYS_SEARCH_USER_PATHS = NO;
+  ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+  CLANG_ENABLE_MODULES = YES;
+  CLANG_ENABLE_OBJC_ARC = YES;
+  CODE_SIGN_ENTITLEMENTS = iSteam/iSteam.entitlements;
+  CODE_SIGN_STYLE = Manual;
+  CODE_SIGNING_ALLOWED = YES;
+  CODE_SIGNING_REQUIRED = NO;
+  CURRENT_PROJECT_VERSION = 2;
+  INFOPLIST_FILE = iSteam/Info.plist;
+  IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+  LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+  PRODUCT_BUNDLE_IDENTIFIER = com.chantinlongx.iSteam;
+  PRODUCT_NAME = "$(TARGET_NAME)";
+  SWIFT_VERSION = 5.9;
+  TARGETED_DEVICE_FAMILY = "1,2";
+  SUPPORTS_MACCATALYST = NO;
+  ENABLE_BITCODE = NO;
+  ARCHS = "arm64 arm64e";
+  EXCLUDED_ARCHS[sdk=iphonesimulator*] = arm64e;
+ };
+ name = Release; };
+ F00000000000000000000042 = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; SDKROOT = iphoneos; SWIFT_VERSION = 5.9; IPHONEOS_DEPLOYMENT_TARGET = 16.0;}; name = Debug; };
+ F00000000000000000000043 = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; SDKROOT = iphoneos; SWIFT_VERSION = 5.9; IPHONEOS_DEPLOYMENT_TARGET = 16.0;}; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+ F00000000000000000000035 = {isa = XCConfigurationList; buildConfigurations = (F00000000000000000000040,F00000000000000000000041); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+ F00000000000000000000039 = {isa = XCConfigurationList; buildConfigurations = (F00000000000000000000042,F00000000000000000000043); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+ };
+ rootObject = F00000000000000000000038;
+}
