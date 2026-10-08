@@ -1,17 +1,9 @@
 import Foundation
-
 final class VMEngine {
-    enum State: Equatable {
-        case stopped, starting, running, stopping, failed(String)
-    }
-
+    enum State: Equatable { case stopped, starting, running, stopping, failed(String) }
     private(set) var state: State = .stopped
     private let configuration: VMConfiguration
-
-    init(configuration: VMConfiguration) {
-        self.configuration = configuration
-    }
-
+    init(configuration: VMConfiguration) { self.configuration = configuration }
     func start() {
         guard case .stopped = state else { return }
         state = .starting
@@ -26,7 +18,6 @@ final class VMEngine {
         ShaderCache.shared.prepare()
         state = .running
     }
-
     func stop() {
         guard case .running = state else { return }
         state = .stopping
