@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import Metal
 
 final class PerformanceManager {
     static let shared = PerformanceManager()

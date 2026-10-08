@@ -10,6 +10,7 @@ final class LibraryViewController: UITableViewController, UIDocumentPickerDelega
         games = GameStore.shared.games
 
         navigationItem.rightBarButtonItems = [
+            UIBarButtonItem(title: "Settings", style: .plain, target: self, action: #selector(openSettings)),
             UIBarButtonItem(title: "VM", style: .plain, target: self, action: #selector(openVM)),
             UIBarButtonItem(barButtonSystemItem: .add, target: self, action: #selector(importGame))
         ]
@@ -24,9 +25,13 @@ final class LibraryViewController: UITableViewController, UIDocumentPickerDelega
         tableView.reloadData()
     }
 
+    @objc private func openSettings() {
+        navigationController?.pushViewController(SettingsViewController(), animated: true)
+    }
+
     @objc private func openVM() {
         navigationController?.pushViewController(
-            VMDisplayViewController(configuration: .defaultLinux),
+            VMDisplayViewController(configuration: .defaultWindows),
             animated: true
         )
     }
@@ -45,7 +50,21 @@ final class LibraryViewController: UITableViewController, UIDocumentPickerDelega
         guard let source = urls.first else { return }
 
         do {
-            try ELFValidator.validate(url: source)
+            let formatResult = GuestProcessManager.shared.inspect(source)
+            guard case let .success(format) = formatResult,
+                  format == .windowsPE || format == .linuxELF else {
+                throw NSError(
+                    domain: "iSteam.Import",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "Unsupported executable. Import a Windows .exe/.dll or Linux ELF executable."]
+                )
+            }
+
+            if format == .windowsPE {
+                _ = try WindowsPELoader().load(source)
+            } else {
+                try ELFValidator.validate(url: source)
+            }
 
             let fm = FileManager.default
             let support = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -79,13 +98,21 @@ final class LibraryViewController: UITableViewController, UIDocumentPickerDelega
         }
     }
 
-    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { games.count }
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        games.count
+    }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "GameCell", for: indexPath)
+        let game = games[indexPath.row]
+        let format = GuestProcessManager.shared.inspect(URL(fileURLWithPath: game.executablePath))
         var c = cell.defaultContentConfiguration()
-        c.text = games[indexPath.row].name
-        c.secondaryText = "x86-64 Linux executable"
+        c.text = game.name
+        if case let .success(type) = format {
+            c.secondaryText = type.rawValue
+        } else {
+            c.secondaryText = "Guest executable"
+        }
         cell.contentConfiguration = c
         cell.accessoryType = .disclosureIndicator
         return cell
