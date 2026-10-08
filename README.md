@@ -75,3 +75,6 @@ The project is designed around Windows Steam games, but compatibility still depe
 ## Build
 
 GitHub Actions generates the Xcode project, builds the Box64 compatibility runtime and packages an unsigned `iSteam-SideStore.ipa`.
+
+## disclaimer 
+this project is not affiliated or endorsed by steam or valve in any way
