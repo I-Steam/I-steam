@@ -10,12 +10,12 @@ permissions:
 
 env:
   DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
-  BOX64_REPO: https://github.com/cloverfield11/box64-ios-library.git
 
 jobs:
   build:
     runs-on: macos-15
     timeout-minutes: 60
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,21 +31,6 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Build BoxiOS static library
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf third_party
-          git clone --depth 1 "$BOX64_REPO" third_party/box64
-
-          cmake -S third_party/box64 -B third_party/box64-build             -DCMAKE_SYSTEM_NAME=iOS             -DCMAKE_OSX_SYSROOT=iphoneos             -DCMAKE_OSX_ARCHITECTURES=arm64             -DCMAKE_BUILD_TYPE=Release             -DARM64=ON             -DBOX64LIB=ON             -DBOX64DYNAMIC=OFF             -DNOGIT=ON             -DCI=ON
-
-          cmake --build third_party/box64-build --config Release --target box64
-
-          mkdir -p box64-build/lib
-          find third_party/box64-build -type f -name 'libbox64.a' -exec cp {} box64-build/lib/libbox64.a \;
-          test -f box64-build/lib/libbox64.a
-
       - name: Generate Xcode project
         run: xcodegen generate --spec project.yml
 
@@ -56,14 +41,22 @@ jobs:
           rm -rf build
           mkdir -p build
 
-          xcodebuild             -project iSteam.xcodeproj             -scheme iSteam             -configuration Release             -sdk iphoneos             -destination 'generic/platform=iOS'             -archivePath "$PWD/build/iSteam.xcarchive"             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             CODE_SIGN_IDENTITY=""             ARCHS="arm64 arm64e"             ONLY_ACTIVE_ARCH=NO             LIBRARY_SEARCH_PATHS="$PWD/box64-build/lib"             OTHER_LDFLAGS="-ObjC -framework Metal -framework MetalKit -force_load $PWD/box64-build/lib/libbox64.a"             archive
+          xcodebuild             -project iSteam.xcodeproj             -scheme iSteam             -configuration Release             -sdk iphoneos             -destination 'generic/platform=iOS'             -archivePath "$PWD/build/iSteam.xcarchive"             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             CODE_SIGN_IDENTITY=""             ARCHS="arm64"             ONLY_ACTIVE_ARCH=NO             OTHER_LDFLAGS="-ObjC -framework Metal -framework MetalKit"             archive
+
+      - name: Verify app bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="$PWD/build/iSteam.xcarchive/Products/Applications/iSteam.app"
+          test -d "$APP"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist"
+          /usr/bin/codesign --display --verbose=2 "$APP" 2>&1 || true
 
       - name: Package unsigned SideStore IPA
         shell: bash
         run: |
           set -euo pipefail
           APP="$PWD/build/iSteam.xcarchive/Products/Applications/iSteam.app"
-          test -d "$APP"
           rm -rf build/Payload
           mkdir -p build/Payload
           cp -R "$APP" build/Payload/iSteam.app
