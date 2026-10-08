@@ -28,7 +28,7 @@ struct VMConfiguration: Codable, Identifiable, Equatable {
     var bootWindows: Bool
 
     static var defaultWindows: VMConfiguration {
-        let resolution = RuntimeSettings.shared.resolution
+        let resolution = RuntimeSettings.shared.renderResolution
         return VMConfiguration(
             id: UUID(), name: "Windows Steam", architecture: .x86_64,
             memoryMB: 4096, cpuCount: 4, accelerator: .jit,
@@ -41,7 +41,7 @@ struct VMConfiguration: Codable, Identifiable, Equatable {
     }
 
     static var defaultLinux: VMConfiguration {
-        let resolution = RuntimeSettings.shared.resolution
+        let resolution = RuntimeSettings.shared.renderResolution
         return VMConfiguration(
             id: UUID(), name: "Linux", architecture: .x86_64, memoryMB: 2048,
             cpuCount: 4, accelerator: .jit, gpu: .virtioGPUGL,
