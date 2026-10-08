@@ -15,11 +15,11 @@ final class VMEngine {
     func start() {
         guard case .stopped = state else { return }
         state = .starting
-        EmulationLog.shared.write("Starting (configuration.name)")
-        EmulationLog.shared.write("Guest: (configuration.bootWindows ? "Windows" : "Linux")")
-        EmulationLog.shared.write("CPU=(configuration.architecture.rawValue) RAM=(configuration.memoryMB)MB CPUs=(configuration.cpuCount)")
-        EmulationLog.shared.write("Acceleration=(RuntimeSettings.shared.acceleration.rawValue), JIT=(configuration.accelerator.rawValue)")
-        EmulationLog.shared.write("GPU=(configuration.gpu.rawValue), FPS=(configuration.displayFPS)")
+        EmulationLog.shared.write("Starting \(configuration.name)")
+        EmulationLog.shared.write("Guest: \(configuration.bootWindows ? "Windows" : "Linux")")
+        EmulationLog.shared.write("CPU=\(configuration.architecture.rawValue) RAM=\(configuration.memoryMB)MB CPUs=\(configuration.cpuCount)")
+        EmulationLog.shared.write("Accelerator=\(configuration.accelerator.rawValue), JIT=\(configuration.accelerator == .jit)")
+        EmulationLog.shared.write("GPU=\(configuration.gpu.rawValue), FPS=\(configuration.displayFPS)")
         WindowsRuntime.shared.prepare()
         TranslationCache.shared.prepare()
         ShaderCache.shared.prepare()
@@ -30,7 +30,7 @@ final class VMEngine {
         guard case .running = state else { return }
         state = .stopping
         WindowsRuntime.shared.stop()
-        EmulationLog.shared.write("Stopping (configuration.name)")
+        EmulationLog.shared.write("Stopping \(configuration.name)")
         state = .stopped
     }
 }

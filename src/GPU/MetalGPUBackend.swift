@@ -26,21 +26,14 @@ final class MetalGPUBackend: NSObject, GPUBackend {
         view.framebufferOnly = true
         view.enableSetNeedsDisplay = true
         view.isPaused = true
-        view.delegate = self
         view.preferredFramesPerSecond = min(frameRate, UIScreen.main.maximumFramesPerSecond)
-
-        if #available(iOS 15.0, *) {
-            let maximum = UIScreen.main.maximumFramesPerSecond
-            view.preferredFrameRateRange = CAFrameRateRange(
-                minimum: min(24, maximum),
-                maximum: min(frameRate, maximum),
-                preferred: min(frameRate, maximum)
-            )
-        }
-
+        
         if let device {
             let descriptor = MTLTextureDescriptor.texture2DDescriptor(
-                pixelFormat: .bgra8Unorm, width: width, height: height, mipmapped: false
+                pixelFormat: .bgra8Unorm,
+                width: width,
+                height: height,
+                mipmapped: false
             )
             descriptor.usage = [.shaderRead, .shaderWrite]
             texture = device.makeTexture(descriptor: descriptor)
@@ -93,14 +86,12 @@ extension MetalGPUBackend: MTKViewDelegate {
     func draw(in view: MTKView) {
         guard let drawable = view.currentDrawable,
               let commandBuffer = queue?.makeCommandBuffer(),
-              let source = texture,
-              let blit = commandBuffer.makeBlitCommandEncoder()
-        else { return }
+              let source = texture else { return }
 
+        let blit = commandBuffer.makeBlitCommandEncoder()
         let w = min(source.width, drawable.texture.width)
         let h = min(source.height, drawable.texture.height)
-
-        blit.copy(
+        blit?.copy(
             from: source,
             sourceSlice: 0,
             sourceLevel: 0,
@@ -111,7 +102,7 @@ extension MetalGPUBackend: MTKViewDelegate {
             destinationLevel: 0,
             destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0)
         )
-        blit.endEncoding()
+        blit?.endEncoding()
         commandBuffer.present(drawable)
         commandBuffer.commit()
     }

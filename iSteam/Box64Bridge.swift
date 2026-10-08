@@ -6,20 +6,21 @@ enum Box64Bridge {
     }
 
     static func run(executable: URL, workingDirectory: URL, arguments: [String]) -> Int32 {
-        var args = [executable.path] + arguments
-        var cArgs = args.map { strdup($0) }
-        cArgs.append(nil)
+        var strings = [executable.path] + arguments
+        var cStrings: [UnsafeMutablePointer<CChar>?] = strings.map { strdup($0) }
+        cStrings.append(nil)
+
         defer {
-            for pointer in cArgs.dropLast() {
-                free(pointer)
+            for pointer in cStrings {
+                if let pointer { free(pointer) }
             }
         }
 
-        return cArgs.withUnsafeBufferPointer { buffer in
+        return cStrings.withUnsafeMutableBufferPointer { buffer in
             box64Run(
                 executable.path,
                 workingDirectory.path,
-                Int32(args.count),
+                Int32(strings.count),
                 buffer.baseAddress
             )
         }
