@@ -17,12 +17,18 @@ enum Box64Bridge {
         }
 
         return cStrings.withUnsafeMutableBufferPointer { buffer in
-            box64Run(
-                executable.path,
-                workingDirectory.path,
-                Int32(strings.count),
-                buffer.baseAddress
-            )
+            let argv = buffer.map { pointer in
+                pointer.map { UnsafePointer($0) }
+            }
+
+            return argv.withUnsafeBufferPointer { unsafeBuffer in
+                box64Run(
+                    executable.path,
+                    workingDirectory.path,
+                    Int32(strings.count),
+                    unsafeBuffer.baseAddress
+                )
+            }
         }
     }
 }
