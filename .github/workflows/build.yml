@@ -3,8 +3,6 @@ name: Build i-Steam IPA
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -13,69 +11,70 @@ permissions:
 env:
   DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
   BOX64_REPO: https://github.com/cloverfield11/box64-ios-library.git
-  STIKJIT_REPO: https://github.com/StikDebug/StikJIT.git
 
 jobs:
   build:
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Show Xcode
-        run: xcodebuild -version
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          cmake --version
 
-      - name: Build Box64 iOS static library
+      - name: Build BoxiOS static library
         shell: bash
         run: |
           set -euo pipefail
+          rm -rf third_party
           git clone --depth 1 "$BOX64_REPO" third_party/box64
-          cmake -S third_party/box64 -B third_party/box64-build -G Xcode             -DCMAKE_SYSTEM_NAME=iOS             -DCMAKE_OSX_SYSROOT=iphoneos             -DCMAKE_OSX_ARCHITECTURES=arm64             -DCMAKE_BUILD_TYPE=Release             -DARM64=ON -DBOX64LIB=ON -DBOX64DYNAMIC=OFF -DNOGIT=ON -DCI=ON
-          cmake --build third_party/box64-build --config Release
+
+          cmake -S third_party/box64 -B third_party/box64-build             -DCMAKE_SYSTEM_NAME=iOS             -DCMAKE_OSX_SYSROOT=iphoneos             -DCMAKE_OSX_ARCHITECTURES=arm64             -DCMAKE_BUILD_TYPE=Release             -DARM64=ON             -DBOX64LIB=ON             -DBOX64DYNAMIC=OFF             -DNOGIT=ON             -DCI=ON
+
+          cmake --build third_party/box64-build --config Release --target box64
+
           mkdir -p box64-build/lib
-          find third_party/box64-build -type f -name "*.a" -exec cp {} box64-build/lib/ \;
-          test -n "$(find box64-build/lib -type f -name '*.a' -print -quit)"
+          find third_party/box64-build -type f -name 'libbox64.a' -exec cp {} box64-build/lib/libbox64.a \;
+          test -f box64-build/lib/libbox64.a
+          lipo -info box64-build/lib/libbox64.a || true
 
-      - name: Build StikJIT reference XCFramework
+      - name: Build iSteam
         shell: bash
         run: |
           set -euo pipefail
-          git clone --depth 1 "$STIKJIT_REPO" third_party/StikJIT
-          cd third_party/StikJIT
-          brew install xcodegen
-          xcodegen generate
-          xcodebuild archive -project StikJIT.xcodeproj -scheme StikJIT             -destination 'generic/platform=iOS'             -archivePath "$GITHUB_WORKSPACE/build/StikJIT-iOS"             SKIP_INSTALL=NO BUILD_LIBRARY_FOR_DISTRIBUTION=YES CODE_SIGNING_ALLOWED=NO
-          xcodebuild -create-xcframework             -framework "$GITHUB_WORKSPACE/build/StikJIT-iOS.xcarchive/Products/Library/Frameworks/StikJIT.framework"             -output "$GITHUB_WORKSPACE/build/StikJIT.xcframework"
+          rm -rf build
+          mkdir -p build
 
-      - name: Build unsigned iOS archive
+          xcodebuild             -project iSteam.xcodeproj             -scheme iSteam             -configuration Release             -sdk iphoneos             -destination 'generic/platform=iOS'             -archivePath "$PWD/build/iSteam.xcarchive"             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             CODE_SIGN_IDENTITY=""             ARCHS="arm64 arm64e"             ONLY_ACTIVE_ARCH=NO             LIBRARY_SEARCH_PATHS="$PWD/box64-build/lib"             OTHER_LDFLAGS="-ObjC -force_load $PWD/box64-build/lib/libbox64.a"             archive
+
+      - name: Package unsigned SideStore IPA
         shell: bash
         run: |
           set -euo pipefail
-          LIB="$(find box64-build/lib -type f -name '*.a' | head -n 1)"
-          xcodebuild -project iSteam.xcodeproj -scheme iSteam             -configuration Release -sdk iphoneos -destination 'generic/platform=iOS'             -archivePath build/iSteam.xcarchive             ARCHS="arm64 arm64e" ONLY_ACTIVE_ARCH=NO             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO             OTHER_LDFLAGS="-ObjC -force_load $PWD/$LIB"             LIBRARY_SEARCH_PATHS="$PWD/box64-build/lib" archive
+          APP="$PWD/build/iSteam.xcarchive/Products/Applications/iSteam.app"
+          test -d "$APP"
 
-      - name: Package SideStore IPA
-        shell: bash
-        run: |
-          set -euo pipefail
-          APP="$(find build/iSteam.xcarchive/Products/Applications -maxdepth 1 -name '*.app' -print -quit)"
-          test -n "$APP"
           rm -rf build/Payload
           mkdir -p build/Payload
-          cp -R "$APP" build/Payload/
-          ditto -c -k --sequesterRsrc --keepParent build/Payload build/iSteam-SideStore.ipa
+          cp -R "$APP" build/Payload/iSteam.app
+
+          /usr/bin/ditto -c -k --sequesterRsrc --keepParent             build/Payload build/iSteam-SideStore.ipa
+
           unzip -t build/iSteam-SideStore.ipa >/dev/null
 
-      - name: Upload IPA
+      - name: Upload SideStore IPA
         uses: actions/upload-artifact@v4
         with:
           name: iSteam-SideStore
           path: build/iSteam-SideStore.ipa
           if-no-files-found: error
 
-      - name: Upload archive
+      - name: Upload Xcode archive
         uses: actions/upload-artifact@v4
         with:
           name: iSteam-xcarchive
