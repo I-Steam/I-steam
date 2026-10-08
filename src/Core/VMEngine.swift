@@ -16,7 +16,8 @@ final class VMEngine {
         guard case .stopped = state else { return }
         state = .starting
         EmulationLog.shared.write("Starting \(configuration.name)")
-        EmulationLog.shared.write("Guest: \(configuration.bootWindows ? "Windows" : "Linux")")
+        let guestName = configuration.bootWindows ? "Windows" : "Linux"
+        EmulationLog.shared.write("Guest: \(guestName)")
         EmulationLog.shared.write("CPU=\(configuration.architecture.rawValue) RAM=\(configuration.memoryMB)MB CPUs=\(configuration.cpuCount)")
         EmulationLog.shared.write("Accelerator=\(configuration.accelerator.rawValue), JIT=\(configuration.accelerator == .jit)")
         EmulationLog.shared.write("GPU=\(configuration.gpu.rawValue), FPS=\(configuration.displayFPS)")

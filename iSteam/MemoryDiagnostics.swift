@@ -3,7 +3,7 @@ import Darwin
 
 enum MemoryDiagnostics {
     static var availableMemory: UInt64 {
-        UInt64(os_proc_available_memory())
+        UInt64(max(0, os_proc_available_memory()))
     }
 
     static var formattedAvailableMemory: String {

@@ -10,11 +10,7 @@ final class VMDisplayViewController: UIViewController {
 
     init(configuration: VMConfiguration) {
         let size = RuntimeSettings.shared.renderResolution
-        let backend = MetalGPUBackend(
-            width: size.width,
-            height: size.height,
-            frameRate: RuntimeSettings.shared.frameRate.value
-        )
+        let backend = MetalGPUBackend(width: size.width, height: size.height, frameRate: RuntimeSettings.shared.frameRate.value)
         self.gpu = backend
         self.virtioGPU = VirtIOGPU(backend: backend)
         self.engine = VMEngine(configuration: configuration)
@@ -23,7 +19,6 @@ final class VMDisplayViewController: UIViewController {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-
     override var prefersStatusBarHidden: Bool { true }
     override var prefersHomeIndicatorAutoHidden: Bool { true }
 
@@ -41,7 +36,6 @@ final class VMDisplayViewController: UIViewController {
         status.layer.cornerRadius = 8
         status.clipsToBounds = true
         view.addSubview(status)
-
         NSLayoutConstraint.activate([
             gpu.view.topAnchor.constraint(equalTo: view.topAnchor),
             gpu.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -51,40 +45,33 @@ final class VMDisplayViewController: UIViewController {
             status.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             status.heightAnchor.constraint(equalToConstant: 30)
         ])
-
-        if vrSettings.mode == .cardboard {
-            applyCardboardLayout()
-        }
+        if vrSettings.mode == .cardboard { applyCardboardLayout() }
         if vrSettings.touchGamepadEnabled { addTouchGamepad() }
         configureControllerInput()
+        configureMotionInput()
         virtioGPU.start()
         engine.start()
     }
 
     private func applyCardboardLayout() {
-        // Cardboard optics need two views/lenses. This layout provides the stereo viewport scaffold;
-        // true per-eye rendering requires a 3D guest renderer with eye-offset camera support.
+        // Layout scaffold only; true stereo needs independent per-eye guest rendering.
         gpu.view.transform = CGAffineTransform(scaleX: 0.5, y: 1)
         gpu.view.layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
         gpu.view.frame = CGRect(x: 0, y: 0, width: view.bounds.width * 2, height: view.bounds.height)
         gpu.view.contentMode = .scaleAspectFit
-        status.text = "CARDBOARD • stereo layout scaffold • head strapped to phone"
+        status.text = "CARDBOARD • motion look prototype"
     }
 
     private func addTouchGamepad() {
         let pad = TouchGamepadView()
         pad.translatesAutoresizingMaskIntoConstraints = false
-        pad.onMove = { point in
-            EmulationLog.shared.write(String(format: "Touch stick x=%.2f y=%.2f", point.x, point.y))
-        }
+        pad.onMove = { point in EmulationLog.shared.write(String(format: "Touch stick x=%.2f y=%.2f", point.x, point.y)) }
         pad.onLook = { [weak self] delta in
             guard VRSettings.shared.pointerLockEnabled else { return }
             self?.view.isMultipleTouchEnabled = true
             EmulationLog.shared.write(String(format: "Pointer-look delta %.1f, %.1f", delta.x, delta.y))
         }
-        pad.onButton = { key, down in
-            EmulationLog.shared.write("Touch gamepad \(key): \(down ? "down" : "up")")
-        }
+        pad.onButton = { key, down in EmulationLog.shared.write("Touch gamepad \(key): \(down ? "down" : "up")") }
         view.addSubview(pad)
         NSLayoutConstraint.activate([
             pad.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -106,8 +93,23 @@ final class VMDisplayViewController: UIViewController {
         input.start()
     }
 
+    private func configureMotionInput() {
+        let motion = MotionInputManager.shared
+        motion.onOrientation = { [weak self] yaw, pitch, roll in
+            DispatchQueue.main.async {
+                self?.status.text = String(format: "MOTION • Y %.2f P %.2f R %.2f", yaw, pitch, roll)
+            }
+        }
+        motion.onLookDelta = { yaw, pitch in
+            guard VRSettings.shared.pointerLockEnabled else { return }
+            EmulationLog.shared.write(String(format: "Motion look Δx=%.4f Δy=%.4f", yaw, pitch))
+        }
+        if vrSettings.mode == .cardboard { motion.start() }
+    }
+
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
+        MotionInputManager.shared.stop()
         ControllerInputManager.shared.stop()
         engine.stop()
         virtioGPU.stop()

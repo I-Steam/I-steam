@@ -1,34 +1,30 @@
 import Foundation
 
 enum Box64Bridge {
-    static var isAvailable: Bool {
-        box64IsAvailable()
-    }
+    static var isAvailable: Bool { box64IsAvailable() }
 
     static func run(executable: URL, workingDirectory: URL, arguments: [String]) -> Int32 {
-        var strings = [executable.path] + arguments
-        var cStrings: [UnsafeMutablePointer<CChar>?] = strings.map { strdup($0) }
-        cStrings.append(nil)
-
+        let strings = [executable.path] + arguments
+        var allocated: [UnsafeMutablePointer<CChar>?] = strings.map { strdup($0) }
         defer {
-            for pointer in cStrings {
+            for pointer in allocated {
                 if let pointer { free(pointer) }
             }
         }
 
-        return cStrings.withUnsafeMutableBufferPointer { buffer in
-            let argv = buffer.map { pointer in
-                pointer.map { UnsafePointer($0) }
-            }
+        var argv: [UnsafePointer<CChar>?] = allocated.map { pointer in
+            guard let pointer else { return nil }
+            return UnsafePointer<CChar>(pointer)
+        }
+        argv.append(nil)
 
-            return argv.withUnsafeBufferPointer { unsafeBuffer in
-                box64Run(
-                    executable.path,
-                    workingDirectory.path,
-                    Int32(strings.count),
-                    unsafeBuffer.baseAddress
-                )
-            }
+        return argv.withUnsafeMutableBufferPointer { buffer in
+            box64Run(
+                executable.path,
+                workingDirectory.path,
+                Int32(strings.count),
+                buffer.baseAddress
+            )
         }
     }
 }

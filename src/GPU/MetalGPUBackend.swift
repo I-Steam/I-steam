@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import Metal
 import MetalKit
 
@@ -23,19 +24,20 @@ final class MetalGPUBackend: NSObject, GPUBackend {
         super.init()
 
         view.colorPixelFormat = .bgra8Unorm
-        view.framebufferOnly = true
+        view.framebufferOnly = false
         view.enableSetNeedsDisplay = true
         view.isPaused = true
         view.preferredFramesPerSecond = min(frameRate, UIScreen.main.maximumFramesPerSecond)
-        
+        view.delegate = self
+
         if let device {
             let descriptor = MTLTextureDescriptor.texture2DDescriptor(
                 pixelFormat: .bgra8Unorm,
-                width: width,
-                height: height,
+                width: max(1, width),
+                height: max(1, height),
                 mipmapped: false
             )
-            descriptor.usage = [.shaderRead, .shaderWrite]
+            descriptor.usage = [.shaderRead, .shaderWrite, .renderTarget]
             texture = device.makeTexture(descriptor: descriptor)
         }
     }
@@ -59,10 +61,7 @@ final class MetalGPUBackend: NSObject, GPUBackend {
                 bytesPerRow: width * 4
             )
         }
-
-        DispatchQueue.main.async { [weak self] in
-            self?.view.setNeedsDisplay()
-        }
+        DispatchQueue.main.async { [weak self] in self?.view.setNeedsDisplay() }
     }
 
     private static func testPattern(width: Int, height: Int) -> Data {
@@ -87,19 +86,14 @@ extension MetalGPUBackend: MTKViewDelegate {
         guard let drawable = view.currentDrawable,
               let commandBuffer = queue?.makeCommandBuffer(),
               let source = texture else { return }
-
         let blit = commandBuffer.makeBlitCommandEncoder()
         let w = min(source.width, drawable.texture.width)
         let h = min(source.height, drawable.texture.height)
         blit?.copy(
-            from: source,
-            sourceSlice: 0,
-            sourceLevel: 0,
+            from: source, sourceSlice: 0, sourceLevel: 0,
             sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
             sourceSize: MTLSize(width: w, height: h, depth: 1),
-            to: drawable.texture,
-            destinationSlice: 0,
-            destinationLevel: 0,
+            to: drawable.texture, destinationSlice: 0, destinationLevel: 0,
             destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0)
         )
         blit?.endEncoding()
