@@ -49,7 +49,9 @@ final class SettingsViewController: UITableViewController {
             cell.accessoryType = RuntimeSettings.shared.acceleration == backend ? .checkmark : .none
         case 2:
             let resolution = resolutions[indexPath.row]
-            c.text = resolution.rawValue
+            c.text = resolution == .custom && RuntimeSettings.shared.resolution == .custom
+                ? "Custom ((RuntimeSettings.shared.customWidth) × (RuntimeSettings.shared.customHeight))"
+                : resolution.rawValue
             c.secondaryText = resolution.detail
             cell.accessoryType = RuntimeSettings.shared.resolution == resolution ? .checkmark : .none
         case 3:
@@ -86,8 +88,13 @@ final class SettingsViewController: UITableViewController {
             RuntimeSettings.shared.acceleration = accelerators[indexPath.row]
             tableView.reloadSections(IndexSet(integer: 1), with: .automatic)
         case 2:
-            RuntimeSettings.shared.resolution = resolutions[indexPath.row]
-            tableView.reloadSections(IndexSet(integer: 2), with: .automatic)
+            let resolution = resolutions[indexPath.row]
+            if resolution == .custom {
+                showCustomResolutionEditor()
+            } else {
+                RuntimeSettings.shared.resolution = resolution
+                tableView.reloadSections(IndexSet(integer: 2), with: .automatic)
+            }
         case 3:
             RuntimeSettings.shared.frameRate = frameRates[indexPath.row]
             tableView.reloadSections(IndexSet(integer: 3), with: .automatic)
@@ -101,5 +108,56 @@ final class SettingsViewController: UITableViewController {
             alert.addAction(UIAlertAction(title: "OK", style: .default))
             present(alert, animated: true)
         }
+    }
+
+    private func showCustomResolutionEditor() {
+        let alert = UIAlertController(
+            title: "Custom Resolution",
+            message: "Enter the internal VM/render resolution. Width: 320–8192, height: 240–8192.",
+            preferredStyle: .alert
+        )
+
+        alert.addTextField { field in
+            field.placeholder = "Width"
+            field.keyboardType = .numberPad
+            field.text = "(RuntimeSettings.shared.customWidth)"
+        }
+        alert.addTextField { field in
+            field.placeholder = "Height"
+            field.keyboardType = .numberPad
+            field.text = "(RuntimeSettings.shared.customHeight)"
+        }
+
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Apply", style: .default) { [weak self, weak alert] _ in
+            guard let self, let alert,
+                  let widthText = alert.textFields?[0].text,
+                  let heightText = alert.textFields?[1].text,
+                  let width = Int(widthText),
+                  let height = Int(heightText),
+                  (320...8192).contains(width),
+                  (240...8192).contains(height)
+            else {
+                self?.showInvalidResolutionAlert()
+                return
+            }
+
+            RuntimeSettings.shared.customWidth = width
+            RuntimeSettings.shared.customHeight = height
+            RuntimeSettings.shared.resolution = .custom
+            self.tableView.reloadSections(IndexSet(integer: 2), with: .automatic)
+        })
+
+        present(alert, animated: true)
+    }
+
+    private func showInvalidResolutionAlert() {
+        let alert = UIAlertController(
+            title: "Invalid Resolution",
+            message: "Use a width from 320 to 8192 and a height from 240 to 8192.",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
     }
 }
