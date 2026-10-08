@@ -28,20 +28,27 @@ struct VMConfiguration: Codable, Identifiable, Equatable {
     var bootWindows: Bool
 
     static var defaultWindows: VMConfiguration {
-        VMConfiguration(
+        let resolution = RuntimeSettings.shared.resolution
+        return VMConfiguration(
             id: UUID(), name: "Windows Steam", architecture: .x86_64,
             memoryMB: 4096, cpuCount: 4, accelerator: .jit,
-            gpu: .virtioRAMFBGL, displayWidth: 1280, displayHeight: 720,
-            displayFPS: RuntimeSettings.shared.frameRate.value, bootWindows: true
+            gpu: .virtioRAMFBGL,
+            displayWidth: resolution.width,
+            displayHeight: resolution.height,
+            displayFPS: RuntimeSettings.shared.frameRate.value,
+            bootWindows: true
         )
     }
 
     static var defaultLinux: VMConfiguration {
-        VMConfiguration(
+        let resolution = RuntimeSettings.shared.resolution
+        return VMConfiguration(
             id: UUID(), name: "Linux", architecture: .x86_64, memoryMB: 2048,
             cpuCount: 4, accelerator: .jit, gpu: .virtioGPUGL,
-            displayWidth: 1280, displayHeight: 800,
-            displayFPS: RuntimeSettings.shared.frameRate.value, bootWindows: false
+            displayWidth: resolution.width,
+            displayHeight: resolution.height,
+            displayFPS: RuntimeSettings.shared.frameRate.value,
+            bootWindows: false
         )
     }
 }
