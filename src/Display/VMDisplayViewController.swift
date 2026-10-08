@@ -34,7 +34,7 @@ final class VMDisplayViewController: UIViewController {
         status.textColor = .white
         status.backgroundColor = UIColor.black.withAlphaComponent(0.7)
         status.font = .monospacedSystemFont(ofSize: 12, weight: .medium)
-        status.text = "VirtIO GPU • Metal • (RuntimeSettings.shared.frameRate.rawValue)"
+        status.text = "(RuntimeSettings.shared.resolution.rawValue) • (RuntimeSettings.shared.frameRate.rawValue) • Metal"
         status.textAlignment = .center
         status.layer.cornerRadius = 8
         status.clipsToBounds = true
