@@ -51,7 +51,7 @@ final class VMDisplayViewController: UIViewController {
             status.heightAnchor.constraint(equalToConstant: 30)
         ])
         if vrSettings.mode == .cardboard { applyCardboardLayout() }
-        if vrSettings.touchGamepadEnabled { addTouchGamepad() }
+        addTouchGamepad() // Show the on-screen gamepad by default; settings can be wired to hide it later.
         addKeyboardControls()
         configureControllerInput()
         configureMotionInput()
