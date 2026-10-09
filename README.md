@@ -1,80 +1,44 @@
 # i-Steam
 
-i-Steam is an iOS Steam-focused compatibility runtime and Windows VM frontend.
+i-Steam is an experimental iOS frontend for exploring game-runtime and virtual-machine concepts. It is **not a finished Steam client or general-purpose Windows gaming solution**.
 
-The architecture now combines the **LiveExec32-style guest-process model** with an optional **QEMU full-system VM**:
+## What is in the project
+- iOS library, launch setup, display/input settings, and diagnostics UI.
+- Prototype Windows PE / Linux ELF inspection and guest-process scaffolding.
+- VM configuration and display scaffolding, with QEMU/TCG as a planned full-system emulation direction.
+- Metal display experiments and frame-pacing/resolution settings.
+- Custom touchscreen keyboard and hardware-keyboard F-key bar UI.
+- CI packaging for an unsigned SideStore IPA.
 
-```
-Steam game / Windows executable
-        ↓
-Guest process runtime
-        ↓
-x86-64 translation + JIT
-        ↓
-Windows API / DLL compatibility layer
-        ↓
-Virtual GPU / D3D translation
-        ↓
-Metal
-        ↓
-iOS
-```
+## Runtime choices
+The interface offers Windows VM, Windows Runtime, and Linux VM choices. These are **prototype selections**, not proof that the corresponding OS or game can boot. Apple's Hypervisor.framework is not available to ordinary iOS apps, so supported emulation approaches are required.
 
-## Runtime modes
+## Current implementation status
+- **Main menu and settings:** UI flows are implemented; Boolean settings use native toggle switches.
+- **Import custom OS:** image files can be copied into app storage. Booting imported ISO/disk images is not implemented.
+- **Touch keyboard / F-key bar:** UI prototype. Full guest key injection requires a functioning runtime input bridge.
+- **VM / game runtime:** incomplete scaffolding. Do not assume QEMU, Box64, Wine/Proton, Windows APIs, or GPU translation are fully integrated just because a menu option exists.
+- **Graphics and performance:** settings and display infrastructure do not guarantee a particular FPS or game compatibility.
+- **LiveContainer:** a successful build or simulator launch does not guarantee the IPA will launch in LiveContainer on a physical device.
 
-- **Windows Runtime** — LiveExec-style process execution path. This is the fast path for compatible software.
-- **Windows VM** — QEMU full-system Windows path for software that needs a complete guest OS.
-- **Linux VM** — development/compatibility VM.
+## Install guide
+See **[INSTALL.md — Install i-Steam on iPad or iPhone](INSTALL.md)** for downloading the correct artifact, installing through SideStore, and troubleshooting.
 
-The VM backend uses QEMU TCG/JIT on iOS. Apple's Hypervisor.framework is not available to normal iOS applications, so the Hypervisor option is exposed in Settings for capability reporting but is disabled when unavailable.
+## Build and test
+The [GitHub Actions workflow](https://github.com/I-Steam/I-steam/actions/workflows/build.yml) builds the iOS device app, checks executable metadata, attempts a simulator install/launch smoke test, and packages `iSteam-SideStore.ipa`.
 
-## LiveExec-inspired architecture
+A simulator launch test is not a physical-device test and does not verify LiveContainer compatibility. Check the workflow logs if any step fails.
 
-The runtime is split into:
+## Credits and acknowledgements
+This project is independently developed. These projects are acknowledged as inspiration or technical references; this does not imply that their code is included or that they endorse i-Steam.
 
-- Guest process and PE loading
-- Guest memory and thread management
-- x86-64 translation/JIT
-- Windows API/DLL compatibility
-- Root filesystem
-- Crash diagnostics
-- persistent translation cache
+- **[QEMU](https://www.qemu.org/)** — open-source machine emulation and virtualization project; reference for the full-system VM direction.
+- **[Box64](https://github.com/ptitSeb/box64)** — x86-64 user-mode emulation project; reference for possible compatibility/runtime work.
+- **[StikDebug](https://github.com/StephenDev0/StikDebug)** — reference for JIT-related workflows and iOS development.
+- **LiveExec32** — architectural inspiration for guest-process execution. Add the exact upstream repository URL and its license details before treating it as a code dependency.
+- **MeloNX** — inspiration for emulator UI/performance ideas. Add the exact upstream repository URL if a specific upstream or fork is intended.
 
-The uploaded LiveExec32 source is used as an architectural reference. Its ARM32/Darwin-specific implementation is not blindly reused for x86-64 Windows binaries.
+Third-party projects retain their own licenses and copyrights. Before redistributing third-party source or binaries, verify the exact upstream repository, license, and required notices. Do not imply endorsement.
 
-## Graphics
-
-The host display path supports:
-
-- 24 FPS minimum frame pacing
-- 60 FPS
-- 120 FPS on displays that expose 120 Hz
-- Metal-backed VirtIO framebuffer presentation
-- persistent shader-cache infrastructure
-- adaptive resolution hooks
-
-120 FPS is only available when the physical display and OS expose a 120 Hz refresh rate.
-
-## Performance
-
-MeloNX-inspired ideas are represented by:
-
-- persistent translation caching
-- shader caching
-- JIT-aware memory management
-- thermal/performance monitoring
-- frame pacing
-- reduced-resolution performance mode
-
-These are infrastructure components; they do not guarantee a particular FPS in every game.
-
-## Windows / Steam
-
-The project is designed around Windows Steam games, but compatibility still depends on the Windows runtime, graphics API, game dependencies and anti-cheat requirements. i-Steam does not bypass or defeat kernel anti-cheat systems.
-
-## Build
-
-GitHub Actions generates the Xcode project, builds the Box64 compatibility runtime and packages an unsigned `iSteam-SideStore.ipa`.
-
-## disclaimer 
-this project is not affiliated or endorsed by steam or valve in any way
+## Disclaimer
+i-Steam is not affiliated with, endorsed by, or sponsored by Valve Corporation or Steam. Steam is a Valve trademark. This project does not bypass anti-cheat systems and does not promise that games requiring kernel drivers will work.
