@@ -36,13 +36,16 @@ final class SettingsViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "Setting", for: indexPath)
         var c = cell.defaultContentConfiguration()
+        cell.accessoryView = nil
         cell.accessoryType = .none
         switch indexPath.section {
         case 0:
-            let mode = vmModes[indexPath.row]; c.text = mode.rawValue; c.secondaryText = mode.detail
+            let mode = vmModes[indexPath.row]
+            c.text = mode.rawValue; c.secondaryText = mode.detail
             cell.accessoryType = RuntimeSettings.shared.vmMode == mode ? .checkmark : .none
         case 1:
-            let mode = accelerators[indexPath.row]; c.text = mode.rawValue; c.secondaryText = mode.detail
+            let mode = accelerators[indexPath.row]
+            c.text = mode.rawValue; c.secondaryText = mode.detail
             cell.accessoryType = RuntimeSettings.shared.acceleration == mode ? .checkmark : .none
         case 2:
             let mode = resolutions[indexPath.row]
@@ -50,40 +53,63 @@ final class SettingsViewController: UITableViewController {
             c.secondaryText = mode.detail
             cell.accessoryType = RuntimeSettings.shared.resolution == mode ? .checkmark : .none
         case 3:
-            let rate = frameRates[indexPath.row]; c.text = rate.rawValue; c.secondaryText = rate.detail
+            let rate = frameRates[indexPath.row]
+            c.text = rate.rawValue; c.secondaryText = rate.detail
             cell.accessoryType = RuntimeSettings.shared.frameRate == rate ? .checkmark : .none
         case 4:
             if indexPath.row < vrModes.count {
-                let mode = vrModes[indexPath.row]; c.text = mode.rawValue; c.secondaryText = mode.detail
+                let mode = vrModes[indexPath.row]
+                c.text = mode.rawValue; c.secondaryText = mode.detail
                 cell.accessoryType = VRSettings.shared.mode == mode ? .checkmark : .none
             } else if indexPath.row == vrModes.count {
                 c.text = "Pointer lock / relative look"
-                c.secondaryText = VRSettings.shared.pointerLockEnabled ? "Enabled for touch/controller look input" : "Disabled"
-                cell.accessoryType = VRSettings.shared.pointerLockEnabled ? .checkmark : .none
+                c.secondaryText = "Allow relative look input"
+                cell.accessoryView = makeSwitch(isOn: VRSettings.shared.pointerLockEnabled, action: #selector(togglePointerLock(_:)))
             } else {
                 c.text = "Virtual touchscreen gamepad"
-                c.secondaryText = VRSettings.shared.touchGamepadEnabled ? "Shown in display" : "Hidden"
-                cell.accessoryType = VRSettings.shared.touchGamepadEnabled ? .checkmark : .none
+                c.secondaryText = "Show on the display"
+                cell.accessoryView = makeSwitch(isOn: VRSettings.shared.touchGamepadEnabled, action: #selector(toggleTouchGamepad(_:)))
             }
         case 5:
-            let method = jitMethods[indexPath.row]; c.text = method.rawValue
+            let method = jitMethods[indexPath.row]
+            c.text = method.rawValue
             cell.accessoryType = JITCoordinator.shared.selectedMethod == method ? .checkmark : .none
         case 6:
-            c.text = "Crash Log"; c.secondaryText = "View saved crash information"; cell.accessoryType = .disclosureIndicator
+            c.text = "Crash Log"; c.secondaryText = "View saved crash information"
+            cell.accessoryType = .disclosureIndicator
         default:
-            c.text = "Performance Diagnostics"; c.secondaryText = PerformanceManager.shared.summary; cell.accessoryType = .disclosureIndicator
+            c.text = "Performance Diagnostics"; c.secondaryText = PerformanceManager.shared.summary
+            cell.accessoryType = .disclosureIndicator
         }
         cell.contentConfiguration = c
         return cell
+    }
+
+    private func makeSwitch(isOn: Bool, action: Selector) -> UISwitch {
+        let control = UISwitch()
+        control.isOn = isOn
+        control.addTarget(self, action: action, for: .valueChanged)
+        return control
+    }
+
+    @objc private func togglePointerLock(_ sender: UISwitch) {
+        VRSettings.shared.pointerLockEnabled = sender.isOn
+    }
+
+    @objc private func toggleTouchGamepad(_ sender: UISwitch) {
+        VRSettings.shared.touchGamepadEnabled = sender.isOn
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         switch indexPath.section {
         case 0:
-            RuntimeSettings.shared.vmMode = vmModes[indexPath.row]; tableView.reloadSections(IndexSet(integer: 0), with: .automatic)
+            RuntimeSettings.shared.vmMode = vmModes[indexPath.row]
+            UserDefaults.standard.set(vmModes[indexPath.row].rawValue, forKey: "iSteam.lastVMMode")
+            tableView.reloadSections(IndexSet(integer: 0), with: .automatic)
         case 1:
-            RuntimeSettings.shared.acceleration = accelerators[indexPath.row]; tableView.reloadSections(IndexSet(integer: 1), with: .automatic)
+            RuntimeSettings.shared.acceleration = accelerators[indexPath.row]
+            tableView.reloadSections(IndexSet(integer: 1), with: .automatic)
         case 2:
             let mode = resolutions[indexPath.row]
             if mode == .custom { showCustomResolutionEditor() }
@@ -93,31 +119,28 @@ final class SettingsViewController: UITableViewController {
             if mode == .custom { showCustomFPSEditor() }
             else { RuntimeSettings.shared.frameRate = mode; tableView.reloadSections(IndexSet(integer: 3), with: .automatic) }
         case 4:
-            if indexPath.row < vrModes.count {
-                VRSettings.shared.mode = vrModes[indexPath.row]
-            } else if indexPath.row == vrModes.count {
-                VRSettings.shared.pointerLockEnabled.toggle()
-            } else {
-                VRSettings.shared.touchGamepadEnabled.toggle()
-            }
+            guard indexPath.row < vrModes.count else { return }
+            VRSettings.shared.mode = vrModes[indexPath.row]
             tableView.reloadSections(IndexSet(integer: 4), with: .automatic)
         case 5:
-            JITCoordinator.shared.selectedMethod = jitMethods[indexPath.row]; tableView.reloadSections(IndexSet(integer: 5), with: .automatic)
+            JITCoordinator.shared.selectedMethod = jitMethods[indexPath.row]
+            tableView.reloadSections(IndexSet(integer: 5), with: .automatic)
         case 6:
             navigationController?.pushViewController(CrashLogViewController(), animated: true)
         default:
             let alert = UIAlertController(title: "Performance", message: PerformanceManager.shared.detailedSummary, preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: "OK", style: .default)); present(alert, animated: true)
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
         }
     }
 
     private func showCustomFPSEditor() {
-        let alert = UIAlertController(title: "Custom FPS", message: "Choose a target between 24 and 120 FPS. Actual frame rate depends on the iPad display, game, thermal limits and renderer.", preferredStyle: .alert)
+        let alert = UIAlertController(title: "Custom FPS", message: "Choose a target between 24 and 120 FPS.", preferredStyle: .alert)
         alert.addTextField { field in field.placeholder = "FPS (24–120)"; field.keyboardType = .numberPad; field.text = "\(RuntimeSettings.shared.customFPS)" }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         alert.addAction(UIAlertAction(title: "Apply", style: .default) { [weak self, weak alert] _ in
             guard let text = alert?.textFields?.first?.text, let value = Int(text), (24...120).contains(value) else {
-                let error = UIAlertController(title: "Invalid FPS", message: "Enter a whole number from 24 to 120.", preferredStyle: .alert)
+                let error = UIAlertController(title: "Invalid FPS", message: "Enter a number from 24 to 120.", preferredStyle: .alert)
                 error.addAction(UIAlertAction(title: "OK", style: .default)); self?.present(error, animated: true); return
             }
             RuntimeSettings.shared.customFPS = value
@@ -128,7 +151,7 @@ final class SettingsViewController: UITableViewController {
     }
 
     private func showCustomResolutionEditor() {
-        let alert = UIAlertController(title: "Custom Resolution", message: "Internal render size. Width 320–8192; height 240–8192.", preferredStyle: .alert)
+        let alert = UIAlertController(title: "Custom Resolution", message: "Width 320–8192; height 240–8192.", preferredStyle: .alert)
         alert.addTextField { $0.placeholder = "Width"; $0.keyboardType = .numberPad; $0.text = "\(RuntimeSettings.shared.customWidth)" }
         alert.addTextField { $0.placeholder = "Height"; $0.keyboardType = .numberPad; $0.text = "\(RuntimeSettings.shared.customHeight)" }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
@@ -148,6 +171,7 @@ final class SettingsViewController: UITableViewController {
 
     private func showInvalidResolutionAlert() {
         let alert = UIAlertController(title: "Invalid Resolution", message: "Use width 320–8192 and height 240–8192.", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default)); present(alert, animated: true)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
     }
 }
