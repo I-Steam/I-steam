@@ -1,4 +1,5 @@
 import UIKit
+import GameController
 
 final class VMDisplayViewController: UIViewController {
     private let gpu: MetalGPUBackend
@@ -7,6 +8,10 @@ final class VMDisplayViewController: UIViewController {
     private let status = UILabel()
     private var gamepad: TouchGamepadView?
     private let vrSettings = VRSettings.shared
+    private var keyboardPanel: KeyboardOverlayView?
+    private let keyboardToggle = UIButton(type: .system)
+    private let functionKeyBar = UIStackView()
+    private var keyboardObservers: [NSObjectProtocol] = []
 
     init(configuration: VMConfiguration) {
         let size = RuntimeSettings.shared.renderResolution
@@ -47,8 +52,11 @@ final class VMDisplayViewController: UIViewController {
         ])
         if vrSettings.mode == .cardboard { applyCardboardLayout() }
         if vrSettings.touchGamepadEnabled { addTouchGamepad() }
+        addKeyboardControls()
         configureControllerInput()
         configureMotionInput()
+        registerKeyboardNotifications()
+        refreshHardwareKeyboardState()
         virtioGPU.start()
         engine.start()
     }
@@ -62,6 +70,88 @@ final class VMDisplayViewController: UIViewController {
         status.text = "CARDBOARD • motion look prototype"
     }
 
+    private func addKeyboardControls() {
+        keyboardToggle.translatesAutoresizingMaskIntoConstraints = false
+        keyboardToggle.setTitle("⌨ Keyboard", for: .normal)
+        keyboardToggle.setTitleColor(.white, for: .normal)
+        keyboardToggle.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
+        keyboardToggle.backgroundColor = UIColor.black.withAlphaComponent(0.78)
+        keyboardToggle.layer.cornerRadius = 9
+        keyboardToggle.contentEdgeInsets = UIEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
+        keyboardToggle.addTarget(self, action: #selector(toggleTouchKeyboard), for: .touchUpInside)
+        view.addSubview(keyboardToggle)
+
+        functionKeyBar.translatesAutoresizingMaskIntoConstraints = false
+        functionKeyBar.axis = .horizontal
+        functionKeyBar.alignment = .fill
+        functionKeyBar.distribution = .fillEqually
+        functionKeyBar.spacing = 4
+        functionKeyBar.backgroundColor = UIColor.black.withAlphaComponent(0.84)
+        for number in 1...12 {
+            let key = "F\(number)"
+            let button = UIButton(type: .system)
+            button.setTitle(key, for: .normal)
+            button.titleLabel?.font = .systemFont(ofSize: 11, weight: .bold)
+            button.setTitleColor(.white, for: .normal)
+            button.backgroundColor = UIColor(white: 0.24, alpha: 1)
+            button.layer.cornerRadius = 5
+            button.addAction(UIAction { [weak self] _ in self?.emitKeyboardKey(key) }, for: .touchUpInside)
+            functionKeyBar.addArrangedSubview(button)
+        }
+        view.addSubview(functionKeyBar)
+        functionKeyBar.isHidden = true
+
+        let panel = KeyboardOverlayView { [weak self] key in self?.emitKeyboardKey(key) }
+        panel.translatesAutoresizingMaskIntoConstraints = false
+        panel.isHidden = true
+        view.addSubview(panel)
+        keyboardPanel = panel
+
+        NSLayoutConstraint.activate([
+            keyboardToggle.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
+            keyboardToggle.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
+            functionKeyBar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
+            functionKeyBar.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
+            functionKeyBar.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -4),
+            functionKeyBar.heightAnchor.constraint(equalToConstant: 38),
+            panel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
+            panel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
+            panel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -4),
+            panel.heightAnchor.constraint(equalToConstant: 238)
+        ])
+    }
+
+    @objc private func toggleTouchKeyboard() {
+        guard let panel = keyboardPanel else { return }
+        panel.isHidden.toggle()
+        keyboardToggle.setTitle(panel.isHidden ? "⌨ Keyboard" : "⌨ Hide keyboard", for: .normal)
+        if !panel.isHidden { functionKeyBar.isHidden = true }
+        else { refreshHardwareKeyboardState() }
+    }
+
+    private func emitKeyboardKey(_ key: String) {
+        // The UI now emits normalized key names. Guest-process key injection
+        // still requires a real VM/input backend; current runtime logs events.
+        EmulationLog.shared.write("Keyboard input: \(key)")
+    }
+
+    private func registerKeyboardNotifications() {
+        let center = NotificationCenter.default
+        keyboardObservers.append(center.addObserver(
+            forName: Notification.Name("GCKeyboardDidConnectNotification"),
+            object: nil, queue: .main
+        ) { [weak self] _ in self?.refreshHardwareKeyboardState() })
+        keyboardObservers.append(center.addObserver(
+            forName: Notification.Name("GCKeyboardDidDisconnectNotification"),
+            object: nil, queue: .main
+        ) { [weak self] _ in self?.refreshHardwareKeyboardState() })
+    }
+
+    private func refreshHardwareKeyboardState() {
+        let connected = GCKeyboard.coalesced != nil
+        functionKeyBar.isHidden = !connected || keyboardPanel?.isHidden == false
+    }
+
     private func addTouchGamepad() {
         let pad = TouchGamepadView()
         pad.translatesAutoresizingMaskIntoConstraints = false
@@ -71,7 +161,7 @@ final class VMDisplayViewController: UIViewController {
             self?.view.isMultipleTouchEnabled = true
             EmulationLog.shared.write(String(format: "Pointer-look delta %.1f, %.1f", delta.x, delta.y))
         }
-        pad.onButton = { key, down in EmulationLog.shared.write("Touch gamepad \(key): \(down ? "down" : "up")") }
+        pad.onButton = { key, down in EmulationLog.shared.write("Touch gamepad \\(key): \\(down ? "down" : "up")") }
         view.addSubview(pad)
         NSLayoutConstraint.activate([
             pad.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -89,7 +179,7 @@ final class VMDisplayViewController: UIViewController {
             guard VRSettings.shared.pointerLockEnabled else { return }
             EmulationLog.shared.write(String(format: "Controller look %.2f, %.2f", x, y))
         }
-        input.onButton = { key, down in EmulationLog.shared.write("Controller \(key): \(down ? "down" : "up")") }
+        input.onButton = { key, down in EmulationLog.shared.write("Controller \\(key): \\(down ? "down" : "up")") }
         input.start()
     }
 
@@ -109,6 +199,8 @@ final class VMDisplayViewController: UIViewController {
 
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
+        keyboardObservers.forEach(NotificationCenter.default.removeObserver)
+        keyboardObservers.removeAll()
         MotionInputManager.shared.stop()
         ControllerInputManager.shared.stop()
         engine.stop()
