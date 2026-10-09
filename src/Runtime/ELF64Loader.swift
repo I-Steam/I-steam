@@ -38,8 +38,9 @@ final class ELF64Loader {
         }
     }
 
-    /// Loads PT_LOAD segments into guest memory after validating all segment
-    /// ranges first, so malformed images are rejected before memory is changed.
+    /// Validates every segment before changing guest memory. Zeroing all target
+    /// segments before copying any file bytes avoids wiping earlier file data
+    /// when valid PT_LOAD segments overlap.
     func load(_ url: URL, into memory: GuestMemory,
               expectedArchitecture: VMConfiguration.Architecture) throws -> Image {
         let data: Data
@@ -78,11 +79,16 @@ final class ELF64Loader {
             throw LoadError.unsupportedMachine(machine)
         }
 
+        // Validate before converting UInt64 to Int; a hostile ELF offset must
+        // not trap during integer conversion on the host.
+        guard phoff <= UInt64(data.count), phoff <= UInt64(Int.max) else {
+            throw LoadError.invalidProgramHeaderTable
+        }
         let tableOffset = Int(phoff)
         let entrySize = Int(phentsize)
         let entryCount = Int(phnum)
-        guard phoff <= UInt64(data.count),
-              entryCount == 0 || entrySize <= (data.count - tableOffset) / entryCount else {
+        guard entryCount == 0 ||
+              entrySize <= (data.count - tableOffset) / entryCount else {
             throw LoadError.invalidProgramHeaderTable
         }
 
@@ -113,7 +119,8 @@ final class ELF64Loader {
                   memorySize <= memory.size - loadAddress,
                   fileSize <= UInt64(Int.max),
                   loadAddress <= UInt64(Int.max),
-                  memorySize <= UInt64(Int.max) else {
+                  memorySize <= UInt64(Int.max),
+                  total <= UInt64.max - memorySize else {
                 throw LoadError.segmentOutsideGuestMemory
             }
 
@@ -123,7 +130,7 @@ final class ELF64Loader {
                                   flags: flags)
             segments.append(segment)
             pending.append((segment, Int(fileOffset)))
-            total = total.addingReportingOverflow(memorySize).overflow ? UInt64.max : total + memorySize
+            total += memorySize
         }
 
         guard !segments.isEmpty else { throw LoadError.noLoadableSegments }
@@ -133,18 +140,19 @@ final class ELF64Loader {
             throw LoadError.invalidSegment
         }
 
-        // All bounds have been checked above. Zero each segment first to clear
-        // its BSS region, then copy the bytes represented in the file.
-        for (segment, fileOffset) in pending {
-            let zeroed = Data(count: Int(segment.memorySize))
-            guard memory.write(zeroed, offset: segment.guestAddress) else {
+        // Clear all segment memory first, then copy all file-backed bytes.
+        // This also ensures BSS is zeroed without clearing overlapping data.
+        for (segment, _) in pending {
+            guard memory.write(Data(count: Int(segment.memorySize)),
+                               offset: segment.guestAddress) else {
                 throw LoadError.segmentOutsideGuestMemory
             }
-            if segment.fileSize > 0 {
-                let bytes = data.subdata(in: fileOffset..<(fileOffset + Int(segment.fileSize)))
-                guard memory.write(bytes, offset: segment.guestAddress) else {
-                    throw LoadError.segmentOutsideGuestMemory
-                }
+        }
+        for (segment, fileOffset) in pending where segment.fileSize > 0 {
+            let count = Int(segment.fileSize)
+            let bytes = data.subdata(in: fileOffset..<(fileOffset + count))
+            guard memory.write(bytes, offset: segment.guestAddress) else {
+                throw LoadError.segmentOutsideGuestMemory
             }
         }
 
