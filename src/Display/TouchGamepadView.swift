@@ -74,7 +74,7 @@ final class TouchGamepadView: UIView {
         }
         editButtonControl.frame = CGRect(x: bounds.midX - 52, y: 12, width: 104, height: 30)
         if !editMode { return }
-        for control in [leftStick, rightStick] + buttons {
+        for control in [leftStick as UIView, rightStick as UIView] + buttons {
             control.layer.borderColor = UIColor.systemYellow.cgColor
             control.layer.borderWidth = 2
             control.isUserInteractionEnabled = true
@@ -122,10 +122,10 @@ final class TouchGamepadView: UIView {
         editButtonControl.setTitle(editMode ? "Done Editing" : "Move / Resize", for: .normal)
         if !editMode {
             saveLayout()
-            for control in [leftStick, rightStick] + buttons {
+            for control in [leftStick as UIView, rightStick as UIView] + buttons {
                 control.layer.borderColor = UIColor.white.withAlphaComponent(0.65).cgColor
                 control.layer.borderWidth = 1
-                control.gestureRecognizers?.removeAll(where: { $0 is UIPanGestureRecognizer || $0 is UIPinchGestureRecognizer })
+                control.gestureRecognizers?.filter { $0 is UIPanGestureRecognizer || $0 is UIPinchGestureRecognizer }.forEach { control.removeGestureRecognizer($0) }
             }
         }
     }
@@ -165,7 +165,7 @@ final class TouchGamepadView: UIView {
 
     private func saveLayout() {
         var entries: [[String: CGFloat]] = []
-        for control in [leftStick, rightStick] + buttons {
+        for control in [leftStick as UIView, rightStick as UIView] + buttons {
             entries.append(["x": control.center.x, "y": control.center.y, "w": control.bounds.width, "h": control.bounds.height])
         }
         UserDefaults.standard.set(entries, forKey: layoutKey)
@@ -174,7 +174,7 @@ final class TouchGamepadView: UIView {
     private func restoreLayout() {
         guard let entries = UserDefaults.standard.array(forKey: layoutKey) as? [[String: CGFloat]],
               entries.count == buttons.count + 2 else { return }
-        for (index, control) in ([leftStick, rightStick] + buttons).enumerated() {
+        for (index, control) in ([leftStick as UIView, rightStick as UIView] + buttons).enumerated() {
             let item = entries[index]
             let width = item["w"] ?? control.bounds.width
             let height = item["h"] ?? control.bounds.height
