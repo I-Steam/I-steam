@@ -1,7 +1,7 @@
 import UIKit
 
-/// Full-page launch configuration. This persists selections and VM configuration slots;
-/// it does not claim to boot an OS until a real QEMU runtime is integrated.
+/// Full-page launch configuration. Saved settings are restored, but this screen remains
+/// a launch scaffold until a bootable QEMU runtime is bundled and connected.
 final class LaunchSetupViewController: UIViewController {
     private let guestControl = UISegmentedControl(items: ["Ubuntu", "Windows 10"])
     private let runtimeControl = UISegmentedControl(items: ["Full VM", "EXE library"])
@@ -9,6 +9,7 @@ final class LaunchSetupViewController: UIViewController {
     private let persistSwitch = UISwitch()
     private let slotField = UITextField()
     private let statusLabel = UILabel()
+    private var loadedConfiguration: VMConfiguration?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -51,7 +52,7 @@ final class LaunchSetupViewController: UIViewController {
         heading.font = .systemFont(ofSize: 30, weight: .bold)
         stack.addArrangedSubview(heading)
         let intro = UILabel()
-        intro.text = "Choose an operating system, display mode and a save slot. Ubuntu is the default. Windows 10 requires a user-provided installation ISO and a working VM runtime."
+        intro.text = "Choose an operating system, launch target and save slot. Ubuntu is the default. Windows 10 requires user-provided installation media. OS booting and EXE execution are not implemented in this build."
         intro.font = .preferredFont(forTextStyle: .subheadline)
         intro.textColor = .secondaryLabel
         intro.numberOfLines = 0
@@ -60,7 +61,7 @@ final class LaunchSetupViewController: UIViewController {
         addSection("Operating system", control: guestControl, to: stack)
         addSection("Launch target", control: runtimeControl, to: stack)
         addSwitchRow("Cardboard / VR-style layout", detail: "Display-layout prototype only; not true stereo VR.", control: vrSwitch, to: stack)
-        addSwitchRow("Keep session data", detail: "Saves session metadata and VM configuration. Actual in-game save data requires a running guest disk.", control: persistSwitch, to: stack)
+        addSwitchRow("Keep session data", detail: "Stores the complete VM configuration for Continue from Last Session. It does not save guest RAM or in-game saves.", control: persistSwitch, to: stack)
 
         let slotLabel = UILabel()
         slotLabel.text = "VM configuration slot name"
@@ -126,9 +127,11 @@ final class LaunchSetupViewController: UIViewController {
     }
 
     private func makeConfiguration() -> VMConfiguration {
-        var config = guestControl.selectedSegmentIndex == 1 ? VMConfiguration.defaultWindows : VMConfiguration.defaultLinux
-        config.name = guestControl.selectedSegmentIndex == 1 ? "Windows 10" : "Ubuntu"
-        config.bootWindows = guestControl.selectedSegmentIndex == 1
+        let isWindows = guestControl.selectedSegmentIndex == 1
+        var config = loadedConfiguration.flatMap { $0.bootWindows == isWindows ? $0 : nil }
+            ?? (isWindows ? VMConfiguration.defaultWindows : VMConfiguration.defaultLinux)
+        config.name = isWindows ? "Windows 10" : "Ubuntu"
+        config.bootWindows = isWindows
         config.displayWidth = RuntimeSettings.shared.renderResolution.width
         config.displayHeight = RuntimeSettings.shared.renderResolution.height
         config.displayFPS = RuntimeSettings.shared.frameRate.value
@@ -141,10 +144,8 @@ final class LaunchSetupViewController: UIViewController {
             statusLabel.text = "Enter a name for this configuration slot."
             return
         }
-        let config = makeConfiguration()
         do {
-            try VMSaveSlotStore.shared.saveConfiguration(config, name: name)
-            UserDefaults.standard.set(guestControl.selectedSegmentIndex == 1 ? "Windows 10" : "Ubuntu", forKey: "iSteam.lastGuest")
+            try VMSaveSlotStore.shared.saveConfiguration(makeConfiguration(), name: name)
             statusLabel.text = "Saved configuration slot: \(name)"
         } catch {
             statusLabel.text = "Could not save slot: \(error.localizedDescription)"
@@ -161,13 +162,17 @@ final class LaunchSetupViewController: UIViewController {
         for name in slots {
             alert.addAction(UIAlertAction(title: name, style: .default) { [weak self] _ in
                 guard let self, let config = VMSaveSlotStore.shared.configuration(named: name) else { return }
+                self.loadedConfiguration = config
                 self.guestControl.selectedSegmentIndex = config.bootWindows ? 1 : 0
                 self.slotField.text = name
-                self.statusLabel.text = "Loaded \(name). Settings will be used on launch."
+                self.statusLabel.text = "Loaded \(name): \(config.memoryMB) MB RAM, \(config.cpuCount) CPUs, \(config.displayWidth) × \(config.displayHeight) at \(config.displayFPS) FPS. Current display preferences override resolution and FPS on launch."
             })
         }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        if let pop = alert.popoverPresentationController { pop.sourceView = view; pop.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1) }
+        if let pop = alert.popoverPresentationController {
+            pop.sourceView = view
+            pop.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
+        }
         present(alert, animated: true)
     }
 
@@ -178,20 +183,29 @@ final class LaunchSetupViewController: UIViewController {
         UserDefaults.standard.set(guestControl.selectedSegmentIndex == 1 ? "Windows 10" : "Ubuntu", forKey: "iSteam.lastGuest")
         UserDefaults.standard.set(config.bootWindows ? "Windows VM" : "Linux VM", forKey: "iSteam.lastVMMode")
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "iSteam.lastLaunchDate")
-        if persistSwitch.isOn { try? VMSaveSlotStore.shared.saveSessionMetadata(configuration: config) }
+
+        if persistSwitch.isOn {
+            do {
+                try VMSaveSlotStore.shared.saveSessionMetadata(configuration: config)
+            } catch {
+                statusLabel.text = "Could not save session: \(error.localizedDescription)"
+            }
+        }
         let name = (slotField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        if !name.isEmpty { try? VMSaveSlotStore.shared.saveConfiguration(config, name: name) }
+        if !name.isEmpty {
+            do { try VMSaveSlotStore.shared.saveConfiguration(config, name: name) }
+            catch { statusLabel.text = "Could not save configuration slot: \(error.localizedDescription)" }
+        }
 
         if runtimeControl.selectedSegmentIndex == 1 {
-            let library = LibraryViewController()
-            navigationController?.pushViewController(library, animated: true)
+            navigationController?.pushViewController(LibraryViewController(), animated: true)
             return
         }
 
         if config.bootWindows && UserDefaults.standard.string(forKey: "iSteam.customOSPath") == nil {
             let alert = UIAlertController(
                 title: "Windows 10 installation media required",
-                message: "Import a legitimate full Windows 10 ISO first. A PE executable is not a Windows operating system. This prototype currently stores ISO files but does not yet boot them, so this launch will only show the VM scaffold.",
+                message: "Import a legitimate full Windows 10 ISO first. A PE executable is not a Windows operating system. This build stores imported ISO/disk files but does not boot them yet; Launch opens a display scaffold only.",
                 preferredStyle: .alert
             )
             alert.addAction(UIAlertAction(title: "Continue to VM preview", style: .default) { [weak self] _ in
