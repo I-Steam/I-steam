@@ -1,5 +1,10 @@
 import Foundation
 
+/// Honest status facade for Windows execution.
+///
+/// This class deliberately does not claim to execute PE files. A real guest
+/// runtime (including CPU emulation, Windows API/DLL support and process
+/// memory management) must be integrated before launch can succeed.
 final class WindowsRuntime {
     static let shared = WindowsRuntime()
     private init() {}
@@ -7,20 +12,23 @@ final class WindowsRuntime {
     private(set) var prepared = false
 
     func prepare() {
-        prepared = true
-        EmulationLog.shared.write("Windows runtime prepared")
-        EmulationLog.shared.write("PE loader + guest memory + API/DLL bridge enabled")
-        EmulationLog.shared.write("Anti-cheat policy: no bypass/tampering")
+        prepared = false
+        EmulationLog.shared.write("Windows runtime unavailable: guest execution engine is not integrated")
     }
 
     func stop() {
         prepared = false
+        EmulationLog.shared.write("Windows runtime stopped")
     }
 
+    @discardableResult
     func launch(_ process: GuestProcess) -> Bool {
-        guard prepared else { return false }
-        guard process.format == .windowsPE else { return false }
-        EmulationLog.shared.write("Launching Windows guest: \(process.commandLine)")
-        return true
+        guard process.format == .windowsPE else {
+            EmulationLog.shared.write("Windows launch rejected: executable is not a Windows PE file")
+            return false
+        }
+
+        EmulationLog.shared.write("Cannot launch \(process.executable.lastPathComponent): i-Steam currently validates/imports PE files but has no integrated Windows guest execution engine")
+        return false
     }
 }
