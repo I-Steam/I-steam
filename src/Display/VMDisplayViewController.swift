@@ -130,8 +130,8 @@ final class VMDisplayViewController: UIViewController {
     }
 
     private func emitKeyboardKey(_ key: String) {
-        // The UI now emits normalized key names. Guest-process key injection
-        // still requires a real VM/input backend; current runtime logs events.
+        // The UI emits normalized key names; guest injection needs a connected
+        // runtime input backend, which is not implemented in this scaffold yet.
         EmulationLog.shared.write("Keyboard input: \(key)")
     }
 
@@ -161,7 +161,7 @@ final class VMDisplayViewController: UIViewController {
             self?.view.isMultipleTouchEnabled = true
             EmulationLog.shared.write(String(format: "Pointer-look delta %.1f, %.1f", delta.x, delta.y))
         }
-        pad.onButton = { key, down in EmulationLog.shared.write("Touch gamepad \\(key): \\(down ? "down" : "up")") }
+        pad.onButton = { key, down in EmulationLog.shared.write("Touch gamepad \(key): \(down ? "down" : "up")") }
         view.addSubview(pad)
         NSLayoutConstraint.activate([
             pad.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -179,7 +179,7 @@ final class VMDisplayViewController: UIViewController {
             guard VRSettings.shared.pointerLockEnabled else { return }
             EmulationLog.shared.write(String(format: "Controller look %.2f, %.2f", x, y))
         }
-        input.onButton = { key, down in EmulationLog.shared.write("Controller \\(key): \\(down ? "down" : "up")") }
+        input.onButton = { key, down in EmulationLog.shared.write("Controller \(key): \(down ? "down" : "up")") }
         input.start()
     }
 
@@ -199,7 +199,7 @@ final class VMDisplayViewController: UIViewController {
 
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
-        keyboardObservers.forEach(NotificationCenter.default.removeObserver)
+        keyboardObservers.forEach { NotificationCenter.default.removeObserver($0) }
         keyboardObservers.removeAll()
         MotionInputManager.shared.stop()
         ControllerInputManager.shared.stop()
