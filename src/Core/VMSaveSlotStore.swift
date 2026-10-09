@@ -1,12 +1,18 @@
 import Foundation
 
-/// Persists named VM configuration slots and session metadata in Application Support.
-/// A real game-state save still depends on a running guest and writable virtual disk.
+/// Persists named VM configuration slots and resumable session metadata.
+/// This stores configuration, not guest RAM or actual game-save contents.
 final class VMSaveSlotStore {
     static let shared = VMSaveSlotStore()
     private let fm = FileManager.default
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
+
+    private struct Session: Codable {
+        let configuration: VMConfiguration
+        let gameID: UUID?
+        let savedAt: Date
+    }
 
     private var directory: URL {
         let root = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -40,17 +46,19 @@ final class VMSaveSlotStore {
 
     var configurationNames: [String] {
         let urls = (try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
-        return urls.filter { $0.pathExtension == "json" }.map { $0.deletingPathExtension().lastPathComponent }.sorted()
+        return urls.filter { $0.pathExtension == "json" && $0.lastPathComponent != "last-session.json" }
+            .map { $0.deletingPathExtension().lastPathComponent }.sorted()
     }
 
     func saveSessionMetadata(configuration: VMConfiguration, gameID: UUID? = nil) throws {
-        struct Session: Codable {
-            let configurationID: UUID
-            let configurationName: String
-            let gameID: UUID?
-            let savedAt: Date
-        }
-        let session = Session(configurationID: configuration.id, configurationName: configuration.name, gameID: gameID, savedAt: Date())
+        let session = Session(configuration: configuration, gameID: gameID, savedAt: Date())
         try encoder.encode(session).write(to: directory.appendingPathComponent("last-session.json"), options: .atomic)
+    }
+
+    func lastSessionConfiguration() -> VMConfiguration? {
+        let url = directory.appendingPathComponent("last-session.json")
+        guard let data = try? Data(contentsOf: url),
+              let session = try? decoder.decode(Session.self, from: data) else { return nil }
+        return session.configuration
     }
 }

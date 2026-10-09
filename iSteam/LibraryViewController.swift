@@ -49,7 +49,7 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
         subtitle.numberOfLines = 0
         stack.addArrangedSubview(subtitle)
 
-        stack.addArrangedSubview(makeButton("Continue from Last Session", detail: "Resume the last selected setup", symbol: "arrow.clockwise", primary: true) { [weak self] in self?.continueLastSession() })
+        stack.addArrangedSubview(makeButton("Continue from Last Session", detail: "Restore the last saved VM configuration", symbol: "arrow.clockwise", primary: true) { [weak self] in self?.continueLastSession() })
         stack.addArrangedSubview(makeButton("Launch", detail: "Open the full session setup page", symbol: "play.fill", primary: true) { [weak self] in self?.showLaunchFlow() })
         stack.addArrangedSubview(makeButton("Steam Store", detail: "Browse the official Steam Store", symbol: "cart", primary: false) { [weak self] in self?.openSteamStore() })
         stack.addArrangedSubview(makeButton("Import Custom OS", detail: "Choose an OS image or disk file", symbol: "externaldrive.badge.plus", primary: false) { [weak self] in self?.importOperatingSystem() })
@@ -59,8 +59,12 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
         statusLabel.font = .preferredFont(forTextStyle: .footnote)
         statusLabel.numberOfLines = 0
         stack.addArrangedSubview(statusLabel)
+        updateOSStatus()
+    }
+
+    private func updateOSStatus() {
         if let os = UserDefaults.standard.string(forKey: "iSteam.customOSPath") {
-            statusLabel.text = "Imported OS image: " + URL(fileURLWithPath: os).lastPathComponent + "\nOS boot integration is not yet implemented."
+            statusLabel.text = "Imported OS image: " + URL(fileURLWithPath: os).lastPathComponent + "\nSaved locally; OS boot integration is not yet implemented."
         } else {
             statusLabel.text = "No custom OS image imported."
         }
@@ -90,8 +94,13 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
     }
 
     private func continueLastSession() {
-        let mode = UserDefaults.standard.string(forKey: "iSteam.lastVMMode") ?? "Linux VM"
-        let config = mode == "Windows VM" ? VMConfiguration.defaultWindows : VMConfiguration.defaultLinux
+        guard let config = VMSaveSlotStore.shared.lastSessionConfiguration() else {
+            let alert = UIAlertController(title: "No saved session", message: "Launch a session with Keep session data enabled to save its configuration for next time.", preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            alert.addAction(UIAlertAction(title: "Set up a session", style: .default) { [weak self] _ in self?.showLaunchFlow() })
+            present(alert, animated: true)
+            return
+        }
         navigationController?.pushViewController(VMDisplayViewController(configuration: config), animated: true)
     }
 
@@ -102,14 +111,6 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
     private func openSteamStore() {
         guard let url = URL(string: "https://store.steampowered.com/") else { return }
         UIApplication.shared.open(url)
-    }
-
-    private func chooseVR(for mode: String) {
-        UserDefaults.standard.set(mode, forKey: "iSteam.lastVMMode")
-        let alert = UIAlertController(title: "Display Mode", message: "Choose whether to use the VR-style display layout.", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "VR Off", style: .default) { [weak self] _ in self?.launch(mode: mode, vr: false) })
-        alert.addAction(UIAlertAction(title: "VR On", style: .default) { [weak self] _ in self?.launch(mode: mode, vr: true) })
-        present(alert, animated: true)
     }
 
     private func importGame() {
@@ -143,7 +144,7 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
                 if FileManager.default.fileExists(atPath: destination.path) { try FileManager.default.removeItem(at: destination) }
                 try FileManager.default.copyItem(at: source, to: destination)
                 UserDefaults.standard.set(destination.path, forKey: "iSteam.customOSPath")
-                statusLabel.text = "Imported OS image: " + destination.lastPathComponent + "\nSaved locally. Booting custom OS is not yet implemented."
+                updateOSStatus()
                 showMessage("OS image imported", "Saved " + destination.lastPathComponent + ". The current VM engine does not yet boot imported ISO/disk images.")
             } catch { showMessage("Import failed", error.localizedDescription) }
             return
