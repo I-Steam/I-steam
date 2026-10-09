@@ -34,23 +34,77 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate --spec project.yml
 
-      - name: Build iSteam
+      - name: Build iSteam for iOS device
         shell: bash
         run: |
           set -euo pipefail
           rm -rf build
           mkdir -p build
+          xcodebuild \
+            -project iSteam.xcodeproj \
+            -scheme iSteam \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$PWD/build/iSteam.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            ARCHS="arm64" \
+            ONLY_ACTIVE_ARCH=NO \
+            OTHER_LDFLAGS="-ObjC -framework Metal -framework MetalKit" \
+            archive
 
-          xcodebuild             -project iSteam.xcodeproj             -scheme iSteam             -configuration Release             -sdk iphoneos             -destination 'generic/platform=iOS'             -archivePath "$PWD/build/iSteam.xcarchive"             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             CODE_SIGN_IDENTITY=""             ARCHS="arm64"             ONLY_ACTIVE_ARCH=NO             OTHER_LDFLAGS="-ObjC -framework Metal -framework MetalKit"             archive
-
-      - name: Verify app bundle
+      - name: Verify app bundle metadata and executable
         shell: bash
         run: |
           set -euo pipefail
           APP="$PWD/build/iSteam.xcarchive/Products/Applications/iSteam.app"
           test -d "$APP"
           /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist"
+          EXECUTABLE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$APP/Info.plist")
+          test -n "$EXECUTABLE"
+          test -f "$APP/$EXECUTABLE"
+          file "$APP/$EXECUTABLE"
           /usr/bin/codesign --display --verbose=2 "$APP" 2>&1 || true
+
+      - name: Build and launch on iOS Simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEVICE_ID=$(xcrun simctl list devices available | sed -nE 's/.*iPhone[^()]*(\([A-F0-9-]{36}\)).*/\1/p' | head -n 1 | tr -d '()')
+          if [ -z "$DEVICE_ID" ]; then
+            echo "No available iPhone simulator found"
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "Using simulator: $DEVICE_ID"
+          xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          xcodebuild \
+            -project iSteam.xcodeproj \
+            -scheme iSteam \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
+            -derivedDataPath "$PWD/build/SimulatorDerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            ARCHS=arm64 \
+            build
+          SIM_APP="$PWD/build/SimulatorDerivedData/Build/Products/Debug-iphonesimulator/iSteam.app"
+          test -d "$SIM_APP"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$SIM_APP/Info.plist"
+          xcrun simctl install "$DEVICE_ID" "$SIM_APP"
+          xcrun simctl launch "$DEVICE_ID" com.chantinlongx.iSteam
+          sleep 8
+          xcrun simctl spawn "$DEVICE_ID" launchctl list | grep -F "com.chantinlongx.iSteam" || {
+            echo "iSteam did not remain registered as a running simulator app after launch"
+            xcrun simctl spawn "$DEVICE_ID" log show --last 3m --style compact --predicate 'process == "iSteam"' || true
+            exit 1
+          }
+          echo "Simulator install and launch smoke test passed."
 
       - name: Package unsigned SideStore IPA
         shell: bash
@@ -62,6 +116,8 @@ jobs:
           cp -R "$APP" build/Payload/iSteam.app
           /usr/bin/ditto -c -k --sequesterRsrc --keepParent build/Payload build/iSteam-SideStore.ipa
           unzip -t build/iSteam-SideStore.ipa >/dev/null
+          unzip -p build/iSteam-SideStore.ipa Payload/iSteam.app/Info.plist > build/packaged-Info.plist
+          /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" build/packaged-Info.plist | grep -Fx iSteam
 
       - name: Upload SideStore IPA
         uses: actions/upload-artifact@v4
