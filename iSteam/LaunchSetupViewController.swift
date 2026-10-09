@@ -178,6 +178,7 @@ final class LaunchSetupViewController: UIViewController {
         UserDefaults.standard.set(guestControl.selectedSegmentIndex == 1 ? "Windows 10" : "Ubuntu", forKey: "iSteam.lastGuest")
         UserDefaults.standard.set(config.bootWindows ? "Windows VM" : "Linux VM", forKey: "iSteam.lastVMMode")
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "iSteam.lastLaunchDate")
+        if persistSwitch.isOn { try? VMSaveSlotStore.shared.saveSessionMetadata(configuration: config) }
         let name = (slotField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if !name.isEmpty { try? VMSaveSlotStore.shared.saveConfiguration(config, name: name) }
 
