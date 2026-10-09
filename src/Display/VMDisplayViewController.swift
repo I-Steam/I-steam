@@ -161,7 +161,7 @@ final class VMDisplayViewController: UIViewController {
             self?.view.isMultipleTouchEnabled = true
             EmulationLog.shared.write(String(format: "Pointer-look delta %.1f, %.1f", delta.x, delta.y))
         }
-        pad.onButton = { key, down in EmulationLog.shared.write("Touch gamepad \(key): \(down ? "down" : "up")") }
+        pad.onButton = { key, down in EmulationLog.shared.write("Touch gamepad " + key + ": " + (down ? "down" : "up")) }
         view.addSubview(pad)
         NSLayoutConstraint.activate([
             pad.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -179,7 +179,7 @@ final class VMDisplayViewController: UIViewController {
             guard VRSettings.shared.pointerLockEnabled else { return }
             EmulationLog.shared.write(String(format: "Controller look %.2f, %.2f", x, y))
         }
-        input.onButton = { key, down in EmulationLog.shared.write("Controller \(key): \(down ? "down" : "up")") }
+        input.onButton = { key, down in EmulationLog.shared.write("Controller " + key + ": " + (down ? "down" : "up")) }
         input.start()
     }
 
