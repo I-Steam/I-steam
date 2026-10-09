@@ -51,6 +51,9 @@ jobs:
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           fi
           echo "channel=$CHANNEL"
+          if [[ "$CHANNEL" == "nightly" ]]; then
+            echo "::warning title=Nightly build::This is an experimental, unsigned prototype build. Runtime features may be incomplete; sign the IPA before installing."
+          fi
 
       - name: Show toolchain
         run: |
@@ -69,7 +72,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build
-          xcodebuild -project iSteam.xcodeproj -scheme iSteam -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -archivePath "$PWD/build/iSteam.xcarchive" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 ONLY_ACTIVE_ARCH=NO OTHER_LDFLAGS="-ObjC -framework Metal -framework MetalKit" archive
+          set -o pipefail
+          xcodebuild -project iSteam.xcodeproj -scheme iSteam -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -archivePath "$PWD/build/iSteam.xcarchive" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 ONLY_ACTIVE_ARCH=NO OTHER_LDFLAGS="-ObjC -framework Metal -framework MetalKit" archive 2>&1 | tee build/archive.log
 
       - name: Verify executable metadata
         shell: bash
@@ -86,7 +90,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          DEVICE_ID=$(xcrun simctl list devices available | sed -nE 's/.*iPhone[^()]*(\([A-F0-9-]{36}\)).*/\1/p' | head -n 1 | tr -d '()')
+          DEVICE_ID=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ && /Booted|Shutdown/ { if (length($2) == 36) { print $2; exit } }')
           if [ -z "$DEVICE_ID" ]; then xcrun simctl list devices available; exit 1; fi
           xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
           xcrun simctl bootstatus "$DEVICE_ID" -b
@@ -131,10 +135,16 @@ jobs:
       - name: Create release notes
         run: |
           cat > build/RELEASE_NOTES.md <<'EOF'
-          i-Steam unsigned iOS IPA build. Sign with SideStore before installing.
-          Read the install guide: https://github.com/I-Steam/I-steam/blob/main/INSTALL.md
-          Simulator launch success does not guarantee physical-device or LiveContainer compatibility.
-          See README.md for prototype limitations and credits.
+          ## ⚠️ Nightly / prototype warning
+
+          This is an experimental, unsigned iOS prototype. Features may be incomplete, and a successful build or simulator launch does not mean games or guest operating systems will boot. Sign the IPA with SideStore before installation.
+
+          ## Build details
+
+          - Build channel: ${{ steps.release.outputs.channel }}
+          - Commit: ${{ github.sha }}
+          - Install guide: https://github.com/I-Steam/I-steam/blob/main/INSTALL.md
+          - Project status and credits: https://github.com/I-Steam/I-steam/blob/main/README.md
           EOF
 
       - name: Publish GitHub release
@@ -148,3 +158,16 @@ jobs:
           files: build/iSteam-SideStore.ipa
           fail_on_unmatched_files: true
           make_latest: ${{ steps.release.outputs.prerelease == 'false' && 'true' || 'false' }}
+
+      - name: Explain failure and warn about missing release
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo "## ⚠️ Build failed — no release was published"
+            echo
+            echo "The first failing step above contains the actionable compiler or packaging error."
+            echo "No nightly/main release is created unless all required build, simulator, and packaging steps pass."
+            echo "See the full logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::warning title=Release not published::The build failed; fix the first failing step before expecting a nightly or main release."

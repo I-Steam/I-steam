@@ -95,10 +95,15 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
     }
 
     private func showLaunchFlow() {
-        let alert = UIAlertController(title: "Launch Setup", message: "Choose how to launch. Hypervisor.framework is not available to ordinary iOS apps, so QEMU/JIT is the practical prototype option.", preferredStyle: .actionSheet)
+        let alert = UIAlertController(title: "Launch Setup", message: "Choose a prototype runtime. Hypervisor.framework is not available to ordinary iOS apps; QEMU/JIT is the intended experimental path.", preferredStyle: .actionSheet)
         alert.addAction(UIAlertAction(title: "Windows — VM / QEMU", style: .default) { [weak self] _ in self?.chooseVR(for: "Windows VM") })
         alert.addAction(UIAlertAction(title: "Windows Runtime (prototype)", style: .default) { [weak self] _ in self?.chooseVR(for: "Windows Runtime") })
         alert.addAction(UIAlertAction(title: "Linux — VM / QEMU", style: .default) { [weak self] _ in self?.chooseVR(for: "Linux VM") })
+        let macOS = UIAlertAction(title: "macOS VM — unavailable on iOS", style: .default) { [weak self] _ in
+            self?.showMessage("macOS VM unavailable", "This iOS build cannot boot a macOS guest. The option is shown for visibility only; no macOS runtime is integrated.")
+        }
+        macOS.isEnabled = false
+        alert.addAction(macOS)
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         if let pop = alert.popoverPresentationController { pop.barButtonItem = navigationItem.rightBarButtonItem }
         present(alert, animated: true)
@@ -113,7 +118,7 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
     }
 
     private func launch(mode: String, vr: Bool) {
-        VRSettings.shared.mode = vr ? .cardboard : .standard
+        VRSettings.shared.mode = vr ? .cardboard : .flat
         let config = mode == "Linux VM" ? VMConfiguration.defaultLinux : VMConfiguration.defaultWindows
         navigationController?.pushViewController(VMDisplayViewController(configuration: config), animated: true)
     }
@@ -149,7 +154,7 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
                 if FileManager.default.fileExists(atPath: destination.path) { try FileManager.default.removeItem(at: destination) }
                 try FileManager.default.copyItem(at: source, to: destination)
                 UserDefaults.standard.set(destination.path, forKey: "iSteam.customOSPath")
-                statusLabel.text = "Imported OS image: " + destination.lastPathComponent + "\nSaved locally. Booting custom OS is not yet implemented in the runtime."
+                statusLabel.text = "Imported OS image: " + destination.lastPathComponent + "\nSaved locally. Booting custom OS is not yet implemented."
                 showMessage("OS image imported", "Saved " + destination.lastPathComponent + ". The current VM engine does not yet boot imported ISO/disk images.")
             } catch { showMessage("Import failed", error.localizedDescription) }
             return

@@ -15,7 +15,7 @@ final class SettingsViewController: UITableViewController {
         tableView.tableFooterView = UIView()
     }
 
-    override func numberOfSections(in tableView: UITableView) -> Int { 8 }
+    override func numberOfSections(in tableView: UITableView) -> Int { 10 }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         switch section {
@@ -25,12 +25,13 @@ final class SettingsViewController: UITableViewController {
         case 3: return frameRates.count
         case 4: return vrModes.count + 2
         case 5: return jitMethods.count
-        default: return 1
+        case 6, 7, 8, 9: return 1
+        default: return 0
         }
     }
 
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        ["Windows Runtime", "VM / Hypervisor", "Resolution", "Display / FPS", "VR / Input", "JIT", "Diagnostics", "Performance"][section]
+        ["Windows Runtime", "VM / Hypervisor", "Resolution", "Display / FPS", "VR / Input", "JIT", "Diagnostics", "Performance", "Android Experiment", "Device Compatibility"][section]
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -38,6 +39,9 @@ final class SettingsViewController: UITableViewController {
         var c = cell.defaultContentConfiguration()
         cell.accessoryView = nil
         cell.accessoryType = .none
+        cell.isUserInteractionEnabled = true
+        cell.textLabel?.textColor = .label
+
         switch indexPath.section {
         case 0:
             let mode = vmModes[indexPath.row]
@@ -45,8 +49,16 @@ final class SettingsViewController: UITableViewController {
             cell.accessoryType = RuntimeSettings.shared.vmMode == mode ? .checkmark : .none
         case 1:
             let mode = accelerators[indexPath.row]
-            c.text = mode.rawValue; c.secondaryText = mode.detail
-            cell.accessoryType = RuntimeSettings.shared.acceleration == mode ? .checkmark : .none
+            c.text = mode.rawValue
+            if mode == .hypervisor {
+                c.secondaryText = "Unavailable in iOS apps on every iPhone and iPad; Apple does not expose Hypervisor.framework to ordinary iOS apps."
+                c.textProperties.color = .secondaryLabel
+                c.secondaryTextProperties.color = .tertiaryLabel
+                cell.isUserInteractionEnabled = false
+            } else {
+                c.secondaryText = mode.detail
+                cell.accessoryType = RuntimeSettings.shared.acceleration == mode ? .checkmark : .none
+            }
         case 2:
             let mode = resolutions[indexPath.row]
             c.text = mode == .custom ? "Custom (\(RuntimeSettings.shared.customWidth) × \(RuntimeSettings.shared.customHeight))" : mode.rawValue
@@ -77,9 +89,17 @@ final class SettingsViewController: UITableViewController {
         case 6:
             c.text = "Crash Log"; c.secondaryText = "View saved crash information"
             cell.accessoryType = .disclosureIndicator
-        default:
+        case 7:
             c.text = "Performance Diagnostics"; c.secondaryText = PerformanceManager.shared.summary
             cell.accessoryType = .disclosureIndicator
+        case 8:
+            c.text = "Enable Android guest experiment"
+            c.secondaryText = "Experimental UI flag only. Android boot/runtime support is not integrated."
+            cell.accessoryView = makeSwitch(isOn: UserDefaults.standard.bool(forKey: "iSteam.androidExperiment"), action: #selector(toggleAndroidExperiment(_:)))
+        default:
+            c.text = "\(UIDevice.current.model) · iOS \(UIDevice.current.systemVersion)"
+            c.secondaryText = "Hypervisor.framework: unavailable to ordinary iOS apps. QEMU/JIT or interpreter paths are the supported prototype choices. macOS guest boot is disabled on iOS."
+            c.secondaryTextProperties.numberOfLines = 0
         }
         cell.contentConfiguration = c
         return cell
@@ -100,6 +120,15 @@ final class SettingsViewController: UITableViewController {
         VRSettings.shared.touchGamepadEnabled = sender.isOn
     }
 
+    @objc private func toggleAndroidExperiment(_ sender: UISwitch) {
+        UserDefaults.standard.set(sender.isOn, forKey: "iSteam.androidExperiment")
+        let alert = UIAlertController(title: sender.isOn ? "Android experiment enabled" : "Android experiment disabled",
+                                      message: sender.isOn ? "This enables the experimental Android setting only. It does not add an Android emulator or make Android images bootable yet." : "Android experimental UI is disabled.",
+                                      preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
+
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
         switch indexPath.section {
@@ -108,7 +137,9 @@ final class SettingsViewController: UITableViewController {
             UserDefaults.standard.set(vmModes[indexPath.row].rawValue, forKey: "iSteam.lastVMMode")
             tableView.reloadSections(IndexSet(integer: 0), with: .automatic)
         case 1:
-            RuntimeSettings.shared.acceleration = accelerators[indexPath.row]
+            let mode = accelerators[indexPath.row]
+            guard mode != .hypervisor else { return }
+            RuntimeSettings.shared.acceleration = mode
             tableView.reloadSections(IndexSet(integer: 1), with: .automatic)
         case 2:
             let mode = resolutions[indexPath.row]
@@ -127,10 +158,12 @@ final class SettingsViewController: UITableViewController {
             tableView.reloadSections(IndexSet(integer: 5), with: .automatic)
         case 6:
             navigationController?.pushViewController(CrashLogViewController(), animated: true)
-        default:
+        case 7:
             let alert = UIAlertController(title: "Performance", message: PerformanceManager.shared.detailedSummary, preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "OK", style: .default))
             present(alert, animated: true)
+        default:
+            break
         }
     }
 
