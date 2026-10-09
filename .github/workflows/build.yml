@@ -1,12 +1,23 @@
-name: Build i-Steam IPA
+name: Build i-Steam IPA and Release
 
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: "0 2 * * *"
   workflow_dispatch:
+    inputs:
+      release_channel:
+        description: Release channel
+        type: choice
+        required: true
+        default: nightly
+        options:
+          - nightly
+          - main
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
@@ -15,12 +26,31 @@ jobs:
   build:
     runs-on: macos-15
     timeout-minutes: 60
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
+
+      - name: Select release channel
+        id: release
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_CHANNEL: ${{ inputs.release_channel }}
+        run: |
+          set -euo pipefail
+          CHANNEL=nightly
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$INPUT_CHANNEL" == "main" ]]; then CHANNEL=main; fi
+          if [[ "$CHANNEL" == "main" ]]; then
+            echo "tag=main-$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+            echo "name=i-Steam Main Build #$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=nightly-$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+            echo "name=i-Steam Nightly #$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "channel=$CHANNEL"
 
       - name: Show toolchain
         run: |
@@ -34,28 +64,14 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate --spec project.yml
 
-      - name: Build iSteam for iOS device
+      - name: Build iOS device archive
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf build
           mkdir -p build
-          xcodebuild \
-            -project iSteam.xcodeproj \
-            -scheme iSteam \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            -archivePath "$PWD/build/iSteam.xcarchive" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            ARCHS="arm64" \
-            ONLY_ACTIVE_ARCH=NO \
-            OTHER_LDFLAGS="-ObjC -framework Metal -framework MetalKit" \
-            archive
+          xcodebuild -project iSteam.xcodeproj -scheme iSteam -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -archivePath "$PWD/build/iSteam.xcarchive" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 ONLY_ACTIVE_ARCH=NO OTHER_LDFLAGS="-ObjC -framework Metal -framework MetalKit" archive
 
-      - name: Verify app bundle metadata and executable
+      - name: Verify executable metadata
         shell: bash
         run: |
           set -euo pipefail
@@ -63,72 +79,72 @@ jobs:
           test -d "$APP"
           /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist"
           EXECUTABLE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$APP/Info.plist")
-          test -n "$EXECUTABLE"
-          test -f "$APP/$EXECUTABLE"
+          test -n "$EXECUTABLE" && test -f "$APP/$EXECUTABLE"
           file "$APP/$EXECUTABLE"
-          /usr/bin/codesign --display --verbose=2 "$APP" 2>&1 || true
 
       - name: Build and launch on iOS Simulator
         shell: bash
         run: |
           set -euo pipefail
           DEVICE_ID=$(xcrun simctl list devices available | sed -nE 's/.*iPhone[^()]*(\([A-F0-9-]{36}\)).*/\1/p' | head -n 1 | tr -d '()')
-          if [ -z "$DEVICE_ID" ]; then
-            echo "No available iPhone simulator found"
-            xcrun simctl list devices available
-            exit 1
-          fi
-          echo "Using simulator: $DEVICE_ID"
+          if [ -z "$DEVICE_ID" ]; then xcrun simctl list devices available; exit 1; fi
           xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
           xcrun simctl bootstatus "$DEVICE_ID" -b
-          xcodebuild \
-            -project iSteam.xcodeproj \
-            -scheme iSteam \
-            -configuration Debug \
-            -sdk iphonesimulator \
-            -destination "platform=iOS Simulator,id=$DEVICE_ID" \
-            -derivedDataPath "$PWD/build/SimulatorDerivedData" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            ARCHS=arm64 \
-            build
+          xcodebuild -project iSteam.xcodeproj -scheme iSteam -configuration Debug -sdk iphonesimulator -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath "$PWD/build/SimulatorDerivedData" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 build
           SIM_APP="$PWD/build/SimulatorDerivedData/Build/Products/Debug-iphonesimulator/iSteam.app"
           test -d "$SIM_APP"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$SIM_APP/Info.plist"
+          EXECUTABLE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$SIM_APP/Info.plist")
+          test -f "$SIM_APP/$EXECUTABLE"
           xcrun simctl install "$DEVICE_ID" "$SIM_APP"
           xcrun simctl launch "$DEVICE_ID" com.chantinlongx.iSteam
           sleep 8
-          xcrun simctl spawn "$DEVICE_ID" launchctl list | grep -F "com.chantinlongx.iSteam" || {
-            echo "iSteam did not remain registered as a running simulator app after launch"
-            xcrun simctl spawn "$DEVICE_ID" log show --last 3m --style compact --predicate 'process == "iSteam"' || true
-            exit 1
-          }
-          echo "Simulator install and launch smoke test passed."
+          xcrun simctl spawn "$DEVICE_ID" launchctl list | grep -F "com.chantinlongx.iSteam" || { xcrun simctl spawn "$DEVICE_ID" log show --last 3m --style compact --predicate 'process == "iSteam"' || true; exit 1; }
 
-      - name: Package unsigned SideStore IPA
+      - name: Package unsigned IPA
         shell: bash
         run: |
           set -euo pipefail
           APP="$PWD/build/iSteam.xcarchive/Products/Applications/iSteam.app"
-          rm -rf build/Payload
           mkdir -p build/Payload
           cp -R "$APP" build/Payload/iSteam.app
-          /usr/bin/ditto -c -k --sequesterRsrc --keepParent build/Payload build/iSteam-SideStore.ipa
+          ditto -c -k --sequesterRsrc --keepParent build/Payload build/iSteam-SideStore.ipa
           unzip -t build/iSteam-SideStore.ipa >/dev/null
           unzip -p build/iSteam-SideStore.ipa Payload/iSteam.app/Info.plist > build/packaged-Info.plist
           /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" build/packaged-Info.plist | grep -Fx iSteam
 
-      - name: Upload SideStore IPA
+      - name: Upload SideStore IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: iSteam-SideStore
           path: build/iSteam-SideStore.ipa
           if-no-files-found: error
+          retention-days: 30
 
-      - name: Upload Xcode archive
+      - name: Upload Xcode archive artifact
         uses: actions/upload-artifact@v4
         with:
           name: iSteam-xcarchive
           path: build/iSteam.xcarchive
           if-no-files-found: error
+          retention-days: 7
+
+      - name: Create release notes
+        run: |
+          cat > build/RELEASE_NOTES.md <<'EOF'
+          i-Steam unsigned iOS IPA build. Sign with SideStore before installing.
+          Read the install guide: https://github.com/I-Steam/I-steam/blob/main/INSTALL.md
+          Simulator launch success does not guarantee physical-device or LiveContainer compatibility.
+          See README.md for prototype limitations and credits.
+          EOF
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          name: ${{ steps.release.outputs.name }}
+          prerelease: ${{ steps.release.outputs.prerelease }}
+          target_commitish: ${{ github.sha }}
+          body_path: build/RELEASE_NOTES.md
+          files: build/iSteam-SideStore.ipa
+          fail_on_unmatched_files: true
+          make_latest: ${{ steps.release.outputs.prerelease == 'false' && 'true' || 'false' }}
