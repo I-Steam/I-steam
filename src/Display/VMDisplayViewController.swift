@@ -149,7 +149,10 @@ final class VMDisplayViewController: UIViewController {
 
     private func refreshHardwareKeyboardState() {
         let connected = GCKeyboard.coalesced != nil
+        // F-keys are only shown while a hardware keyboard is connected, and are
+        // immediately hidden after disconnect or while the touch keyboard is open.
         functionKeyBar.isHidden = !connected || keyboardPanel?.isHidden == false
+        if !connected { functionKeyBar.isHidden = true }
     }
 
     private func addTouchGamepad() {

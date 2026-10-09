@@ -52,6 +52,7 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
         stack.addArrangedSubview(makeButton("Continue from Last Session", detail: "Restore the last saved VM configuration", symbol: "arrow.clockwise", primary: true) { [weak self] in self?.continueLastSession() })
         stack.addArrangedSubview(makeButton("Launch", detail: "Open the full session setup page", symbol: "play.fill", primary: true) { [weak self] in self?.showLaunchFlow() })
         stack.addArrangedSubview(makeButton("Steam Store", detail: "Browse the official Steam Store", symbol: "cart", primary: false) { [weak self] in self?.openSteamStore() })
+        stack.addArrangedSubview(makeButton("Dream Store", detail: "Open the Dream Store website", symbol: "sparkles.rectangle.stack", primary: false) { [weak self] in self?.openDreamStore() })
         stack.addArrangedSubview(makeButton("Import Custom OS", detail: "Choose an OS image or disk file", symbol: "externaldrive.badge.plus", primary: false) { [weak self] in self?.importOperatingSystem() })
         stack.addArrangedSubview(makeButton("Import Game / Executable", detail: "Add a Windows PE or Linux ELF file", symbol: "plus.rectangle.on.folder", primary: false) { [weak self] in self?.importGame() })
         stack.addArrangedSubview(makeButton("Settings", detail: "Display, VM, input, and diagnostics", symbol: "gearshape", primary: false) { [weak self] in self?.openSettings() })
@@ -110,6 +111,18 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
 
     private func openSteamStore() {
         guard let url = URL(string: "https://store.steampowered.com/") else { return }
+        UIApplication.shared.open(url)
+    }
+
+    private func openDreamStore() {
+        // Keep the destination configurable because the project has not specified
+        // an official Dream Store URL. Never silently redirect to an unrelated shop.
+        guard let raw = UserDefaults.standard.string(forKey: "iSteam.dreamStoreURL"),
+              let url = URL(string: raw),
+              ["https", "http"].contains(url.scheme?.lowercased() ?? "") else {
+            showMessage("Dream Store", "Set a website URL in Settings using the iSteam.dreamStoreURL preference before opening Dream Store.")
+            return
+        }
         UIApplication.shared.open(url)
     }
 
