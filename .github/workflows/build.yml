@@ -86,24 +86,6 @@ jobs:
           test -n "$EXECUTABLE" && test -f "$APP/$EXECUTABLE"
           file "$APP/$EXECUTABLE"
 
-      - name: Build and launch on iOS Simulator
-        shell: bash
-        run: |
-          set -euo pipefail
-          DEVICE_ID=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ && /Booted|Shutdown/ { if (length($2) == 36) { print $2; exit } }')
-          if [ -z "$DEVICE_ID" ]; then xcrun simctl list devices available; exit 1; fi
-          xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
-          xcrun simctl bootstatus "$DEVICE_ID" -b
-          xcodebuild -project iSteam.xcodeproj -scheme iSteam -configuration Debug -sdk iphonesimulator -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath "$PWD/build/SimulatorDerivedData" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 build
-          SIM_APP="$PWD/build/SimulatorDerivedData/Build/Products/Debug-iphonesimulator/iSteam.app"
-          test -d "$SIM_APP"
-          EXECUTABLE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$SIM_APP/Info.plist")
-          test -f "$SIM_APP/$EXECUTABLE"
-          xcrun simctl install "$DEVICE_ID" "$SIM_APP"
-          xcrun simctl launch "$DEVICE_ID" com.chantinlongx.iSteam
-          sleep 8
-          xcrun simctl spawn "$DEVICE_ID" launchctl list | grep -F "com.chantinlongx.iSteam" || { xcrun simctl spawn "$DEVICE_ID" log show --last 3m --style compact --predicate 'process == "iSteam"' || true; exit 1; }
-
       - name: Package unsigned IPA
         shell: bash
         run: |
@@ -137,7 +119,7 @@ jobs:
           cat > build/RELEASE_NOTES.md <<'EOF'
           ## ⚠️ Nightly / prototype warning
 
-          This is an experimental, unsigned iOS prototype. Features may be incomplete, and a successful build or simulator launch does not mean games or guest operating systems will boot. Sign the IPA with SideStore before installation.
+          This is an experimental, unsigned iOS prototype. Features may be incomplete, and a successful build does not mean games or guest operating systems will boot. Sign the IPA with SideStore before installation.
 
           ## Build details
 
@@ -167,7 +149,7 @@ jobs:
             echo "## ⚠️ Build failed — no release was published"
             echo
             echo "The first failing step above contains the actionable compiler or packaging error."
-            echo "No nightly/main release is created unless all required build, simulator, and packaging steps pass."
+            echo "No nightly/main release is created unless all required device-archive and packaging steps pass."
             echo "See the full logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           } >> "$GITHUB_STEP_SUMMARY"
           echo "::warning title=Release not published::The build failed; fix the first failing step before expecting a nightly or main release."

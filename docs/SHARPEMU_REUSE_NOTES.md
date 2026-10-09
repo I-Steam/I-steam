@@ -12,6 +12,9 @@ SharpEmu is an experimental PlayStation 5 emulator written in C# for desktop Win
 
 ## Improvements made in this pass
 
+- Removed the iOS Simulator build/launch step from CI; CI now focuses on the device archive and IPA packaging, avoiding the slow simulator boot and launch test.
+- Reworked Metal presentation to avoid generating a CPU test-pattern frame during VM startup. Until a real guest framebuffer is submitted, it clears to a stable dark placeholder; this avoids presenting synthetic stripes as if they were VM output.
+- Publishes submitted frames through immutable Metal textures so the CPU does not overwrite a texture that the GPU may still be reading.
 - Reworked i-Steam's existing Windows PE metadata inspector using a bounded, read-only parsing approach.
 - Validates the MZ header, PE offset, PE signature, COFF header, optional-header bounds and PE32/PE32+ magic before reading metadata.
 - Uses overflow-safe range checks and memory-mapped file loading where supported.
@@ -25,7 +28,8 @@ SharpEmu is an experimental PlayStation 5 emulator written in C# for desktop Win
 3. Implement an execution backend behind a stable protocol, rather than treating a loader as a runtime.
 4. Select an actual, iOS-compatible QEMU/emulation integration and verify its license, build dependencies, JIT requirements and device support before integrating it.
 5. Add a real graphics/input bridge only after guest execution works.
-6. Keep unsupported Windows API, Wine/Proton, Android, macOS guest and GPU features disabled or clearly labelled until they are implemented and tested.
+6. Connect the guest's actual framebuffer to the Metal presentation API, with explicit pixel format/stride validation and frame ownership.
+7. Keep unsupported Windows API, Wine/Proton, Android, macOS guest and GPU features disabled or clearly labelled until they are implemented and tested.
 
 ## Upstream links
 
