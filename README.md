@@ -5,7 +5,7 @@ i-Steam is an experimental iOS frontend for exploring game-runtime and virtual-m
 ## Features and project status
 
 - iOS library, launch setup, display/input settings, and diagnostics UI.
-- Prototype Windows PE / Linux ELF inspection and guest-process scaffolding.
+- Bounded Windows PE / Linux ELF metadata inspection and guest-process scaffolding.
 - VM configuration and display scaffolding; full-system emulation remains incomplete.
 - Metal display experiments and frame-pacing/resolution settings.
 - Custom touchscreen keyboard and hardware-keyboard F-key bar UI.
@@ -39,10 +39,15 @@ Behavior:
 - **Android guest experiment** is an opt-in UI flag only. Android emulation/boot support is not implemented.
 - **macOS VM** is shown disabled on iOS. This project does not currently implement a macOS guest runtime.
 
+## Runtime engineering roadmap
+
+See [docs/SHARPEMU_REUSE_NOTES.md](docs/SHARPEMU_REUSE_NOTES.md) for the SharpEmu architecture review, the PE-inspection hardening in this build, licensing cautions, and the staged plan for implementing a real guest runtime. SharpEmu is a PS5 emulator written in C#; its source is not directly portable to this Swift/iOS project. This change does not copy SharpEmu source code.
+
 ## Credits and technical references
 
 These links are references and inspiration, not a claim that their code is bundled in i-Steam or that their maintainers endorse this project.
 
+- **[SharpEmu](https://github.com/sharpemu/sharpemu)** — PS5 emulator research reference for emulator subsystem separation, validation and diagnostics; no SharpEmu code is bundled by this change. See the [reuse notes](docs/SHARPEMU_REUSE_NOTES.md).
 - **[QEMU](https://www.qemu.org/)** — open-source machine emulation and virtualization; reference for the full-system VM direction.
 - **[Box64](https://github.com/ptitSeb/box64)** — x86-64 user-mode emulation project; reference for possible runtime work.
 - **[StikDebug](https://github.com/StephenDev0/StikDebug)** — reference for JIT-related workflows and iOS development.
