@@ -4,16 +4,18 @@ i-Steam is an experimental iOS frontend for exploring game-runtime and virtual-m
 
 ## Features and project status
 
-- iOS library, launch setup, display/input settings, and diagnostics UI.
+- Main menu includes an official Steam Store link, game/EXE import, and a full-page launch setup.
+- Named VM configuration slots and last-session metadata are saved locally.
+- Ubuntu is the default guest choice; Windows 10 requires the user to import legitimate full installation media.
 - Bounded Windows PE / Linux ELF metadata inspection and guest-process scaffolding.
 - VM configuration and display scaffolding; full-system emulation remains incomplete.
 - Metal display experiments and frame-pacing/resolution settings.
 - Custom touchscreen keyboard and hardware-keyboard F-key bar UI.
-- CI builds an unsigned SideStore IPA and attempts a separate simulator install/launch smoke test.
+- CI builds an unsigned SideStore IPA from an iOS device archive; the slow iOS Simulator boot/launch step is removed.
 - Android guest experiment toggle is a UI flag only; it does not install or boot Android.
 - macOS guest option is intentionally disabled on iOS; Apple Hypervisor.framework is not available to ordinary iOS apps.
 
-**Important warning:** Nightly releases are experimental, unsigned, and may be broken or incomplete. A successful compile/simulator test does not prove that a physical iPhone/iPad can run a guest OS or a Steam game. Imported OS images can be stored, but booting them is not implemented. Guest input injection, full QEMU integration, Box64 runtime integration, Wine/Proton, Windows API compatibility, and real 3D GPU translation are not complete.
+**Important warning:** Nightly releases are experimental, unsigned, and may be broken or incomplete. A successful compile/simulator test does not prove that a physical iPhone/iPad can run a guest OS or a Steam game. Imported OS images can be stored, but booting them is not implemented. EXE files can be imported into the library, but execution is not implemented. Guest input injection, full QEMU integration, Box64 runtime integration, Wine/Proton, Windows API compatibility, and real 3D GPU translation are not complete.
 
 ## Install
 
@@ -26,7 +28,7 @@ Read **[INSTALL.md](INSTALL.md)** for downloading the correct IPA artifact and i
 - [All workflow runs](https://github.com/I-Steam/I-steam/actions)
 
 Behavior:
-- **Push to `main`:** builds and publishes a Nightly pre-release only after archive build, simulator smoke test, and IPA packaging pass.
+- **Push to `main`:** builds and publishes a Nightly pre-release only after the device archive and IPA packaging pass.
 - **Scheduled run:** runs nightly at 02:00 UTC and publishes a Nightly pre-release only after required steps pass.
 - **Manual run:** use **Run workflow** and select `nightly` (pre-release) or `main` (non-prerelease, marked latest).
 - Failed runs display a warning and summary link; **no release is published when required build/test/package steps fail**.

@@ -50,7 +50,8 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
         stack.addArrangedSubview(subtitle)
 
         stack.addArrangedSubview(makeButton("Continue from Last Session", detail: "Resume the last selected setup", symbol: "arrow.clockwise", primary: true) { [weak self] in self?.continueLastSession() })
-        stack.addArrangedSubview(makeButton("Launch", detail: "Choose VM / runtime, VR, and OS", symbol: "play.fill", primary: true) { [weak self] in self?.showLaunchFlow() })
+        stack.addArrangedSubview(makeButton("Launch", detail: "Open the full session setup page", symbol: "play.fill", primary: true) { [weak self] in self?.showLaunchFlow() })
+        stack.addArrangedSubview(makeButton("Steam Store", detail: "Browse the official Steam Store", symbol: "cart", primary: false) { [weak self] in self?.openSteamStore() })
         stack.addArrangedSubview(makeButton("Import Custom OS", detail: "Choose an OS image or disk file", symbol: "externaldrive.badge.plus", primary: false) { [weak self] in self?.importOperatingSystem() })
         stack.addArrangedSubview(makeButton("Import Game / Executable", detail: "Add a Windows PE or Linux ELF file", symbol: "plus.rectangle.on.folder", primary: false) { [weak self] in self?.importGame() })
         stack.addArrangedSubview(makeButton("Settings", detail: "Display, VM, input, and diagnostics", symbol: "gearshape", primary: false) { [weak self] in self?.openSettings() })
@@ -89,24 +90,18 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
     }
 
     private func continueLastSession() {
-        let mode = UserDefaults.standard.string(forKey: "iSteam.lastVMMode") ?? "Windows VM"
-        let config = mode == "Linux VM" ? VMConfiguration.defaultLinux : VMConfiguration.defaultWindows
+        let mode = UserDefaults.standard.string(forKey: "iSteam.lastVMMode") ?? "Linux VM"
+        let config = mode == "Windows VM" ? VMConfiguration.defaultWindows : VMConfiguration.defaultLinux
         navigationController?.pushViewController(VMDisplayViewController(configuration: config), animated: true)
     }
 
     private func showLaunchFlow() {
-        let alert = UIAlertController(title: "Launch Setup", message: "Choose a prototype runtime. Hypervisor.framework is not available to ordinary iOS apps; QEMU/JIT is the intended experimental path.", preferredStyle: .actionSheet)
-        alert.addAction(UIAlertAction(title: "Windows — VM / QEMU", style: .default) { [weak self] _ in self?.chooseVR(for: "Windows VM") })
-        alert.addAction(UIAlertAction(title: "Windows Runtime (prototype)", style: .default) { [weak self] _ in self?.chooseVR(for: "Windows Runtime") })
-        alert.addAction(UIAlertAction(title: "Linux — VM / QEMU", style: .default) { [weak self] _ in self?.chooseVR(for: "Linux VM") })
-        let macOS = UIAlertAction(title: "macOS VM — unavailable on iOS", style: .default) { [weak self] _ in
-            self?.showMessage("macOS VM unavailable", "This iOS build cannot boot a macOS guest. The option is shown for visibility only; no macOS runtime is integrated.")
-        }
-        macOS.isEnabled = false
-        alert.addAction(macOS)
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        if let pop = alert.popoverPresentationController { pop.barButtonItem = navigationItem.rightBarButtonItem }
-        present(alert, animated: true)
+        navigationController?.pushViewController(LaunchSetupViewController(), animated: true)
+    }
+
+    private func openSteamStore() {
+        guard let url = URL(string: "https://store.steampowered.com/") else { return }
+        UIApplication.shared.open(url)
     }
 
     private func chooseVR(for mode: String) {
@@ -115,12 +110,6 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
         alert.addAction(UIAlertAction(title: "VR Off", style: .default) { [weak self] _ in self?.launch(mode: mode, vr: false) })
         alert.addAction(UIAlertAction(title: "VR On", style: .default) { [weak self] _ in self?.launch(mode: mode, vr: true) })
         present(alert, animated: true)
-    }
-
-    private func launch(mode: String, vr: Bool) {
-        VRSettings.shared.mode = vr ? .cardboard : .flat
-        let config = mode == "Linux VM" ? VMConfiguration.defaultLinux : VMConfiguration.defaultWindows
-        navigationController?.pushViewController(VMDisplayViewController(configuration: config), animated: true)
     }
 
     private func importGame() {

@@ -43,7 +43,7 @@ struct VMConfiguration: Codable, Identifiable, Equatable {
     static var defaultLinux: VMConfiguration {
         let resolution = RuntimeSettings.shared.renderResolution
         return VMConfiguration(
-            id: UUID(), name: "Linux", architecture: .x86_64, memoryMB: 2048,
+            id: UUID(), name: "Ubuntu", architecture: .x86_64, memoryMB: 4096,
             cpuCount: 4, accelerator: .jit, gpu: .virtioGPUGL,
             displayWidth: resolution.width,
             displayHeight: resolution.height,

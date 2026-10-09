@@ -2,7 +2,7 @@
 
 This guide covers installing the **unsigned SideStore IPA** produced by GitHub Actions. The app must be signed on the device before iOS can launch it.
 
-> ⚠️ **Nightly warning:** Builds are experimental and may contain bugs or incomplete features. The app currently does not provide a complete Steam/Windows/Linux gaming runtime, and a successful simulator launch does not guarantee physical-device compatibility.
+> ⚠️ **Nightly warning:** Builds are experimental and may contain bugs or incomplete features. The app currently does not provide a complete Steam/Windows/Linux gaming runtime, and a successful device build does not prove that a guest OS or game will boot.
 
 ## Requirements
 
@@ -41,7 +41,9 @@ Import the actual `.ipa`, not the artifact ZIP or Xcode archive. A LiveContainer
 
 ## Current limitations
 
-- Imported OS images can be copied into app storage, but booting them is not implemented.
+- Imported OS images can be copied into app storage, but booting them is not implemented. Windows 10 requires user-supplied installation media; the project does not bundle Windows.
+- EXE files can be imported into the library but cannot yet be executed by an integrated Windows runtime.
+- The current IPA is iOS-only; native Apple TV support needs a separate tvOS target.
 - The Android experiment switch is a UI flag only; there is no Android boot runtime.
 - macOS guest launch and Apple Hypervisor.framework are disabled on iOS.
 - QEMU, Box64, Wine/Proton, Windows APIs, guest input injection, and real 3D GPU translation are not fully integrated.
