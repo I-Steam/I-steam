@@ -9,5 +9,5 @@ sync_to_github:
   script:
     - git config user.name "i-Steam Sync"
     - git config user.email "sync@i-steam.local"
-    - git remote set-url origin "https://oauth2:${GITHUB_SYNC_TOKEN}@github.com/i-steam/i-steam.git"
+    - git remote set-url origin "https://oauth2:${GITHUB_SYNC_TOKEN}@github.com/I-steam/I-steam.git"
     - git push --force origin HEAD:main
