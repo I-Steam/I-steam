@@ -118,6 +118,45 @@ final class X86_64Interpreter: GuestCPUBackend {
                 if opcode == 0x31 { registers[rm] ^= registers[reg] }
                 else { registers[reg] ^= registers[rm] }
                 // This minimal core does not yet model x86 condition flags.
+            case 0x0F: // Two-byte opcode map
+                guard let second = fetchByte() else { return .memoryFault(address: rip) }
+                if second == 0x05 { // SYSCALL — small Linux x86-64 userspace ABI subset
+                    let number = registers[0] // RAX
+                    switch number {
+                    case 60, 231: // exit / exit_group
+                        halted = true
+                        instructionCount &+= 1
+                        return .halted
+                    case 1: // write(fd, buffer, count)
+                        let descriptor = registers[7] // RDI
+                        let address = registers[6] // RSI
+                        let requested = registers[2] // RDX
+                        guard descriptor == 1 || descriptor == 2 else {
+                            registers[0] = UInt64(bitPattern: Int64(-9)) // -EBADF
+                            break
+                        }
+                        guard requested <= 1_048_576,
+                              requested <= UInt64(Int.max),
+                              let bytes = memory.read(offset: address, length: Int(requested)) else {
+                            registers[0] = UInt64(bitPattern: Int64(-14)) // -EFAULT
+                            break
+                        }
+                        if let text = String(data: bytes, encoding: .utf8), !text.isEmpty {
+                            EmulationLog.shared.write("[guest stdout] " + text)
+                        } else if !bytes.isEmpty {
+                            EmulationLog.shared.write("[guest stdout] <\\(bytes.count) non-UTF8 bytes>")
+                        }
+                        registers[0] = requested
+                    default:
+                        // Make unsupported syscalls explicit instead of silently
+                        // pretending a guest OS or full Linux ABI is available.
+                        rip = instructionAddress
+                        return .backendUnavailable("Unsupported Linux x86-64 syscall \\(number)")
+                    }
+                } else {
+                    rip = instructionAddress
+                    return .unsupportedInstruction(address: instructionAddress)
+                }
             default:
                 rip = instructionAddress
                 return .unsupportedInstruction(address: instructionAddress)
