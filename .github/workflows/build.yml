@@ -185,15 +185,16 @@ jobs:
           })
           apps = source.get("apps", [])
           channel = os.environ["RELEASE_CHANNEL"]
-          bundle = "com.chantinlongx.iSteam." + channel
-          app_name = "i-Steam Nightly" if channel == "nightly" else "i-Steam Release"
+          bundle = "com.chantinlongx.iSteam"
+          app_name = "i-Steam"
+          apps = [a for a in apps if a.get("bundleIdentifier") == bundle]
           app = next((a for a in apps if a.get("bundleIdentifier") == bundle), None)
           if app is None:
             app = {
               "name": app_name,
               "bundleIdentifier": bundle,
               "developerName": "I-Steam",
-              "subtitle": "Experimental " + channel + " build",
+              "subtitle": "Nightly and release builds",
               "localizedDescription": "Experimental iOS launcher prototype. Sign the unsigned IPA with SideStore. This is not yet a complete PC emulator.",
               "iconURL": "https://i-steam.github.io/IMG_3524.jpeg",
               "tintColor": "#2478C8",
@@ -206,7 +207,7 @@ jobs:
             "size": int(os.environ["RELEASE_SIZE"]),
             "downloadURL": os.environ["DOWNLOAD_URL"],
             "localizedDescription": (
-              ("Nightly" if channel == "nightly" else "Release") +
+              ("NIGHTLY" if channel == "nightly" else "RELEASE") +
               " build. SHA-256: " + os.environ["RELEASE_SHA256"] +
               ". Unsigned prototype; sign with SideStore before installing."
             ),
