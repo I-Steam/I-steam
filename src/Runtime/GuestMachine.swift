@@ -39,6 +39,8 @@ final class GuestMachine {
 
     let configuration: VMConfiguration
     let memory: GuestMemory
+    /// Host services available to a future CPU/network backend adapter.
+    let hostBridge = HostDeviceBridge.shared
     private(set) var state: State = .stopped
     private(set) var lastExit: GuestCPUExit?
     private var cpu: GuestCPUBackend?
@@ -53,6 +55,20 @@ final class GuestMachine {
             self.cpu = X86_64Interpreter(memory: self.memory)
             self.state = .configured
         }
+    }
+
+    /// Host device details for a guest RPC adapter. This is not guest-visible
+    /// until a backend implements a transport (virtio-serial or a virtual NIC).
+    func hostDeviceInfo() -> HostDeviceBridge.DeviceInfo {
+        hostBridge.deviceInfo()
+    }
+
+    func readHostSharedFile(relativePath: String) throws -> Data {
+        try hostBridge.readSharedFile(relativePath: relativePath)
+    }
+
+    func writeHostSharedFile(_ data: Data, relativePath: String) throws {
+        try hostBridge.writeSharedFile(data, relativePath: relativePath)
     }
 
     func installCPUBackend(_ backend: GuestCPUBackend) throws {
