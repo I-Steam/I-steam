@@ -7,7 +7,7 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
     private let statusLabel = UILabel()
     private var pickerPurpose: PickerPurpose = .game
 
-    private enum PickerPurpose { case game, operatingSystem }
+    private enum PickerPurpose { case game, operatingSystem, externalDrive }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -54,6 +54,7 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
         stack.addArrangedSubview(makeButton("Steam Store", detail: "Browse the official Steam Store", symbol: "cart", primary: false) { [weak self] in self?.openSteamStore() })
         stack.addArrangedSubview(makeButton("Dream Store", detail: "Open the Dream Store website", symbol: "sparkles.rectangle.stack", primary: false) { [weak self] in self?.openDreamStore() })
         stack.addArrangedSubview(makeButton("Import Custom OS", detail: "Choose an OS image or disk file", symbol: "externaldrive.badge.plus", primary: false) { [weak self] in self?.importOperatingSystem() })
+        stack.addArrangedSubview(makeButton("Browse External Drive", detail: "Open USB, SD card, or Files-provider storage", symbol: "externaldrive", primary: false) { [weak self] in self?.browseExternalDrive() })
         stack.addArrangedSubview(makeButton("Import Game / Executable", detail: "Add a Windows PE or Linux ELF file", symbol: "plus.rectangle.on.folder", primary: false) { [weak self] in self?.importGame() })
         stack.addArrangedSubview(makeButton("Settings", detail: "Display, VM, input, and diagnostics", symbol: "gearshape", primary: false) { [weak self] in self?.openSettings() })
         statusLabel.textColor = .secondaryLabel
@@ -64,11 +65,12 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
     }
 
     private func updateOSStatus() {
+        let osStatus: String
         if let os = UserDefaults.standard.string(forKey: "iSteam.customOSPath") {
-            statusLabel.text = "Imported OS image: " + URL(fileURLWithPath: os).lastPathComponent + "\nSaved locally; OS boot integration is not yet implemented."
-        } else {
-            statusLabel.text = "No custom OS image imported."
-        }
+            osStatus = "Imported OS image: " + URL(fileURLWithPath: os).lastPathComponent + "\nSaved locally; OS boot integration is not yet implemented."
+        } else { osStatus = "No custom OS image imported." }
+        let driveName = UserDefaults.standard.string(forKey: "iSteam.externalDrive.name")
+        statusLabel.text = osStatus + (driveName.map { "\nLast selected external document: " + $0 } ?? "\nExternal drives are accessed through the iOS Files picker.")
     }
 
     private func makeButton(_ title: String, detail: String, symbol: String, primary: Bool, action: @escaping () -> Void) -> UIButton {
@@ -90,57 +92,47 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
         return button
     }
 
-    @objc private func openSettings() {
-        navigationController?.pushViewController(SettingsViewController(), animated: true)
-    }
+    @objc private func openSettings() { navigationController?.pushViewController(SettingsViewController(), animated: true) }
 
     private func continueLastSession() {
         guard let config = VMSaveSlotStore.shared.lastSessionConfiguration() else {
             let alert = UIAlertController(title: "No saved session", message: "Launch a session with Keep session data enabled to save its configuration for next time.", preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "OK", style: .default))
             alert.addAction(UIAlertAction(title: "Set up a session", style: .default) { [weak self] _ in self?.showLaunchFlow() })
-            present(alert, animated: true)
-            return
+            present(alert, animated: true); return
         }
         navigationController?.pushViewController(VMDisplayViewController(configuration: config), animated: true)
     }
-
-    private func showLaunchFlow() {
-        navigationController?.pushViewController(LaunchSetupViewController(), animated: true)
-    }
-
-    private func openSteamStore() {
-        guard let url = URL(string: "https://store.steampowered.com/") else { return }
-        UIApplication.shared.open(url)
-    }
-
+    private func showLaunchFlow() { navigationController?.pushViewController(LaunchSetupViewController(), animated: true) }
+    private func openSteamStore() { if let url = URL(string: "https://store.steampowered.com/") { UIApplication.shared.open(url) } }
     private func openDreamStore() {
-        // Keep the destination configurable because the project has not specified
-        // an official Dream Store URL. Never silently redirect to an unrelated shop.
-        guard let raw = UserDefaults.standard.string(forKey: "iSteam.dreamStoreURL"),
-              let url = URL(string: raw),
-              ["https", "http"].contains(url.scheme?.lowercased() ?? "") else {
-            showMessage("Dream Store", "Set a website URL in Settings using the iSteam.dreamStoreURL preference before opening Dream Store.")
-            return
+        guard let raw = UserDefaults.standard.string(forKey: "iSteam.dreamStoreURL"), let url = URL(string: raw), ["https", "http"].contains(url.scheme?.lowercased() ?? "") else {
+            showMessage("Dream Store", "Set a website URL in Settings using the iSteam.dreamStoreURL preference before opening Dream Store."); return
         }
         UIApplication.shared.open(url)
     }
 
-    private func importGame() {
-        pickerPurpose = .game
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.data, .item], asCopy: true)
+    private func browseExternalDrive() {
+        pickerPurpose = .externalDrive
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.item, .folder, .data, .diskImage], asCopy: false)
         picker.delegate = self
         picker.allowsMultipleSelection = false
         present(picker, animated: true)
     }
-
+    private func importGame() {
+        pickerPurpose = .game
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.data, .item], asCopy: false)
+        picker.delegate = self
+        picker.allowsMultipleSelection = false
+        present(picker, animated: true)
+    }
     private func importOperatingSystem() {
         pickerPurpose = .operatingSystem
         var types: [UTType] = [.data, .diskImage]
         if let iso = UTType(filenameExtension: "iso") { types.append(iso) }
         if let qcow = UTType(filenameExtension: "qcow2") { types.append(qcow) }
         if let img = UTType(filenameExtension: "img") { types.append(img) }
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: false)
         picker.delegate = self
         picker.allowsMultipleSelection = false
         present(picker, animated: true)
@@ -148,17 +140,24 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
 
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         guard let source = urls.first else { return }
+        if pickerPurpose == .externalDrive {
+            do {
+                try ExternalDriveStore.shared.remember(source)
+                updateOSStatus()
+                showMessage("External storage selected", "Selected \(source.lastPathComponent). iOS grants access through Files while the provider is available. This selection is remembered where iOS permits bookmarks; the current engine does not yet expose a raw USB block device to a guest OS.")
+            } catch { showMessage("Storage access", "The file is available for this session, but iOS could not save a persistent bookmark: \(error.localizedDescription)") }
+            return
+        }
         if pickerPurpose == .operatingSystem {
             do {
                 let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
                 let dir = support.appendingPathComponent("OperatingSystems", isDirectory: true)
                 try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                 let destination = dir.appendingPathComponent(source.lastPathComponent)
-                if FileManager.default.fileExists(atPath: destination.path) { try FileManager.default.removeItem(at: destination) }
-                try FileManager.default.copyItem(at: source, to: destination)
+                try ExternalDriveStore.shared.copyDocument(at: source, to: destination)
                 UserDefaults.standard.set(destination.path, forKey: "iSteam.customOSPath")
                 updateOSStatus()
-                showMessage("OS image imported", "Saved " + destination.lastPathComponent + ". The current VM engine does not yet boot imported ISO/disk images.")
+                showMessage("OS image imported", "Saved \(destination.lastPathComponent). The current VM engine does not yet boot imported ISO/disk images.")
             } catch { showMessage("Import failed", error.localizedDescription) }
             return
         }
@@ -176,7 +175,7 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
             let gameDir = dir.appendingPathComponent(id.uuidString, isDirectory: true)
             try fm.createDirectory(at: gameDir, withIntermediateDirectories: true)
             let destination = gameDir.appendingPathComponent(source.lastPathComponent)
-            try fm.copyItem(at: source, to: destination)
+            try ExternalDriveStore.shared.copyDocument(at: source, to: destination)
             try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: destination.path)
             GameStore.shared.add(GameEntry(id: id, name: source.deletingPathExtension().lastPathComponent, executablePath: destination.path, workingDirectory: gameDir.path))
             showMessage("Game imported", source.lastPathComponent + " added to the library.")
