@@ -40,11 +40,11 @@ jobs:
           CHANNEL=nightly
           if [[ "$EVENT_NAME" == "workflow_dispatch" && "$INPUT_CHANNEL" == "main" ]]; then CHANNEL=main; fi
           if [[ "$CHANNEL" == "main" ]]; then
-            echo "tag=main-$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+            echo "tag=main-$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
             echo "name=i-Steam Main Build #$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=nightly-$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+            echo "tag=nightly-$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
             echo "name=i-Steam Nightly #$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           fi
