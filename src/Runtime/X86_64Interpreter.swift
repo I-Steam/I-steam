@@ -37,6 +37,12 @@ final class X86_64Interpreter: GuestCPUBackend {
         stopLock.unlock()
     }
 
+    func resume() {
+        stopLock.lock()
+        stopRequested = false
+        stopLock.unlock()
+    }
+
     func run(maxInstructions: UInt64) throws -> GuestCPUExit {
         guard maxInstructions > 0 else { throw GuestEngineError.invalidInstructionBudget }
         if halted { return .halted }

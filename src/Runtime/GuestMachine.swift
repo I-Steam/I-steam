@@ -7,6 +7,7 @@ protocol GuestCPUBackend: AnyObject {
     func reset(entryPoint: UInt64) throws
     func run(maxInstructions: UInt64) throws -> GuestCPUExit
     func requestStop()
+    func resume()
 }
 
 enum GuestCPUExit: Equatable {
@@ -150,6 +151,15 @@ final class GuestMachine {
     func pause() {
         cpu?.requestStop()
         if state == .running { state = .paused }
+    }
+
+    /// Resumes a paused interpreter without resetting registers or guest memory.
+    @discardableResult
+    func resume() -> Bool {
+        guard state == .paused, let cpu else { return false }
+        cpu.resume()
+        state = .configured
+        return true
     }
 
     func stop() {
