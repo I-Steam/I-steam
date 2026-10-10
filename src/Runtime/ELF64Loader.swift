@@ -1,8 +1,7 @@
 import Foundation
 
-/// Loads ELF64 little-endian PT_LOAD segments into guest memory. This is not a
-/// Linux boot protocol implementation; kernel setup, initrd, page tables, CPU
-/// state and devices are separate work.
+/// Loads fixed-address ELF64 little-endian PT_LOAD segments into guest memory.
+/// This does not implement Linux boot, dynamic relocation, or process startup.
 final class ELF64Loader {
     struct Segment {
         let guestAddress: UInt64
@@ -35,7 +34,7 @@ final class ELF64Loader {
             case .invalidSegment: return "An ELF load segment has invalid file or memory sizes."
             case .segmentOutsideGuestMemory: return "An ELF load segment does not fit in guest memory."
             case .unsupportedMachine(let machine): return "Unsupported ELF machine type: \(machine)."
-            case .unsupportedFileType(let type): return "Unsupported ELF file type: \(type). Only executable and shared-object images are supported."
+            case .unsupportedFileType(let type): return "Unsupported ELF file type: \(type). This loader currently supports fixed-address ET_EXEC images only."
             }
         }
     }
@@ -56,9 +55,9 @@ final class ELF64Loader {
               let phnum = u16(data, 56), ehsize >= 64, phentsize >= 56 else {
             throw LoadError.truncatedHeader
         }
-        // ET_EXEC and ET_DYN are executable image formats. ET_REL needs a
-        // linker/relocator and ET_CORE is a dump, neither is loaded here.
-        guard fileType == 2 || fileType == 3 else { throw LoadError.unsupportedFileType(fileType) }
+        // ET_DYN needs a load bias and dynamic relocations; accepting it as
+        // fixed-address code would produce a misleadingly "loaded" image.
+        guard fileType == 2 else { throw LoadError.unsupportedFileType(fileType) }
 
         let expectedMachine: UInt16
         switch expectedArchitecture {
@@ -81,7 +80,6 @@ final class ELF64Loader {
         var segments: [Segment] = []
         var pending: [(Segment, Int)] = []
         var total: UInt64 = 0
-
         for index in 0..<entryCount {
             let base = tableOffset + index * entrySize
             guard let type = u32(data, base), let flags = u32(data, base + 4),
@@ -89,12 +87,9 @@ final class ELF64Loader {
                   let fileSize = u64(data, base + 32), let memorySize = u64(data, base + 40) else {
                 throw LoadError.invalidProgramHeaderTable
             }
-            guard type == 1 else { continue } // PT_LOAD
+            guard type == 1 else { continue }
             guard fileSize <= memorySize, fileOffset <= UInt64(data.count),
                   fileSize <= UInt64(data.count) - fileOffset else { throw LoadError.invalidSegment }
-
-            // For process images, PT_LOAD is mapped at p_vaddr. p_paddr is
-            // intended for physical loading and must not override virtual addresses.
             let loadAddress = virtualAddress
             guard loadAddress <= memory.size, memorySize <= memory.size - loadAddress,
                   fileSize <= UInt64(Int.max), loadAddress <= UInt64(Int.max),
@@ -113,8 +108,6 @@ final class ELF64Loader {
             entry >= $0.guestAddress && entry - $0.guestAddress < $0.memorySize
         }) else { throw LoadError.invalidSegment }
 
-        // Validate the complete image before modifying memory, then zero all
-        // ranges first so overlapping PT_LOAD ranges don't erase copied bytes.
         for (segment, _) in pending {
             guard memory.zero(offset: segment.guestAddress, length: segment.memorySize) else {
                 throw LoadError.segmentOutsideGuestMemory
@@ -133,7 +126,6 @@ final class ELF64Loader {
                 copied += UInt64(amount)
             }
         }
-
         return Image(entryPoint: entry, machine: machine, segments: segments, loadedByteCount: total)
     }
 
