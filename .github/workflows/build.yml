@@ -40,10 +40,18 @@ jobs:
           CHANNEL=nightly
           if [[ "$EVENT_NAME" == "workflow_dispatch" && "$INPUT_CHANNEL" == "main" ]]; then CHANNEL=main; fi
           if [[ "$CHANNEL" == "main" ]]; then
+            echo "target=iSteam" >> "$GITHUB_OUTPUT"
+            echo "bundle=com.Xthrx.iSteam" >> "$GITHUB_OUTPUT"
+            echo "ipa_name=iSteam-release.ipa" >> "$GITHUB_OUTPUT"
+            echo "icon=https://i-steam.github.io/IMG_3524.jpeg" >> "$GITHUB_OUTPUT"
             echo "tag=main-$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
             echo "name=i-Steam Main Build #$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           else
+            echo "target=iSteamNightly" >> "$GITHUB_OUTPUT"
+            echo "bundle=com.Xthrx.iSteam.Nightly" >> "$GITHUB_OUTPUT"
+            echo "ipa_name=iSteam-nightly.ipa" >> "$GITHUB_OUTPUT"
+            echo "icon=https://i-steam.github.io/IMG_3523.jpeg" >> "$GITHUB_OUTPUT"
             echo "tag=nightly-$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
             echo "name=i-Steam Nightly #$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
@@ -71,13 +79,14 @@ jobs:
           set -euo pipefail
           mkdir -p build
           set -o pipefail
-          xcodebuild -project iSteam.xcodeproj -scheme iSteam -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -archivePath "$PWD/build/iSteam.xcarchive" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 ONLY_ACTIVE_ARCH=NO OTHER_LDFLAGS="-ObjC -framework Metal -framework MetalKit" archive 2>&1 | tee build/archive.log
+          TARGET="${{ steps.release.outputs.target }}"
+          xcodebuild -project iSteam.xcodeproj -scheme "$TARGET" -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -archivePath "$PWD/build/$TARGET.xcarchive" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 ONLY_ACTIVE_ARCH=NO OTHER_LDFLAGS="-ObjC -framework Metal -framework MetalKit" archive 2>&1 | tee build/archive.log
 
       - name: Verify executable metadata
         shell: bash
         run: |
           set -euo pipefail
-          APP="$PWD/build/iSteam.xcarchive/Products/Applications/iSteam.app"
+          APP="$PWD/build/${{ steps.release.outputs.target }}.xcarchive/Products/Applications/iSteam.app"
           test -d "$APP"
           /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist"
           EXECUTABLE=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$APP/Info.plist")
@@ -88,22 +97,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          APP="$PWD/build/iSteam.xcarchive/Products/Applications/iSteam.app"
+          APP="$PWD/build/${{ steps.release.outputs.target }}.xcarchive/Products/Applications/iSteam.app"
           mkdir -p build/Payload
           cp -R "$APP" build/Payload/iSteam.app
-          ditto -c -k --sequesterRsrc --keepParent build/Payload build/iSteam-SideStore.ipa
-          unzip -t build/iSteam-SideStore.ipa >/dev/null
-          unzip -p build/iSteam-SideStore.ipa Payload/iSteam.app/Info.plist > build/packaged-Info.plist
+          IPA_NAME="${{ steps.release.outputs.ipa_name }}"
+          ditto -c -k --sequesterRsrc --keepParent build/Payload "build/$IPA_NAME"
+          unzip -t "build/$IPA_NAME" >/dev/null
+          unzip -p "build/$IPA_NAME" Payload/iSteam.app/Info.plist > build/packaged-Info.plist
           /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" build/packaged-Info.plist | grep -Fx iSteam
-          shasum -a 256 build/iSteam-SideStore.ipa | tee build/iSteam-SideStore.ipa.sha256
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" build/packaged-Info.plist | grep -Fx "${{ steps.release.outputs.bundle }}"
+          shasum -a 256 "build/$IPA_NAME" | tee "build/$IPA_NAME.sha256"
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: iSteam-SideStore
           path: |
-            build/iSteam-SideStore.ipa
-            build/iSteam-SideStore.ipa.sha256
+            build/${{ steps.release.outputs.ipa_name }}
+            build/${{ steps.release.outputs.ipa_name }}.sha256
           if-no-files-found: error
           retention-days: 30
 
@@ -111,7 +122,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: iSteam-xcarchive
-          path: build/iSteam.xcarchive
+          path: build/${{ steps.release.outputs.target }}.xcarchive
           if-no-files-found: error
           retention-days: 7
 
@@ -139,8 +150,8 @@ jobs:
           target_commitish: ${{ github.sha }}
           body_path: build/RELEASE_NOTES.md
           files: |
-            build/iSteam-SideStore.ipa
-            build/iSteam-SideStore.ipa.sha256
+            build/${{ steps.release.outputs.ipa_name }}
+            build/${{ steps.release.outputs.ipa_name }}.sha256
           fail_on_unmatched_files: true
           make_latest: ${{ steps.release.outputs.prerelease == 'false' && 'true' || 'false' }}
 
@@ -161,58 +172,39 @@ jobs:
             echo "::error title=Missing website token::Add WEBSITE_PUBLISH_TOKEN in I-Steam/I-steam repository Actions secrets. It needs Contents read/write access to I-Steam/I-steam.github.io."
             exit 1
           fi
-          RELEASE_SHA256=$(shasum -a 256 build/iSteam-SideStore.ipa | awk '{print $1}')
-          RELEASE_SIZE=$(stat -f%z build/iSteam-SideStore.ipa)
+          RELEASE_SHA256=$(shasum -a 256 build/${{ steps.release.outputs.ipa_name }} | awk '{print $1}')
+          RELEASE_SIZE=$(stat -f%z build/${{ steps.release.outputs.ipa_name }})
           RELEASE_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           export RELEASE_SHA256 RELEASE_SIZE RELEASE_DATE
           git clone "https://x-access-token:$WEBSITE_PUBLISH_TOKEN@github.com/$SOURCE_REPO.git" website
           cd website
           mkdir -p downloads
-          cp ../build/iSteam-SideStore.ipa "downloads/iSteam-$RELEASE_CHANNEL.ipa"
-          cp ../build/iSteam-SideStore.ipa.sha256 "downloads/iSteam-$RELEASE_CHANNEL.ipa.sha256"
-          export DOWNLOAD_URL="https://i-steam.github.io/downloads/iSteam-$RELEASE_CHANNEL.ipa"
+          IPA_NAME="${{ steps.release.outputs.ipa_name }}"
+          cp "../build/$IPA_NAME" "downloads/$IPA_NAME"
+          cp "../build/$IPA_NAME.sha256" "downloads/$IPA_NAME.sha256"
+          export DOWNLOAD_URL="https://i-steam.github.io/downloads/$IPA_NAME"
+          export APP_BUNDLE="${{ steps.release.outputs.bundle }}"
+          export APP_ICON="${{ steps.release.outputs.icon }}"
+          export APP_NAME="i-Steam $RELEASE_CHANNEL"
           python3 - <<'PY'
           import json, os, pathlib
           path = pathlib.Path("AltSource.json")
           source = json.loads(path.read_text()) if path.exists() else {}
-          source.update({
-            "name": "I-Steam",
-            "subtitle": "Official i-Steam iOS builds",
-            "description": "Experimental iOS VM launcher. Guest OS boot and game execution remain under development.",
-            "iconURL": "https://i-steam.github.io/IMG_3524.jpeg",
-            "website": "https://i-steam.github.io/",
-            "tintColor": "#2478C8",
-          })
+          source.update({"name":"I-Steam","subtitle":"Official i-Steam iOS builds","description":"Experimental iOS VM launcher. Guest OS boot and game execution remain under development.","iconURL":"https://i-steam.github.io/IMG_3524.jpeg","website":"https://i-steam.github.io/","tintColor":"#2478C8"})
           apps = source.get("apps", [])
+          bundle = os.environ["APP_BUNDLE"]
           channel = os.environ["RELEASE_CHANNEL"]
-          bundle = "com.chantinlongx.iSteam"
-          app_name = "i-Steam"
-          apps = [a for a in apps if a.get("bundleIdentifier") == bundle]
+          app_name = os.environ["APP_NAME"]
+          icon = os.environ["APP_ICON"]
           app = next((a for a in apps if a.get("bundleIdentifier") == bundle), None)
           if app is None:
-            app = {
-              "name": app_name,
-              "bundleIdentifier": bundle,
-              "developerName": "I-Steam",
-              "subtitle": "Nightly and release builds",
-              "localizedDescription": "Experimental iOS launcher prototype. Sign the unsigned IPA with SideStore. This is not yet a complete PC emulator.",
-              "iconURL": "https://i-steam.github.io/IMG_3524.jpeg",
-              "tintColor": "#2478C8",
-              "versions": []
-            }
+            app = {"name":app_name,"bundleIdentifier":bundle,"developerName":"Xthrx","subtitle":"Experimental "+channel+" build","localizedDescription":"Experimental iOS launcher prototype. Sign the unsigned IPA with SideStore. This is not yet a complete PC emulator.","iconURL":icon,"tintColor":"#2478C8","versions":[]}
             apps.append(app)
-          version = {
-            "version": os.environ["RELEASE_TAG"],
-            "date": os.environ["RELEASE_DATE"],
-            "size": int(os.environ["RELEASE_SIZE"]),
-            "downloadURL": os.environ["DOWNLOAD_URL"],
-            "localizedDescription": (
-              ("NIGHTLY" if channel == "nightly" else "RELEASE") +
-              " build. SHA-256: " + os.environ["RELEASE_SHA256"] +
-              ". Unsigned prototype; sign with SideStore before installing."
-            ),
-            "minOSVersion": "16.0"
-          }
+          app["name"] = app_name
+          app["developerName"] = "Xthrx"
+          app["iconURL"] = icon
+          app["subtitle"] = "Experimental " + channel + " build"
+          version = {"version":os.environ["RELEASE_TAG"],"date":os.environ["RELEASE_DATE"],"size":int(os.environ["RELEASE_SIZE"]),"downloadURL":os.environ["DOWNLOAD_URL"],"localizedDescription":channel.upper()+" build. SHA-256: "+os.environ["RELEASE_SHA256"]+". Unsigned prototype; sign with SideStore before installing.","minOSVersion":"16.0"}
           versions = app.setdefault("versions", [])
           versions[:] = [v for v in versions if v.get("version") != version["version"]]
           versions.insert(0, version)
@@ -229,7 +221,7 @@ jobs:
           HTML
           git config user.name "i-Steam release bot"
           git config user.email "release-bot@users.noreply.github.com"
-          git add AltSource.json index.html "downloads/iSteam-$RELEASE_CHANNEL.ipa" "downloads/iSteam-$RELEASE_CHANNEL.ipa.sha256"
+          git add AltSource.json index.html "downloads/$IPA_NAME" "downloads/$IPA_NAME.sha256"
           git commit -m "Publish i-Steam $RELEASE_CHANNEL $RELEASE_TAG"
           git push origin HEAD:main
 
