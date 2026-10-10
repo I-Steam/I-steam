@@ -228,6 +228,9 @@ jobs:
           git config user.email "release-bot@users.noreply.github.com"
           git add AltSource.json index.html "downloads/$IPA_NAME" "downloads/$IPA_NAME.sha256"
           git commit -m "Publish i-Steam $RELEASE_CHANNEL $RELEASE_TAG"
+          # GitLab mirror syncs may update the Pages repo at the same time.
+          # Merge remote changes while preserving this build's newly generated manifest.
+          git pull --no-rebase -X ours origin main
           git push origin HEAD:main
 
       - name: Explain failure
