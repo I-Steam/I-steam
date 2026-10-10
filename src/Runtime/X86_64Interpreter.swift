@@ -182,28 +182,43 @@ final class X86_64Interpreter: GuestCPUBackend {
 
     private func fetchUInt32() -> UInt32? {
         guard let data = memory.read(offset: rip, length: 4), data.count == 4 else { return nil }
+        let value: UInt32? = data.withUnsafeBytes { raw in
+            guard let base = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return nil }
+            var result: UInt32 = 0
+            return isteam_read_le32(base, raw.count, 0, &result) ? result : nil
+        }
+        guard let value else { return nil }
         rip &+= 4
-        return UInt32(data[0]) | UInt32(data[1]) << 8 | UInt32(data[2]) << 16 | UInt32(data[3]) << 24
+        return value
     }
 
     private func fetchUInt64() -> UInt64? {
         guard let data = memory.read(offset: rip, length: 8), data.count == 8 else { return nil }
+        let value: UInt64? = data.withUnsafeBytes { raw in
+            guard let base = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return nil }
+            var result: UInt64 = 0
+            return isteam_read_le64(base, raw.count, 0, &result) ? result : nil
+        }
+        guard let value else { return nil }
         rip &+= 8
-        var result: UInt64 = 0
-        for index in 0..<8 { result |= UInt64(data[index]) << UInt64(index * 8) }
-        return result
+        return value
     }
 
     private func readUInt64(at address: UInt64) -> UInt64? {
         guard let data = memory.read(offset: address, length: 8), data.count == 8 else { return nil }
-        var result: UInt64 = 0
-        for index in 0..<8 { result |= UInt64(data[index]) << UInt64(index * 8) }
-        return result
+        return data.withUnsafeBytes { raw in
+            guard let base = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return nil }
+            var result: UInt64 = 0
+            return isteam_read_le64(base, raw.count, 0, &result) ? result : nil
+        }
     }
 
     private func littleEndianBytes(_ value: UInt64) -> Data {
-        var value = value.littleEndian
-        return withUnsafeBytes(of: &value) { Data($0) }
+        var bytes = [UInt8](repeating: 0, count: 8)
+        bytes.withUnsafeMutableBufferPointer { buffer in
+            if let base = buffer.baseAddress { isteam_write_le64(base, value) }
+        }
+        return Data(bytes)
     }
 
     private func addSigned(_ displacement: Int8, to base: UInt64) -> UInt64 {
