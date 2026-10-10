@@ -216,6 +216,44 @@ jobs:
           app["versions"] = versions[:10]
           source["apps"] = apps
           path.write_text(json.dumps(source, indent=2, ensure_ascii=False) + chr(10))
+          legacy = {
+            "name": "I-Steam",
+            "identifier": "com.Xthrx.iSteam.source",
+            "subtitle": "i-Steam release and nightly builds",
+            "description": source["description"],
+            "website": source["website"],
+            "apps": []
+          }
+          import re
+          for app in apps:
+            versions = app.get("versions", [])
+            latest = versions[0] if versions else {}
+            version_text = latest.get("localizedDescription", "")
+            sha_match = re.search(r"SHA-256: ([0-9a-fA-F]{64})", version_text)
+            entry = {
+              "name": app["name"],
+              "bundleIdentifier": app["bundleIdentifier"],
+              "developerName": "Xthrx",
+              "subtitle": app["subtitle"],
+              "localizedDescription": app["localizedDescription"],
+              "tintColor": "2478C8",
+              "category": "utilities",
+              "iconURL": app["iconURL"],
+              "minOSVersion": "16.0"
+            }
+            if latest:
+              entry.update({
+                "version": latest["version"],
+                "versionDate": latest["date"],
+                "versionDescription": version_text,
+                "downloadURL": latest["downloadURL"],
+                "size": latest["size"]
+              })
+              if sha_match:
+                entry["sha256"] = sha_match.group(1)
+            legacy["apps"].append(entry)
+          pathlib.Path("alt").mkdir(exist_ok=True)
+          pathlib.Path("alt/source.json").write_text(json.dumps(legacy, indent=2, ensure_ascii=False) + chr(10))
           PY
           cat > index.html <<'HTML'
           <!doctype html>
