@@ -128,8 +128,9 @@ jobs:
           - Project status: https://github.com/I-Steam/I-steam/blob/main/README.md
           EOF
 
-      - name: Publish GitHub release
+      - name: Publish GitHub release (optional mirror)
         id: publish_release
+        continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release.outputs.tag }}
@@ -143,19 +144,16 @@ jobs:
           fail_on_unmatched_files: true
           make_latest: ${{ steps.release.outputs.prerelease == 'false' && 'true' || 'false' }}
 
-      # The AltStore manifest is written only after a validated IPA and release exist.
-      # The manifest is committed to the Pages repo in one commit, so clients never see
-      # a half-written JSON file. WEBSITE_PUBLISH_TOKEN must be a PAT with Contents: read/write
-      # access to I-Steam/I-steam.github.io.
-      - name: Atomically publish AltStore source manifest
-        if: success()
+      # Publish the IPA and source manifest together in one Pages-repository commit.
+      # This does not depend on GitHub Releases being enabled for GITHUB_TOKEN.
+      - name: Atomically publish AltStore source and IPA
+        if: success() || steps.publish_release.outcome == 'failure'
         shell: bash
         env:
           WEBSITE_PUBLISH_TOKEN: ${{ secrets.WEBSITE_PUBLISH_TOKEN }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
           RELEASE_NAME: ${{ steps.release.outputs.name }}
           RELEASE_CHANNEL: ${{ steps.release.outputs.channel }}
-          RELEASE_URL: https://github.com/I-Steam/I-steam/releases/download/${{ steps.release.outputs.tag }}/iSteam-SideStore.ipa
           SOURCE_REPO: I-Steam/I-steam.github.io
         run: |
           set -euo pipefail
@@ -169,54 +167,69 @@ jobs:
           export RELEASE_SHA256 RELEASE_SIZE RELEASE_DATE
           git clone "https://x-access-token:$WEBSITE_PUBLISH_TOKEN@github.com/$SOURCE_REPO.git" website
           cd website
-          mkdir -p alt
-          cat > index.html <<HTML
-          <!doctype html>
-          <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>i-Steam</title></head>
-          <body><main><h1>i-Steam</h1><p>Experimental iOS VM launcher prototype. Guest OS boot and game execution are under development.</p>
-          <p><a href="/alt/source.json">Add i-Steam to AltStore / SideStore</a></p>
-          <p><a href="https://github.com/I-Steam/I-steam/releases">Browse IPA releases</a></p></main></body></html>
-          HTML
+          mkdir -p downloads
+          cp ../build/iSteam-SideStore.ipa "downloads/iSteam-$RELEASE_CHANNEL.ipa"
+          cp ../build/iSteam-SideStore.ipa.sha256 "downloads/iSteam-$RELEASE_CHANNEL.ipa.sha256"
+          export DOWNLOAD_URL="https://i-steam.github.io/downloads/iSteam-$RELEASE_CHANNEL.ipa"
           python3 - <<'PY'
           import json, os, pathlib
-          tag = os.environ["RELEASE_TAG"]
-          name = os.environ["RELEASE_NAME"]
-          channel = os.environ["RELEASE_CHANNEL"]
-          ipa = os.environ["RELEASE_URL"]
-          manifest = {
-            "name": "i-Steam",
-            "identifier": "com.chantinlongx.iSteam.source",
-            "subtitle": "i-Steam iOS VM launcher builds",
-            "description": "Experimental i-Steam builds. Unsigned IPAs must be signed before installation. Guest OS execution is still under development.",
+          path = pathlib.Path("AltSource.json")
+          source = json.loads(path.read_text()) if path.exists() else {}
+          source.update({
+            "name": "I-Steam",
+            "subtitle": "Official i-Steam iOS builds",
+            "description": "Experimental iOS VM launcher. Guest OS boot and game execution remain under development.",
+            "iconURL": "https://i-steam.github.io/IMG_3524.jpeg",
             "website": "https://i-steam.github.io/",
-            "apps": [{
-              "name": "i-Steam",
-              "bundleIdentifier": "com.chantinlongx.iSteam",
+            "tintColor": "#2478C8",
+          })
+          apps = source.get("apps", [])
+          channel = os.environ["RELEASE_CHANNEL"]
+          bundle = "com.chantinlongx.iSteam." + channel
+          app_name = "i-Steam Nightly" if channel == "nightly" else "i-Steam Release"
+          app = next((a for a in apps if a.get("bundleIdentifier") == bundle), None)
+          if app is None:
+            app = {
+              "name": app_name,
+              "bundleIdentifier": bundle,
               "developerName": "I-Steam",
-              "subtitle": name,
-              "localizedDescription": "Experimental iOS launcher and VM runtime prototype. Guest OS boot and game execution are not yet guaranteed.",
-              "tintColor": "2478C8",
-              "category": "utilities",
-              "version": tag,
-              "versionDate": os.environ["RELEASE_DATE"],
-              "versionDescription": f"{channel} build. Unsigned prototype; sign with SideStore before installing.",
-              "downloadURL": ipa,
-              "size": int(os.environ["RELEASE_SIZE"]),
-              "sha256": os.environ["RELEASE_SHA256"],
-              "minOSVersion": "16.0"
-            }]
+              "subtitle": "Experimental " + channel + " build",
+              "localizedDescription": "Experimental iOS launcher prototype. Sign the unsigned IPA with SideStore. This is not yet a complete PC emulator.",
+              "iconURL": "https://i-steam.github.io/IMG_3524.jpeg",
+              "tintColor": "#2478C8",
+              "versions": []
+            }
+            apps.append(app)
+          version = {
+            "version": os.environ["RELEASE_TAG"],
+            "date": os.environ["RELEASE_DATE"],
+            "size": int(os.environ["RELEASE_SIZE"]),
+            "downloadURL": os.environ["DOWNLOAD_URL"],
+            "localizedDescription": (
+              ("Nightly" if channel == "nightly" else "Release") +
+              " build. SHA-256: " + os.environ["RELEASE_SHA256"] +
+              ". Unsigned prototype; sign with SideStore before installing."
+            ),
+            "minOSVersion": "16.0"
           }
-          pathlib.Path("alt/source.json").write_text(json.dumps(manifest, indent=2) + chr(10))
+          versions = app.setdefault("versions", [])
+          versions[:] = [v for v in versions if v.get("version") != version["version"]]
+          versions.insert(0, version)
+          app["versions"] = versions[:10]
+          source["apps"] = apps
+          path.write_text(json.dumps(source, indent=2, ensure_ascii=False) + chr(10))
           PY
+          cat > index.html <<'HTML'
+          <!doctype html>
+          <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>I-Steam</title></head>
+          <body><main><h1>I-Steam</h1><p>Experimental iOS VM launcher prototype. Guest OS boot and game execution are under development.</p>
+          <p><a href="/AltSource.json">Add I-Steam to AltStore / SideStore</a></p>
+          <p><a href="https://github.com/I-Steam/I-steam/actions">Browse build artifacts</a></p></main></body></html>
+          HTML
           git config user.name "i-Steam release bot"
           git config user.email "release-bot@users.noreply.github.com"
-          git add alt/source.json
-          git add index.html
-          if git diff --cached --quiet; then
-            echo "AltStore manifest already matches this release."
-            exit 0
-          fi
-          git commit -m "Publish AltStore source for $RELEASE_TAG"
+          git add AltSource.json index.html "downloads/iSteam-$RELEASE_CHANNEL.ipa" "downloads/iSteam-$RELEASE_CHANNEL.ipa.sha256"
+          git commit -m "Publish i-Steam $RELEASE_CHANNEL $RELEASE_TAG"
           git push origin HEAD:main
 
       - name: Explain failure
