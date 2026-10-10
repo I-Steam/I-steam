@@ -1,6 +1,6 @@
 name: iSteam
 options:
-  bundleIdPrefix: com.chantinlongx
+  bundleIdPrefix: com.Xthrx
   xcodeVersion: "26.0"
   deploymentTarget:
     iOS: "16.0"
@@ -19,10 +19,38 @@ targets:
       - path: src
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.chantinlongx.iSteam
+        PRODUCT_BUNDLE_IDENTIFIER: com.Xthrx.iSteam
+        PRODUCT_NAME: iSteam
+        INFOPLIST_KEY_CFBundleDisplayName: i-Steam Release
         INFOPLIST_FILE: iSteam/Info.plist
         CODE_SIGN_ENTITLEMENTS: iSteam/iSteam.entitlements
         SWIFT_OBJC_BRIDGING_HEADER: iSteam/iSteam-Bridging-Header.h
+        OTHER_LDFLAGS:
+          - "$(inherited)"
+          - "-ObjC"
+          - "-framework"
+          - "Metal"
+          - "-framework"
+          - "MetalKit"
+
+  iSteamNightly:
+    type: application
+    platform: iOS
+    sources:
+      - path: iSteam
+      - path: src
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.Xthrx.iSteam.Nightly
+        PRODUCT_NAME: iSteam
+        INFOPLIST_KEY_CFBundleDisplayName: i-Steam Nightly
+        INFOPLIST_FILE: iSteam/Info.plist
+        CODE_SIGN_ENTITLEMENTS: iSteam/iSteam.entitlements
+        SWIFT_OBJC_BRIDGING_HEADER: iSteam/iSteam-Bridging-Header.h
+        SWIFT_VERSION: "5.9"
+        IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+        ARCHS: "arm64 arm64e"
+        EXCLUDED_ARCHS[sdk=iphonesimulator*]: "arm64e"
         OTHER_LDFLAGS:
           - "$(inherited)"
           - "-ObjC"
