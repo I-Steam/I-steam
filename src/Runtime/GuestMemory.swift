@@ -1,10 +1,6 @@
 import Foundation
 
 /// Sparse, bounds-checked guest physical memory.
-///
-/// A full VM may advertise gigabytes of RAM, but allocating a single Data
-/// buffer of that size is wasteful and can terminate the iOS app. This stores
-/// only pages that have actually been written; untouched bytes read as zero.
 final class GuestMemory {
     static let pageSize: UInt64 = 4096
 
@@ -16,8 +12,7 @@ final class GuestMemory {
         self.size = size
     }
 
-    /// Reads bytes from guest physical memory. Returns nil for an out-of-range
-    /// request. Unallocated pages are returned as zero-filled memory.
+    /// Reads bytes from guest physical memory. Unallocated pages read as zero.
     func read(offset: UInt64, length: Int) -> Data? {
         guard length >= 0, offset <= size else { return nil }
         let byteCount = UInt64(length)
@@ -34,12 +29,9 @@ final class GuestMemory {
             let pageIndex = guestOffset / Self.pageSize
             let pageOffset = Int(guestOffset % Self.pageSize)
             let amount = min(length - resultOffset, Int(Self.pageSize) - pageOffset)
-
             if let page = pages[pageIndex] {
-                result.replaceSubrange(
-                    resultOffset..<(resultOffset + amount),
-                    with: page[pageOffset..<(pageOffset + amount)]
-                )
+                result.replaceSubrange(resultOffset..<(resultOffset + amount),
+                                       with: page[pageOffset..<(pageOffset + amount)])
             }
             guestOffset += UInt64(amount)
             resultOffset += amount
@@ -47,8 +39,7 @@ final class GuestMemory {
         return result
     }
 
-    /// Writes bytes to guest physical memory. Returns false if the entire
-    /// write does not fit; a rejected write never partially modifies memory.
+    /// Writes only after validating that the whole range fits.
     @discardableResult
     func write(_ data: Data, offset: UInt64) -> Bool {
         guard offset <= size else { return false }
@@ -58,19 +49,15 @@ final class GuestMemory {
 
         lock.lock()
         defer { lock.unlock() }
-
         var guestOffset = offset
         var sourceOffset = 0
         while sourceOffset < data.count {
             let pageIndex = guestOffset / Self.pageSize
             let pageOffset = Int(guestOffset % Self.pageSize)
             let amount = min(data.count - sourceOffset, Int(Self.pageSize) - pageOffset)
-
             var page = pages[pageIndex] ?? Data(count: Int(Self.pageSize))
-            page.replaceSubrange(
-                pageOffset..<(pageOffset + amount),
-                with: data[sourceOffset..<(sourceOffset + amount)]
-            )
+            page.replaceSubrange(pageOffset..<(pageOffset + amount),
+                                 with: data[sourceOffset..<(sourceOffset + amount)])
             pages[pageIndex] = page
             guestOffset += UInt64(amount)
             sourceOffset += amount
@@ -78,8 +65,31 @@ final class GuestMemory {
         return true
     }
 
-    /// Releases backing storage for all pages. The guest address-space size
-    /// remains unchanged, and future reads from cleared pages return zero.
+    /// Zeroes a range without allocating a buffer proportional to its size.
+    /// Missing pages already read as zero, so they remain unallocated.
+    @discardableResult
+    func zero(offset: UInt64, length: UInt64) -> Bool {
+        guard offset <= size, length <= size - offset else { return false }
+        if length == 0 { return true }
+
+        lock.lock()
+        defer { lock.unlock() }
+        var guestOffset = offset
+        let end = offset + length
+        while guestOffset < end {
+            let pageIndex = guestOffset / Self.pageSize
+            let pageOffset = Int(guestOffset % Self.pageSize)
+            let amount = Int(min(end - guestOffset, Self.pageSize - UInt64(pageOffset)))
+            if var page = pages[pageIndex] {
+                page.replaceSubrange(pageOffset..<(pageOffset + amount),
+                                     with: repeatElement(UInt8(0), count: amount))
+                pages[pageIndex] = page
+            }
+            guestOffset += UInt64(amount)
+        }
+        return true
+    }
+
     func clear() {
         lock.lock()
         pages.removeAll(keepingCapacity: false)

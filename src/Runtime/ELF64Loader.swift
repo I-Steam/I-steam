@@ -1,8 +1,8 @@
 import Foundation
 
-/// Minimal ELF64 little-endian loader for inspecting and placing PT_LOAD
-/// segments into GuestMemory. This is not a Linux boot protocol implementation:
-/// kernel setup, initrd, page tables, CPU state and device boot remain separate.
+/// Loads ELF64 little-endian PT_LOAD segments into guest memory. This is not a
+/// Linux boot protocol implementation; kernel setup, initrd, page tables, CPU
+/// state and devices are separate work.
 final class ELF64Loader {
     struct Segment {
         let guestAddress: UInt64
@@ -38,36 +38,20 @@ final class ELF64Loader {
         }
     }
 
-    /// Validates every segment before changing guest memory. Zeroing all target
-    /// segments before copying any file bytes avoids wiping earlier file data
-    /// when valid PT_LOAD segments overlap.
     func load(_ url: URL, into memory: GuestMemory,
               expectedArchitecture: VMConfiguration.Architecture) throws -> Image {
         let data: Data
-        do {
-            data = try Data(contentsOf: url, options: [.mappedIfSafe])
-        } catch {
-            throw LoadError.unreadable
-        }
+        do { data = try Data(contentsOf: url, options: [.mappedIfSafe]) }
+        catch { throw LoadError.unreadable }
 
-        guard data.count >= 64,
-              data[0] == 0x7F, data[1] == 0x45,
-              data[2] == 0x4C, data[3] == 0x46 else {
-            throw LoadError.invalidMagic
-        }
-        guard data[4] == 2, data[5] == 1 else {
-            throw LoadError.unsupportedClassOrEndian
-        }
+        guard data.count >= 64, data[0] == 0x7F, data[1] == 0x45,
+              data[2] == 0x4C, data[3] == 0x46 else { throw LoadError.invalidMagic }
+        guard data[4] == 2, data[5] == 1 else { throw LoadError.unsupportedClassOrEndian }
 
-        guard let machine = u16(data, 18),
-              let entry = u64(data, 24),
-              let phoff = u64(data, 32),
-              let ehsize = u16(data, 52),
-              let phentsize = u16(data, 54),
-              let phnum = u16(data, 56),
-              ehsize >= 64, phentsize >= 56 else {
-            throw LoadError.truncatedHeader
-        }
+        guard let machine = u16(data, 18), let entry = u64(data, 24),
+              let phoff = u64(data, 32), let ehsize = u16(data, 52),
+              let phentsize = u16(data, 54), let phnum = u16(data, 56),
+              ehsize >= 64, phentsize >= 56 else { throw LoadError.truncatedHeader }
 
         let expectedMachine: UInt16
         switch expectedArchitecture {
@@ -75,20 +59,15 @@ final class ELF64Loader {
         case .arm64: expectedMachine = 183
         case .riscv64: expectedMachine = 243
         }
-        guard machine == expectedMachine else {
-            throw LoadError.unsupportedMachine(machine)
-        }
+        guard machine == expectedMachine else { throw LoadError.unsupportedMachine(machine) }
 
-        // Validate before converting UInt64 to Int; a hostile ELF offset must
-        // not trap during integer conversion on the host.
         guard phoff <= UInt64(data.count), phoff <= UInt64(Int.max) else {
             throw LoadError.invalidProgramHeaderTable
         }
         let tableOffset = Int(phoff)
         let entrySize = Int(phentsize)
         let entryCount = Int(phnum)
-        guard entryCount == 0 ||
-              entrySize <= (data.count - tableOffset) / entryCount else {
+        guard entryCount == 0 || entrySize <= (data.count - tableOffset) / entryCount else {
             throw LoadError.invalidProgramHeaderTable
         }
 
@@ -98,36 +77,24 @@ final class ELF64Loader {
 
         for index in 0..<entryCount {
             let base = tableOffset + index * entrySize
-            guard let type = u32(data, base),
-                  let flags = u32(data, base + 4),
-                  let fileOffset = u64(data, base + 8),
-                  let virtualAddress = u64(data, base + 16),
-                  let physicalAddress = u64(data, base + 24),
-                  let fileSize = u64(data, base + 32),
+            guard let type = u32(data, base), let flags = u32(data, base + 4),
+                  let fileOffset = u64(data, base + 8), let virtualAddress = u64(data, base + 16),
+                  let physicalAddress = u64(data, base + 24), let fileSize = u64(data, base + 32),
                   let memorySize = u64(data, base + 40) else {
                 throw LoadError.invalidProgramHeaderTable
             }
-            guard type == 1 else { continue } // PT_LOAD
-            guard fileSize <= memorySize,
-                  fileOffset <= UInt64(data.count),
-                  fileSize <= UInt64(data.count) - fileOffset else {
-                throw LoadError.invalidSegment
-            }
+            guard type == 1 else { continue }
+            guard fileSize <= memorySize, fileOffset <= UInt64(data.count),
+                  fileSize <= UInt64(data.count) - fileOffset else { throw LoadError.invalidSegment }
 
             let loadAddress = physicalAddress == 0 ? virtualAddress : physicalAddress
-            guard loadAddress <= memory.size,
-                  memorySize <= memory.size - loadAddress,
-                  fileSize <= UInt64(Int.max),
-                  loadAddress <= UInt64(Int.max),
-                  memorySize <= UInt64(Int.max),
-                  total <= UInt64.max - memorySize else {
+            guard loadAddress <= memory.size, memorySize <= memory.size - loadAddress,
+                  fileSize <= UInt64(Int.max), loadAddress <= UInt64(Int.max),
+                  memorySize <= UInt64(Int.max), total <= UInt64.max - memorySize else {
                 throw LoadError.segmentOutsideGuestMemory
             }
-
-            let segment = Segment(guestAddress: loadAddress,
-                                  fileSize: fileSize,
-                                  memorySize: memorySize,
-                                  flags: flags)
+            let segment = Segment(guestAddress: loadAddress, fileSize: fileSize,
+                                  memorySize: memorySize, flags: flags)
             segments.append(segment)
             pending.append((segment, Int(fileOffset)))
             total += memorySize
@@ -136,28 +103,31 @@ final class ELF64Loader {
         guard !segments.isEmpty else { throw LoadError.noLoadableSegments }
         guard segments.contains(where: {
             entry >= $0.guestAddress && entry - $0.guestAddress < $0.memorySize
-        }) else {
-            throw LoadError.invalidSegment
-        }
+        }) else { throw LoadError.invalidSegment }
 
-        // Clear all segment memory first, then copy all file-backed bytes.
-        // This also ensures BSS is zeroed without clearing overlapping data.
+        // Sparse zeroing avoids creating huge temporary Data buffers.
         for (segment, _) in pending {
-            guard memory.write(Data(count: Int(segment.memorySize)),
-                               offset: segment.guestAddress) else {
+            guard memory.zero(offset: segment.guestAddress, length: segment.memorySize) else {
                 throw LoadError.segmentOutsideGuestMemory
             }
         }
+        // Copy in bounded chunks so a large segment does not create a second
+        // full-size temporary allocation on top of the mapped executable.
+        let chunkSize = 64 * 1024
         for (segment, fileOffset) in pending where segment.fileSize > 0 {
-            let count = Int(segment.fileSize)
-            let bytes = data.subdata(in: fileOffset..<(fileOffset + count))
-            guard memory.write(bytes, offset: segment.guestAddress) else {
-                throw LoadError.segmentOutsideGuestMemory
+            var copied: UInt64 = 0
+            while copied < segment.fileSize {
+                let amount = Int(min(UInt64(chunkSize), segment.fileSize - copied))
+                let sourceStart = fileOffset + Int(copied)
+                let bytes = data.subdata(in: sourceStart..<(sourceStart + amount))
+                guard memory.write(bytes, offset: segment.guestAddress + copied) else {
+                    throw LoadError.segmentOutsideGuestMemory
+                }
+                copied += UInt64(amount)
             }
         }
 
-        return Image(entryPoint: entry, machine: machine,
-                     segments: segments, loadedByteCount: total)
+        return Image(entryPoint: entry, machine: machine, segments: segments, loadedByteCount: total)
     }
 
     private func u16(_ data: Data, _ offset: Int) -> UInt16? {

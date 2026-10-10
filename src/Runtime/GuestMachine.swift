@@ -1,14 +1,9 @@
 import Foundation
 
-/// The CPU boundary used by the guest machine.
-///
-/// A backend must implement instruction execution and register state. Merely
-/// conforming to this protocol does not make a CPU emulator; i-Steam currently
-/// has no production x86_64 or ARM64 guest CPU backend wired in.
+/// CPU backend boundary. A real emulator implementation must be supplied.
 protocol GuestCPUBackend: AnyObject {
     var architecture: VMConfiguration.Architecture { get }
     var instructionCount: UInt64 { get }
-
     func reset(entryPoint: UInt64) throws
     func run(maxInstructions: UInt64) throws -> GuestCPUExit
     func requestStop()
@@ -37,16 +32,9 @@ enum GuestEngineError: LocalizedError {
     }
 }
 
-/// Explicit engine state so UI and logs cannot mistake a configured VM for a
-/// running guest. The engine deliberately fails closed until a real backend is
-/// registered.
 final class GuestMachine {
     enum State: Equatable {
-        case stopped
-        case configured
-        case running
-        case paused
-        case failed(String)
+        case stopped, configured, running, paused, failed(String)
     }
 
     let configuration: VMConfiguration
@@ -61,8 +49,6 @@ final class GuestMachine {
         self.memory = GuestMemory(size: requestedSize)
     }
 
-    /// Installs a compatible CPU backend. This is dependency injection only;
-    /// the caller must supply a real emulator implementation.
     func installCPUBackend(_ backend: GuestCPUBackend) throws {
         guard backend.architecture == configuration.architecture else {
             throw GuestEngineError.backendNotInstalled(configuration.architecture)
@@ -73,12 +59,36 @@ final class GuestMachine {
         lastExit = nil
     }
 
+    /// Loads an ELF64 image into guest memory and initializes the CPU at its
+    /// entry point. Loading requires a compatible, real CPU backend to be installed.
+    @discardableResult
+    func loadELFImage(at url: URL) throws -> ELF64Loader.Image {
+        guard let cpu else {
+            let error = GuestEngineError.backendNotInstalled(configuration.architecture)
+            state = .failed(error.localizedDescription)
+            throw error
+        }
+
+        do {
+            let image = try ELF64Loader().load(url, into: memory,
+                                               expectedArchitecture: configuration.architecture)
+            try cpu.reset(entryPoint: image.entryPoint)
+            lastExit = nil
+            state = .configured
+            return image
+        } catch {
+            state = .failed(error.localizedDescription)
+            throw error
+        }
+    }
+
+    /// Resets CPU registers only. Loaded guest memory is deliberately preserved.
     func reset(entryPoint: UInt64) throws {
         guard let cpu else {
-            state = .failed(GuestEngineError.backendNotInstalled(configuration.architecture).localizedDescription)
-            throw GuestEngineError.backendNotInstalled(configuration.architecture)
+            let error = GuestEngineError.backendNotInstalled(configuration.architecture)
+            state = .failed(error.localizedDescription)
+            throw error
         }
-        memory.clear()
         do {
             try cpu.reset(entryPoint: entryPoint)
             lastExit = nil
@@ -89,9 +99,6 @@ final class GuestMachine {
         }
     }
 
-    /// Runs a bounded batch so the host app can yield between batches instead
-    /// of freezing the UI. A future scheduler should call this off the main
-    /// thread and apply a time budget as well.
     @discardableResult
     func runBatch(maxInstructions: UInt64) throws -> GuestCPUExit {
         guard maxInstructions > 0 else { throw GuestEngineError.invalidInstructionBudget }
@@ -100,18 +107,14 @@ final class GuestMachine {
             state = .failed(error.localizedDescription)
             throw error
         }
-
         state = .running
         do {
             let exit = try cpu.run(maxInstructions: maxInstructions)
             lastExit = exit
             switch exit {
-            case .instructionLimit:
-                state = .configured
-            case .interrupted:
-                state = .paused
-            case .halted:
-                state = .stopped
+            case .instructionLimit: state = .configured
+            case .interrupted: state = .paused
+            case .halted: state = .stopped
             case .unsupportedInstruction, .memoryFault, .backendUnavailable:
                 state = .failed(String(describing: exit))
             }
