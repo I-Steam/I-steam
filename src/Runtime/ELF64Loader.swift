@@ -22,6 +22,7 @@ final class ELF64Loader {
         case unreadable, invalidMagic, unsupportedClassOrEndian
         case truncatedHeader, invalidProgramHeaderTable, noLoadableSegments
         case invalidSegment, segmentOutsideGuestMemory, unsupportedMachine(UInt16)
+        case unsupportedFileType(UInt16)
 
         var errorDescription: String? {
             switch self {
@@ -34,6 +35,7 @@ final class ELF64Loader {
             case .invalidSegment: return "An ELF load segment has invalid file or memory sizes."
             case .segmentOutsideGuestMemory: return "An ELF load segment does not fit in guest memory."
             case .unsupportedMachine(let machine): return "Unsupported ELF machine type: \(machine)."
+            case .unsupportedFileType(let type): return "Unsupported ELF file type: \(type). Only executable and shared-object images are supported."
             }
         }
     }
@@ -48,10 +50,15 @@ final class ELF64Loader {
               data[2] == 0x4C, data[3] == 0x46 else { throw LoadError.invalidMagic }
         guard data[4] == 2, data[5] == 1 else { throw LoadError.unsupportedClassOrEndian }
 
-        guard let machine = u16(data, 18), let entry = u64(data, 24),
-              let phoff = u64(data, 32), let ehsize = u16(data, 52),
-              let phentsize = u16(data, 54), let phnum = u16(data, 56),
-              ehsize >= 64, phentsize >= 56 else { throw LoadError.truncatedHeader }
+        guard let fileType = u16(data, 16), let machine = u16(data, 18),
+              let entry = u64(data, 24), let phoff = u64(data, 32),
+              let ehsize = u16(data, 52), let phentsize = u16(data, 54),
+              let phnum = u16(data, 56), ehsize >= 64, phentsize >= 56 else {
+            throw LoadError.truncatedHeader
+        }
+        // ET_EXEC and ET_DYN are executable image formats. ET_REL needs a
+        // linker/relocator and ET_CORE is a dump, neither is loaded here.
+        guard fileType == 2 || fileType == 3 else { throw LoadError.unsupportedFileType(fileType) }
 
         let expectedMachine: UInt16
         switch expectedArchitecture {
@@ -79,18 +86,19 @@ final class ELF64Loader {
             let base = tableOffset + index * entrySize
             guard let type = u32(data, base), let flags = u32(data, base + 4),
                   let fileOffset = u64(data, base + 8), let virtualAddress = u64(data, base + 16),
-                  let physicalAddress = u64(data, base + 24), let fileSize = u64(data, base + 32),
-                  let memorySize = u64(data, base + 40) else {
+                  let fileSize = u64(data, base + 32), let memorySize = u64(data, base + 40) else {
                 throw LoadError.invalidProgramHeaderTable
             }
-            guard type == 1 else { continue }
+            guard type == 1 else { continue } // PT_LOAD
             guard fileSize <= memorySize, fileOffset <= UInt64(data.count),
                   fileSize <= UInt64(data.count) - fileOffset else { throw LoadError.invalidSegment }
 
-            let loadAddress = physicalAddress == 0 ? virtualAddress : physicalAddress
+            // For process images, PT_LOAD is mapped at p_vaddr. p_paddr is
+            // intended for physical loading and must not override virtual addresses.
+            let loadAddress = virtualAddress
             guard loadAddress <= memory.size, memorySize <= memory.size - loadAddress,
                   fileSize <= UInt64(Int.max), loadAddress <= UInt64(Int.max),
-                  memorySize <= UInt64(Int.max), total <= UInt64.max - memorySize else {
+                  total <= UInt64.max - memorySize else {
                 throw LoadError.segmentOutsideGuestMemory
             }
             let segment = Segment(guestAddress: loadAddress, fileSize: fileSize,
@@ -105,14 +113,13 @@ final class ELF64Loader {
             entry >= $0.guestAddress && entry - $0.guestAddress < $0.memorySize
         }) else { throw LoadError.invalidSegment }
 
-        // Sparse zeroing avoids creating huge temporary Data buffers.
+        // Validate the complete image before modifying memory, then zero all
+        // ranges first so overlapping PT_LOAD ranges don't erase copied bytes.
         for (segment, _) in pending {
             guard memory.zero(offset: segment.guestAddress, length: segment.memorySize) else {
                 throw LoadError.segmentOutsideGuestMemory
             }
         }
-        // Copy in bounded chunks so a large segment does not create a second
-        // full-size temporary allocation on top of the mapped executable.
         let chunkSize = 64 * 1024
         for (segment, fileOffset) in pending where segment.fileSize > 0 {
             var copied: UInt64 = 0
