@@ -47,6 +47,12 @@ final class GuestMachine {
         self.configuration = configuration
         let requestedSize = memorySize ?? UInt64(max(1, configuration.memoryMB)) * 1024 * 1024
         self.memory = GuestMemory(size: requestedSize)
+        // Ship the small x86-64 interpreter as the first runnable backend.
+        // Other architectures still require a compatible backend integration.
+        if configuration.architecture == .x86_64 {
+            self.cpu = X86_64Interpreter(memory: self.memory)
+            self.state = .configured
+        }
     }
 
     func installCPUBackend(_ backend: GuestCPUBackend) throws {
