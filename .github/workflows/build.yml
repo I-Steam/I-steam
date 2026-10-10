@@ -12,9 +12,7 @@ on:
         type: choice
         required: true
         default: nightly
-        options:
-          - nightly
-          - main
+        options: [nightly, main]
 
 permissions:
   contents: write
@@ -50,9 +48,9 @@ jobs:
             echo "name=i-Steam Nightly #$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           fi
-          echo "channel=$CHANNEL"
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
           if [[ "$CHANNEL" == "nightly" ]]; then
-            echo "::warning title=Nightly build::This is an experimental, unsigned prototype build. Runtime features may be incomplete; sign the IPA before installing."
+            echo "::warning title=Nightly build::Experimental unsigned prototype; sign with SideStore before installing."
           fi
 
       - name: Show toolchain
@@ -86,7 +84,7 @@ jobs:
           test -n "$EXECUTABLE" && test -f "$APP/$EXECUTABLE"
           file "$APP/$EXECUTABLE"
 
-      - name: Package unsigned IPA
+      - name: Package and validate unsigned IPA
         shell: bash
         run: |
           set -euo pipefail
@@ -97,12 +95,15 @@ jobs:
           unzip -t build/iSteam-SideStore.ipa >/dev/null
           unzip -p build/iSteam-SideStore.ipa Payload/iSteam.app/Info.plist > build/packaged-Info.plist
           /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" build/packaged-Info.plist | grep -Fx iSteam
+          shasum -a 256 build/iSteam-SideStore.ipa | tee build/iSteam-SideStore.ipa.sha256
 
-      - name: Upload SideStore IPA artifact
+      - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: iSteam-SideStore
-          path: build/iSteam-SideStore.ipa
+          path: |
+            build/iSteam-SideStore.ipa
+            build/iSteam-SideStore.ipa.sha256
           if-no-files-found: error
           retention-days: 30
 
@@ -114,81 +115,21 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Checkout AltStore website
-        uses: actions/checkout@v4
-        with:
-          repository: I-Steam/I-steam.github.io
-          ref: main
-          token: ${{ secrets.PAGES_TOKEN }}
-          path: website
-
-      - name: Publish IPA and AltStore source atomically
-        shell: bash
-        env:
-          BUILD_CHANNEL: ${{ steps.release.outputs.channel }}
-          SOURCE_COMMIT: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          IPA="$PWD/build/iSteam-SideStore.ipa"
-          BYTES=$(stat -f '%z' "$IPA")
-          if (( BYTES >= 94371840 )); then
-            echo "::error::IPA is 90 MiB or larger; use release-backed hosting instead of a GitHub Pages binary."
-            exit 1
-          fi
-          mkdir -p website/alt-source/apps
-          install -m 0644 "$IPA" website/alt-source/apps/iSteam-SideStore.ipa
-          VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' build/packaged-Info.plist 2>/dev/null || echo "0.1.0")
-          APP_BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' build/packaged-Info.plist 2>/dev/null || echo "$GITHUB_RUN_NUMBER")
-          export BYTES VERSION APP_BUILD BUILD_CHANNEL SOURCE_COMMIT
-          python3 - <<'PY' > website/alt-source.json
-          import datetime, json, os
-          print(json.dumps({
-            "name":"i-Steam AltStore Source",
-            "subtitle":"Experimental i-Steam iOS builds",
-            "description":"Experimental unsigned prototype. A successful build does not mean guest operating systems or games can boot.",
-            "website":"https://i-steam.github.io/",
-            "apps":[{
-              "name":"i-Steam",
-              "bundleIdentifier":"com.chantinlongx.iSteam",
-              "developerName":"I-Steam",
-              "subtitle":"Experimental PC-emulation frontend",
-              "localizedDescription":"Experimental iOS frontend and incomplete guest runtime. Sign with SideStore before installing; operating systems and games are not yet supported end-to-end.",
-              "tintColor":"#5B8DEF",
-              "category":"utilities",
-              "versions":[{
-                "version":os.environ["VERSION"],
-                "buildVersion":os.environ["APP_BUILD"],
-                "date":datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00","Z"),
-                "downloadURL":"https://i-steam.github.io/alt-source/apps/iSteam-SideStore.ipa",
-                "size":int(os.environ["BYTES"]),
-                "versionDescription":os.environ["BUILD_CHANNEL"]+" build from "+os.environ["SOURCE_COMMIT"][:12]+"; unsigned."
-              }]
-            }]
-          }, indent=2))
-          PY
-          printf 'IPA SHA-256: %s\nCommit: %s\nChannel: %s\n' "$(shasum -a 256 "$IPA" | awk '{print $1}')" "$SOURCE_COMMIT" "$BUILD_CHANNEL" > website/alt-source/BUILD-INFO.txt
-          git -C website config user.name "i-Steam Build Bot"
-          git -C website config user.email "actions@users.noreply.github.com"
-          git -C website add alt-source/apps/iSteam-SideStore.ipa alt-source.json alt-source/BUILD-INFO.txt
-          git -C website commit -m "Publish i-Steam $VERSION build $GITHUB_RUN_NUMBER ($BUILD_CHANNEL)"
-          git -C website push origin HEAD:main
-          echo "AltStore source: https://i-steam.github.io/alt-source.json" >> "$GITHUB_STEP_SUMMARY"
       - name: Create release notes
         run: |
           cat > build/RELEASE_NOTES.md <<'EOF'
-          ## ⚠️ Nightly / prototype warning
-
-          This is an experimental, unsigned iOS prototype. Features may be incomplete, and a successful build does not mean games or guest operating systems will boot. Sign the IPA with SideStore before installation.
+          ## Prototype warning
+          Experimental unsigned iOS prototype. A successful build does not mean guest operating systems or games boot. Sign the IPA with SideStore before installation.
 
           ## Build details
-
-          - Build channel: ${{ steps.release.outputs.channel }}
+          - Channel: ${{ steps.release.outputs.channel }}
           - Commit: ${{ github.sha }}
           - Install guide: https://github.com/I-Steam/I-steam/blob/main/INSTALL.md
-          - Project status and credits: https://github.com/I-Steam/I-steam/blob/main/README.md
+          - Project status: https://github.com/I-Steam/I-steam/blob/main/README.md
           EOF
 
       - name: Publish GitHub release
+        id: publish_release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release.outputs.tag }}
@@ -196,19 +137,84 @@ jobs:
           prerelease: ${{ steps.release.outputs.prerelease }}
           target_commitish: ${{ github.sha }}
           body_path: build/RELEASE_NOTES.md
-          files: build/iSteam-SideStore.ipa
+          files: |
+            build/iSteam-SideStore.ipa
+            build/iSteam-SideStore.ipa.sha256
           fail_on_unmatched_files: true
           make_latest: ${{ steps.release.outputs.prerelease == 'false' && 'true' || 'false' }}
 
-      - name: Explain failure and warn about missing release
+      # The AltStore manifest is written only after a validated IPA and release exist.
+      # The manifest is committed to the Pages repo in one commit, so clients never see
+      # a half-written JSON file. WEBSITE_PUBLISH_TOKEN must be a PAT with Contents: read/write
+      # access to I-Steam/I-steam.github.io.
+      - name: Atomically publish AltStore source manifest
+        if: success()
+        shell: bash
+        env:
+          WEBSITE_PUBLISH_TOKEN: ${{ secrets.WEBSITE_PUBLISH_TOKEN }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_NAME: ${{ steps.release.outputs.name }}
+          RELEASE_CHANNEL: ${{ steps.release.outputs.channel }}
+          RELEASE_URL: https://github.com/I-Steam/I-steam/releases/download/${{ steps.release.outputs.tag }}/iSteam-SideStore.ipa
+          SOURCE_REPO: I-Steam/I-steam.github.io
+        run: |
+          set -euo pipefail
+          if [[ -z "$WEBSITE_PUBLISH_TOKEN" ]]; then
+            echo "::error title=Missing website token::Add WEBSITE_PUBLISH_TOKEN in I-Steam/I-steam repository Actions secrets. It needs Contents read/write access to I-Steam/I-steam.github.io."
+            exit 1
+          fi
+          git clone "https://x-access-token:$WEBSITE_PUBLISH_TOKEN@github.com/$SOURCE_REPO.git" website
+          cd website
+          mkdir -p alt
+          python3 - <<'PY'
+          import json, os, pathlib
+          tag = os.environ["RELEASE_TAG"]
+          name = os.environ["RELEASE_NAME"]
+          channel = os.environ["RELEASE_CHANNEL"]
+          ipa = os.environ["RELEASE_URL"]
+          manifest = {
+            "name": "i-Steam",
+            "identifier": "com.chantinlongx.iSteam.source",
+            "subtitle": "i-Steam iOS VM launcher builds",
+            "description": "Experimental i-Steam builds. Unsigned IPAs must be signed before installation. Guest OS execution is still under development.",
+            "website": "https://i-steam.github.io/",
+            "apps": [{
+              "name": "i-Steam",
+              "bundleIdentifier": "com.chantinlongx.iSteam",
+              "developerName": "I-Steam",
+              "subtitle": name,
+              "localizedDescription": "Experimental iOS launcher and VM runtime prototype. Guest OS boot and game execution are not yet guaranteed.",
+              "iconURL": "https://i-steam.github.io/icon.png",
+              "tintColor": "2478C8",
+              "category": "utilities",
+              "version": tag,
+              "versionDate": os.environ.get("GITHUB_RUN_STARTED_AT", ""),
+              "versionDescription": f"{channel} build. Unsigned prototype; sign with SideStore before installing.",
+              "downloadURL": ipa,
+              "size": 0,
+              "sha256": "",
+              "minOSVersion": "16.0"
+            }]
+          }
+          pathlib.Path("alt/source.json").write_text(json.dumps(manifest, indent=2) + "\\n")
+          PY
+          git config user.name "i-Steam release bot"
+          git config user.email "release-bot@users.noreply.github.com"
+          git add alt/source.json
+          if git diff --cached --quiet; then
+            echo "AltStore manifest already matches this release."
+            exit 0
+          fi
+          git commit -m "Publish AltStore source for $RELEASE_TAG"
+          git push origin HEAD:main
+
+      - name: Explain failure
         if: failure()
         shell: bash
         run: |
           {
-            echo "## ⚠️ Build failed — no release was published"
+            echo "## Build or publish failed"
             echo
-            echo "The first failing step above contains the actionable compiler or packaging error."
-            echo "No nightly/main release is created unless all required device-archive and packaging steps pass."
-            echo "See the full logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo "No successful end-to-end publication is claimed. Inspect the first failing step."
+            echo "Workflow: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "::warning title=Release not published::The build failed; fix the first failing step before expecting a nightly or main release."
