@@ -163,6 +163,10 @@ jobs:
             echo "::error title=Missing website token::Add WEBSITE_PUBLISH_TOKEN in I-Steam/I-steam repository Actions secrets. It needs Contents read/write access to I-Steam/I-steam.github.io."
             exit 1
           fi
+          RELEASE_SHA256=$(shasum -a 256 build/iSteam-SideStore.ipa | awk '{print $1}')
+          RELEASE_SIZE=$(stat -f%z build/iSteam-SideStore.ipa)
+          RELEASE_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          export RELEASE_SHA256 RELEASE_SIZE RELEASE_DATE
           git clone "https://x-access-token:$WEBSITE_PUBLISH_TOKEN@github.com/$SOURCE_REPO.git" website
           cd website
           mkdir -p alt
@@ -184,15 +188,14 @@ jobs:
               "developerName": "I-Steam",
               "subtitle": name,
               "localizedDescription": "Experimental iOS launcher and VM runtime prototype. Guest OS boot and game execution are not yet guaranteed.",
-              "iconURL": "https://i-steam.github.io/icon.png",
               "tintColor": "2478C8",
               "category": "utilities",
               "version": tag,
-              "versionDate": os.environ.get("GITHUB_RUN_STARTED_AT", ""),
+              "versionDate": os.environ["RELEASE_DATE"],
               "versionDescription": f"{channel} build. Unsigned prototype; sign with SideStore before installing.",
               "downloadURL": ipa,
-              "size": 0,
-              "sha256": "",
+              "size": int(os.environ["RELEASE_SIZE"]),
+              "sha256": os.environ["RELEASE_SHA256"],
               "minOSVersion": "16.0"
             }]
           }
