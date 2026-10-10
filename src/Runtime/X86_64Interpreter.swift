@@ -144,14 +144,14 @@ final class X86_64Interpreter: GuestCPUBackend {
                         if let text = String(data: bytes, encoding: .utf8), !text.isEmpty {
                             EmulationLog.shared.write("[guest stdout] " + text)
                         } else if !bytes.isEmpty {
-                            EmulationLog.shared.write("[guest stdout] <\\(bytes.count) non-UTF8 bytes>")
+                            EmulationLog.shared.write("[guest stdout] <\(bytes.count) non-UTF8 bytes>")
                         }
                         registers[0] = requested
                     default:
                         // Make unsupported syscalls explicit instead of silently
                         // pretending a guest OS or full Linux ABI is available.
                         rip = instructionAddress
-                        return .backendUnavailable("Unsupported Linux x86-64 syscall \\(number)")
+                        return .backendUnavailable("Unsupported Linux x86-64 syscall \(number)")
                     }
                 } else {
                     rip = instructionAddress
