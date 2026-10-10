@@ -191,19 +191,24 @@ jobs:
           path = pathlib.Path("AltSource.json")
           source = json.loads(path.read_text()) if path.exists() else {}
           source.update({"name":"I-Steam","subtitle":"Official i-Steam iOS builds","description":"Experimental iOS VM launcher. Guest OS boot and game execution remain under development.","iconURL":"https://i-steam.github.io/IMG_3524.jpeg","website":"https://i-steam.github.io/","tintColor":"#2478C8"})
-          apps = source.get("apps", [])
-          bundle = os.environ["APP_BUNDLE"]
-          channel = os.environ["RELEASE_CHANNEL"]
-          app_name = os.environ["APP_NAME"]
-          icon = os.environ["APP_ICON"]
-          app = next((a for a in apps if a.get("bundleIdentifier") == bundle), None)
-          if app is None:
-            app = {"name":app_name,"bundleIdentifier":bundle,"developerName":"Xthrx","subtitle":"Experimental "+channel+" build","localizedDescription":"Experimental iOS launcher prototype. Sign the unsigned IPA with SideStore. This is not yet a complete PC emulator.","iconURL":icon,"tintColor":"#2478C8","versions":[]}
+          source.pop("featuredApps", None)
+          source.pop("news", None)
+          old_bundle = "com.chantinlongx.iSteam"
+          release_bundle = "com.Xthrx.iSteam"
+          nightly_bundle = "com.Xthrx.iSteam.Nightly"
+          apps = [a for a in source.get("apps", []) if a.get("bundleIdentifier") not in (old_bundle, release_bundle, nightly_bundle)]
+          existing = {a.get("bundleIdentifier"): a for a in source.get("apps", []) if a.get("bundleIdentifier") in (release_bundle, nightly_bundle)}
+          for bundle, name, icon, subtitle in [
+            (release_bundle, "i-Steam Release", "https://i-steam.github.io/IMG_3524.jpeg", "Stable release channel"),
+            (nightly_bundle, "i-Steam Nightly", "https://i-steam.github.io/IMG_3523.jpeg", "Nightly experimental builds")
+          ]:
+            app = existing.get(bundle, {})
+            app.update({"name":name,"bundleIdentifier":bundle,"developerName":"Xthrx","subtitle":subtitle,"localizedDescription":"Experimental iOS launcher prototype. Sign the unsigned IPA with SideStore. This is not yet a complete PC emulator.","iconURL":icon,"tintColor":"#2478C8"})
+            app["versions"] = app.get("versions", [])
             apps.append(app)
-          app["name"] = app_name
-          app["developerName"] = "Xthrx"
-          app["iconURL"] = icon
-          app["subtitle"] = "Experimental " + channel + " build"
+          channel = os.environ["RELEASE_CHANNEL"]
+          bundle = os.environ["APP_BUNDLE"]
+          app = next(a for a in apps if a.get("bundleIdentifier") == bundle)
           version = {"version":os.environ["RELEASE_TAG"],"date":os.environ["RELEASE_DATE"],"size":int(os.environ["RELEASE_SIZE"]),"downloadURL":os.environ["DOWNLOAD_URL"],"localizedDescription":channel.upper()+" build. SHA-256: "+os.environ["RELEASE_SHA256"]+". Unsigned prototype; sign with SideStore before installing.","minOSVersion":"16.0"}
           versions = app.setdefault("versions", [])
           versions[:] = [v for v in versions if v.get("version") != version["version"]]
