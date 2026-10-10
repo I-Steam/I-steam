@@ -114,6 +114,65 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Checkout AltStore website
+        uses: actions/checkout@v4
+        with:
+          repository: I-Steam/I-steam.github.io
+          ref: main
+          token: ${{ secrets.PAGES_TOKEN }}
+          path: website
+
+      - name: Publish IPA and AltStore source atomically
+        shell: bash
+        env:
+          BUILD_CHANNEL: ${{ steps.release.outputs.channel }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          IPA="$PWD/build/iSteam-SideStore.ipa"
+          BYTES=$(stat -f '%z' "$IPA")
+          if (( BYTES >= 94371840 )); then
+            echo "::error::IPA is 90 MiB or larger; use release-backed hosting instead of a GitHub Pages binary."
+            exit 1
+          fi
+          mkdir -p website/alt-source/apps
+          install -m 0644 "$IPA" website/alt-source/apps/iSteam-SideStore.ipa
+          VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' build/packaged-Info.plist 2>/dev/null || echo "0.1.0")
+          APP_BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' build/packaged-Info.plist 2>/dev/null || echo "$GITHUB_RUN_NUMBER")
+          export BYTES VERSION APP_BUILD BUILD_CHANNEL SOURCE_COMMIT
+          python3 - <<'PY' > website/alt-source.json
+          import datetime, json, os
+          print(json.dumps({
+            "name":"i-Steam AltStore Source",
+            "subtitle":"Experimental i-Steam iOS builds",
+            "description":"Experimental unsigned prototype. A successful build does not mean guest operating systems or games can boot.",
+            "website":"https://i-steam.github.io/",
+            "apps":[{
+              "name":"i-Steam",
+              "bundleIdentifier":"com.chantinlongx.iSteam",
+              "developerName":"I-Steam",
+              "subtitle":"Experimental PC-emulation frontend",
+              "localizedDescription":"Experimental iOS frontend and incomplete guest runtime. Sign with SideStore before installing; operating systems and games are not yet supported end-to-end.",
+              "tintColor":"#5B8DEF",
+              "category":"utilities",
+              "versions":[{
+                "version":os.environ["VERSION"],
+                "buildVersion":os.environ["APP_BUILD"],
+                "date":datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00","Z"),
+                "downloadURL":"https://i-steam.github.io/alt-source/apps/iSteam-SideStore.ipa",
+                "size":int(os.environ["BYTES"]),
+                "versionDescription":os.environ["BUILD_CHANNEL"]+" build from "+os.environ["SOURCE_COMMIT"][:12]+"; unsigned."
+              }]
+            }]
+          }, indent=2))
+          PY
+          printf 'IPA SHA-256: %s\nCommit: %s\nChannel: %s\n' "$(shasum -a 256 "$IPA" | awk '{print $1}')" "$SOURCE_COMMIT" "$BUILD_CHANNEL" > website/alt-source/BUILD-INFO.txt
+          git -C website config user.name "i-Steam Build Bot"
+          git -C website config user.email "actions@users.noreply.github.com"
+          git -C website add alt-source/apps/iSteam-SideStore.ipa alt-source.json alt-source/BUILD-INFO.txt
+          git -C website commit -m "Publish i-Steam $VERSION build $GITHUB_RUN_NUMBER ($BUILD_CHANNEL)"
+          git -C website push origin HEAD:main
+          echo "AltStore source: https://i-steam.github.io/alt-source.json" >> "$GITHUB_STEP_SUMMARY"
       - name: Create release notes
         run: |
           cat > build/RELEASE_NOTES.md <<'EOF'
