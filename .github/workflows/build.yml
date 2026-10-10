@@ -199,7 +199,7 @@ jobs:
               "minOSVersion": "16.0"
             }]
           }
-          pathlib.Path("alt/source.json").write_text(json.dumps(manifest, indent=2) + "\\n")
+          pathlib.Path("alt/source.json").write_text(json.dumps(manifest, indent=2) + chr(10))
           PY
           git config user.name "i-Steam release bot"
           git config user.email "release-bot@users.noreply.github.com"
