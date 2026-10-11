@@ -17,9 +17,13 @@ targets:
     sources:
       - path: iSteam
         excludes:
-          - Info.plist
           - Info-tvOS.plist
+          - AppDelegate-tvOS.swift
+          - LaunchSetupViewController-tvOS.swift
+          - SettingsViewController-tvOS.swift
       - path: src
+        excludes:
+          - Display/VMDisplayViewController-tvOS.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.Xthrx.iSteam
@@ -35,9 +39,13 @@ targets:
     sources:
       - path: iSteam
         excludes:
-          - Info.plist
           - Info-tvOS.plist
+          - AppDelegate-tvOS.swift
+          - LaunchSetupViewController-tvOS.swift
+          - SettingsViewController-tvOS.swift
       - path: src
+        excludes:
+          - Display/VMDisplayViewController-tvOS.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.Xthrx.iSteam.Nightly
@@ -54,8 +62,15 @@ targets:
       - path: iSteam
         excludes:
           - Info.plist
-          - Info-tvOS.plist
+          - AppDelegate.swift
+          - ConsoleViewController.swift
+          - CrashLogViewController.swift
+          - LaunchSetupViewController.swift
+          - SettingsViewController.swift
       - path: src
+        excludes:
+          - Display/TouchGamepadView.swift
+          - Display/VMDisplayViewController.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.Xthrx.iSteam.tvOS
