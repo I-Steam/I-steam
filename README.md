@@ -9,6 +9,8 @@
 
 [**GitHub**](https://github.com/I-Steam/I-steam) · [**All releases**](https://github.com/I-Steam/I-steam/releases) · [**Nightly builds**](https://github.com/I-Steam/I-steam/releases/tag/nightly) · [**GitLab mirror**](https://gitlab.com/chantinlongxthrx/I-steam) · [**AltStore source**](https://i-steam.github.io/AltSource.json)
 
+![Alt](https://repobeats.axiom.co/api/embed/60c92ea5e53d1048f89bf703d5444e243a2c5244.svg "Repobeats analytics image")
+
 i-Steam explores what a Steam-oriented game library and guest-runtime experience might look like on Apple mobile devices. The repository contains an iOS app, native helper code, runtime experiments, and an early Apple TV interface.
 
 > [!WARNING]
