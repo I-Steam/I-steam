@@ -31,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ github.event_name == 'push' && fromJSON('[{"platform":"iOS","channel":"nightly"},{"platform":"tvOS","channel":"nightly"},{"platform":"iOS","channel":"main"},{"platform":"tvOS","channel":"main"}]') || (github.event_name == 'workflow_dispatch' && fromJSON(format('[{"platform":"iOS","channel":"{0}"},{"platform":"tvOS","channel":"{0}"}]', inputs.channel)) || fromJSON('[{"platform":"iOS","channel":"nightly"},{"platform":"tvOS","channel":"nightly"}]')) }}
+        include: ${{ github.event_name == 'push' && fromJSON('[{"platform":"iOS","channel":"nightly"},{"platform":"tvOS","channel":"nightly"},{"platform":"iOS","channel":"main"},{"platform":"tvOS","channel":"main"}]') || (github.event_name == 'workflow_dispatch' && inputs.channel == 'main' && fromJSON('[{"platform":"iOS","channel":"main"},{"platform":"tvOS","channel":"main"}]')) || fromJSON('[{"platform":"iOS","channel":"nightly"},{"platform":"tvOS","channel":"nightly"}]') }}
     env:
       RELEASE_CHANNEL: ${{ matrix.channel }}
       VERSION: 0.1.${{ format('{0}', github.run_number) }}
@@ -115,7 +115,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        channel: ${{ github.event_name == 'push' && fromJSON('["nightly","main"]') || (github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', inputs.channel)) || fromJSON('["nightly"]')) }}
+        channel: ${{ github.event_name == 'push' && fromJSON('["nightly","main"]') || (github.event_name == 'workflow_dispatch' && inputs.channel == 'main' && fromJSON('["main"]')) || fromJSON('["nightly"]') }}
     env:
       RELEASE_CHANNEL: ${{ matrix.channel }}
       VERSION: 0.1.${{ format('{0}', github.run_number) }}
