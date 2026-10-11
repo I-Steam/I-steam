@@ -27,7 +27,7 @@ targets:
           - Display/VMDisplayViewController-tvOS.swift
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.Xthrx.iSteam
+        PRODUCT_BUNDLE_IDENTIFIER: com.xthrx.isteam
         PRODUCT_NAME: iSteam
         INFOPLIST_KEY_CFBundleDisplayName: i-Steam Release
         INFOPLIST_FILE: iSteam/Info.plist
@@ -50,7 +50,7 @@ targets:
           - Display/VMDisplayViewController-tvOS.swift
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.Xthrx.iSteam.Nightly
+        PRODUCT_BUNDLE_IDENTIFIER: com.xthrx.isteam.nightly
         PRODUCT_NAME: iSteam
         INFOPLIST_KEY_CFBundleDisplayName: i-Steam Nightly
         INFOPLIST_FILE: iSteam/Info.plist
@@ -64,7 +64,7 @@ targets:
       - path: tvOSApp
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.Xthrx.iSteam.tvOS
+        PRODUCT_BUNDLE_IDENTIFIER: com.xthrx.isteam.tvos
         PRODUCT_NAME: iSteamTV
         INFOPLIST_KEY_CFBundleDisplayName: i-Steam tvOS
         INFOPLIST_FILE: iSteam/Info-tvOS.plist

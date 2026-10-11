@@ -1,0 +1,152 @@
+name: i-Steam Build & Release
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to build
+        type: choice
+        required: true
+        default: iOS
+        options:
+          - iOS
+          - tvOS
+      channel:
+        description: Release channel (automatic runs always use Nightly)
+        type: choice
+        required: true
+        default: nightly
+        options:
+          - nightly
+          - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: isteam-release-${{ github.event_name == 'workflow_dispatch' && inputs.platform || 'automatic' }}-${{ github.event_name == 'workflow_dispatch' && inputs.channel || 'nightly' }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }} (${{ github.event_name == 'workflow_dispatch' && inputs.channel || 'nightly' }})
+    runs-on: macos-15
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', inputs.platform)) || fromJSON('["iOS","tvOS"]') }}
+    env:
+      RELEASE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.channel || 'nightly' }}
+      VERSION: 0.1.${{ format('{0}', github.run_number) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/Homebrew
+          key: brew-xcodegen-${{ runner.os }}-v1
+
+      - name: Install XcodeGen
+        run: brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate --spec project.yml
+
+      - name: Build iOS app
+        if: matrix.platform == 'iOS'
+        run: |
+          set -euo pipefail
+          xcodebuild -project iSteam.xcodeproj -scheme "${{ github.event_name == 'workflow_dispatch' && inputs.channel == 'main' && 'iSteam' || 'iSteamNightly' }}" -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -archivePath "$PWD/build/iSteam.xcarchive" MARKETING_VERSION="0.1.$(printf '%03d' "$GITHUB_RUN_NUMBER")" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 archive
+          APP="build/iSteam.xcarchive/Products/Applications/iSteam.app"
+          test -d "$APP"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist" | grep -Fx "${{ github.event_name == 'workflow_dispatch' && inputs.channel == 'main' && 'com.xthrx.isteam' || 'com.xthrx.isteam.nightly' }}"
+          mkdir -p build/Payload
+          cp -R "$APP" build/Payload/iSteam.app
+          ditto -c -k --sequesterRsrc --keepParent build/Payload build/iSteam-ios.ipa
+          unzip -t build/iSteam-ios.ipa >/dev/null
+          shasum -a 256 build/iSteam-ios.ipa > build/iSteam-ios.ipa.sha256
+
+      - name: Build tvOS app
+        if: matrix.platform == 'tvOS'
+        run: |
+          set -euo pipefail
+          xcodebuild -project iSteam.xcodeproj -scheme iSteamTV -configuration Release -sdk appletvos -destination 'generic/platform=tvOS' -derivedDataPath "$PWD/build/tvDerivedData" MARKETING_VERSION="0.1.$(printf '%03d' "$GITHUB_RUN_NUMBER")" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 build
+          APP="build/tvDerivedData/Build/Products/Release-appletvos/iSteamTV.app"
+          test -d "$APP"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist" | grep -Fx "com.xthrx.isteam.tvos"
+          mkdir -p build/tvPayload
+          cp -R "$APP" build/tvPayload/iSteamTV.app
+          ditto -c -k --sequesterRsrc --keepParent build/tvPayload build/iSteam-tvOS.ipa
+          unzip -t build/iSteam-tvOS.ipa >/dev/null
+          shasum -a 256 build/iSteam-tvOS.ipa > build/iSteam-tvOS.ipa.sha256
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: iSteam-${{ matrix.platform }}-${{ env.RELEASE_CHANNEL }}
+          path: |
+            build/iSteam*.ipa
+            build/iSteam*.ipa.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Set release metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="0.1.$(printf '%03d' "$GITHUB_RUN_NUMBER")"
+          PLATFORM="${{ matrix.platform }}"
+          CHANNEL="$RELEASE_CHANNEL"
+          if [ "$PLATFORM" = "iOS" ]; then
+            ASSET="build/iSteam-ios.ipa"
+            CHECKSUM="build/iSteam-ios.ipa.sha256"
+            PREFIX="ios"
+          else
+            ASSET="build/iSteam-tvOS.ipa"
+            CHECKSUM="build/iSteam-tvOS.ipa.sha256"
+            PREFIX="tvos"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$PREFIX-$CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "title=$VERSION $PLATFORM $([ "$CHANNEL" = main ] && echo Main || echo Nightly)" >> "$GITHUB_OUTPUT"
+          echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
+          echo "checksum=$CHECKSUM" >> "$GITHUB_OUTPUT"
+
+      - name: Remove previous channel release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release delete "${{ steps.meta.outputs.tag }}" --yes --cleanup-tag || true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.title }}
+          prerelease: ${{ env.RELEASE_CHANNEL == 'nightly' }}
+          make_latest: ${{ env.RELEASE_CHANNEL == 'main' && 'true' || 'false' }}
+          files: |
+            ${{ steps.meta.outputs.asset }}
+            ${{ steps.meta.outputs.checksum }}
+
+      - name: Delete legacy releases and tags
+        if: matrix.platform == 'iOS'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          gh release list --limit 1000 --json tagName --jq '.[].tagName' | while IFS= read -r tag; do
+            case "$tag" in
+              ios-nightly|tvos-nightly|ios-main|tvos-main) ;;
+              *)
+                echo "Cleaning legacy release/tag: $tag"
+                gh release delete "$tag" --yes --cleanup-tag || echo "Already removed or tag missing: $tag"
+                ;;
+            esac
+          done
