@@ -216,24 +216,34 @@ jobs:
           channel = os.environ["CHANNEL"]
           build_number = os.environ["BUILD_NUMBER"]
           current_version = os.environ["VERSION"]
-          channels = [(channel, Path("build/iSteam-ios.ipa"), current_version)]
+          channels = [
+              (channel, "ios", Path("build/iSteam-ios.ipa"), current_version),
+              (channel, "tvos", Path("build/iSteam-tvOS.ipa"), current_version),
+          ]
 
           manifest_path = website / "AltSource.json"
           manifest = json.loads(manifest_path.read_text())
-          for item_channel, ipa_path, version in channels:
+          for item_channel, platform, ipa_path, version in channels:
               if not ipa_path.is_file():
-                  raise SystemExit(f"Missing iOS IPA for {item_channel}: {ipa_path}")
+                  raise SystemExit(f"Missing {platform} IPA for {item_channel}: {ipa_path}")
               data = ipa_path.read_bytes()
               digest = hashlib.sha256(data).hexdigest()
               now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
               nightly = item_channel == "nightly"
-              bundle_id = "com.xthrx.isteam.nightly" if nightly else "com.xthrx.isteam"
-              app_name = "i-Steam Nightly" if nightly else "i-Steam Release"
-              versioned_name = f"iSteam-{item_channel}-{version}.ipa"
-              stable_name = "iSteam-nightly.ipa" if nightly else "iSteam-release.ipa"
+              tvos = platform == "tvos"
+              if tvos:
+                  bundle_id = "com.xthrx.isteam.tvos.nightly" if nightly else "com.xthrx.isteam.tvos"
+                  app_name = "i-Steam tvOS Nightly" if nightly else "i-Steam tvOS Main"
+                  stable_name = "iSteam-tvOS-nightly.ipa" if nightly else "iSteam-tvOS-main.ipa"
+              else:
+                  bundle_id = "com.xthrx.isteam.nightly" if nightly else "com.xthrx.isteam"
+                  app_name = "i-Steam Nightly" if nightly else "i-Steam Release"
+                  stable_name = "iSteam-nightly.ipa" if nightly else "iSteam-release.ipa"
+              versioned_name = f"iSteam-{platform}-{item_channel}-{version}.ipa"
               shutil.copy2(ipa_path, downloads / versioned_name)
               shutil.copy2(ipa_path, downloads / stable_name)
-              (downloads / (stable_name + ".sha256")).write_text(f"{digest}  {stable_name}\n")
+              (downloads / (stable_name + ".sha256")).write_text(f"{digest}  {stable_name}\\n")
+              platform_label = "tvOS / Apple TV" if tvos else "iOS"
               entry = {
                   "version": version,
                   "buildVersion": str(build_number),
@@ -241,7 +251,7 @@ jobs:
                   "size": len(data),
                   "sha256": digest,
                   "downloadURL": f"https://i-steam.github.io/downloads/{versioned_name}",
-                  "localizedDescription": f"{'NIGHTLY' if nightly else 'MAIN'} build {version}. SHA-256: {digest}. Unsigned prototype; sign with SideStore before installing.",
+                  "localizedDescription": f"{item_channel.upper()} {platform_label} build {version}. SHA-256: {digest}. Unsigned prototype; use a compatible signing method before installing.",
                   "minOSVersion": "16.0"
               }
               found = False
@@ -253,20 +263,22 @@ jobs:
                       app["versions"] = ([entry] + versions)[:10]
                       found = True
               if not found:
-                  raise SystemExit(f"Could not find legacy AltStore app entry: {app_name}")
+                  raise SystemExit(f"Could not find AltStore app entry: {app_name}")
 
           manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
           alt_path = website / "alt" / "source.json"
           if alt_path.exists():
               alt = json.loads(alt_path.read_text())
+              stable_apps = {
+                  "i-steam release": ("com.xthrx.isteam", "https://i-steam.github.io/downloads/iSteam-release.ipa"),
+                  "i-steam nightly": ("com.xthrx.isteam.nightly", "https://i-steam.github.io/downloads/iSteam-nightly.ipa"),
+                  "i-steam tvos main": ("com.xthrx.isteam.tvos", "https://i-steam.github.io/downloads/iSteam-tvOS-main.ipa"),
+                  "i-steam tvos nightly": ("com.xthrx.isteam.tvos.nightly", "https://i-steam.github.io/downloads/iSteam-tvOS-nightly.ipa"),
+              }
               for app in alt.get("apps", []):
-                  name = app.get("name", "").lower()
-                  nightly = name.endswith("nightly")
-                  release = name.endswith("release")
-                  if not (nightly or release):
-                      continue
-                  app["bundleIdentifier"] = "com.xthrx.isteam.nightly" if nightly else "com.xthrx.isteam"
-                  app["downloadURL"] = "https://i-steam.github.io/downloads/iSteam-nightly.ipa" if nightly else "https://i-steam.github.io/downloads/iSteam-release.ipa"
+                  config = stable_apps.get(app.get("name", "").lower())
+                  if config:
+                      app["bundleIdentifier"], app["downloadURL"] = config
               alt_path.write_text(json.dumps(alt, indent=2) + "\n")
           PY
           git -C website config user.name "i-Steam Release Bot"
