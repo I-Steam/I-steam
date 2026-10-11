@@ -1,8 +1,8 @@
 import UIKit
 #if !os(tvOS)
 import UniformTypeIdentifiers
-#endif
 import WebKit
+#endif
 
 #if os(tvOS)
 final class LibraryViewController: UIViewController {
@@ -33,8 +33,13 @@ final class LibraryViewController: UIViewController {
             self?.navigationController?.pushViewController(LaunchSetupViewController(), animated: true)
         })
         stack.addArrangedSubview(makeButton("Steam Store") { [weak self] in
-            guard let url = URL(string: "https://store.steampowered.com/") else { return }
-            self?.present(UINavigationController(rootViewController: SteamStoreViewController(url: url)), animated: true)
+            let alert = UIAlertController(
+                title: "Steam Store",
+                message: "Embedded web browsing is not available in the tvOS build. Use the iOS build to browse the Steam Store inside i-Steam.",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            self?.present(alert, animated: true)
         })
         stack.addArrangedSubview(makeButton("Settings") { [weak self] in
             self?.navigationController?.pushViewController(SettingsViewController(), animated: true)
@@ -242,6 +247,7 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
 
 #endif
 
+#if !os(tvOS)
 private final class SteamStoreViewController: UIViewController, WKNavigationDelegate {
     private let url: URL
     private let webView = WKWebView(frame: .zero)
@@ -281,3 +287,5 @@ private final class SteamStoreViewController: UIViewController, WKNavigationDele
         dismiss(animated: true)
     }
 }
+
+#endif
