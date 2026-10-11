@@ -44,12 +44,37 @@ jobs:
             build/iSteam-ios-nightly.ipa.sha256
           if-no-files-found: error
           retention-days: 14
+      - name: Remove previous nightly release and tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete ios-nightly --yes --cleanup-tag || true
+          git push origin :refs/tags/ios-nightly || true
       - name: Publish iOS nightly release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ios-nightly-${{ github.run_id }}
-          name: iOS Nightly #${{ github.run_number }}
+          tag_name: ios-nightly
+          name: iOS Nightly
           prerelease: true
+          make_latest: false
+          files: |
+            build/iSteam-ios-nightly.ipa
+            build/iSteam-ios-nightly.ipa.sha256
+      - name: Remove previous iOS main release and tag
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete ios-main --yes --cleanup-tag || true
+          git push origin :refs/tags/ios-main || true
+      - name: Publish iOS main release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios-main
+          name: iOS Main
+          prerelease: false
+          make_latest: false
           files: |
             build/iSteam-ios-nightly.ipa
             build/iSteam-ios-nightly.ipa.sha256

@@ -47,12 +47,37 @@ jobs:
             build/iSteam-tvOS-nightly.ipa.sha256
           if-no-files-found: error
           retention-days: 14
+      - name: Remove previous nightly release and tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete tvos-nightly --yes --cleanup-tag || true
+          git push origin :refs/tags/tvos-nightly || true
       - name: Publish tvOS nightly release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: tvos-nightly-${{ github.run_id }}
-          name: tvOS Nightly #${{ github.run_number }}
+          tag_name: tvos-nightly
+          name: tvOS Nightly
           prerelease: true
+          make_latest: false
+          files: |
+            build/iSteam-tvOS-nightly.ipa
+            build/iSteam-tvOS-nightly.ipa.sha256
+      - name: Remove previous tvOS main release and tag
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete tvos-main --yes --cleanup-tag || true
+          git push origin :refs/tags/tvos-main || true
+      - name: Publish tvOS main release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: tvos-main
+          name: tvOS Main
+          prerelease: false
+          make_latest: false
           files: |
             build/iSteam-tvOS-nightly.ipa
             build/iSteam-tvOS-nightly.ipa.sha256
