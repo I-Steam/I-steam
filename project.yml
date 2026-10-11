@@ -16,6 +16,9 @@ targets:
     platform: iOS
     sources:
       - path: iSteam
+        excludes:
+          - Info.plist
+          - Info-tvOS.plist
       - path: src
     settings:
       base:
@@ -31,6 +34,9 @@ targets:
     platform: iOS
     sources:
       - path: iSteam
+        excludes:
+          - Info.plist
+          - Info-tvOS.plist
       - path: src
     settings:
       base:
@@ -46,6 +52,9 @@ targets:
     platform: tvOS
     sources:
       - path: iSteam
+        excludes:
+          - Info.plist
+          - Info-tvOS.plist
       - path: src
     settings:
       base:
