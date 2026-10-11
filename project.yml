@@ -19,7 +19,12 @@ targets:
         excludes:
           - Info.plist
           - Info-tvOS.plist
+          - AppDelegate-tvOS.swift
+          - LaunchSetupViewController-tvOS.swift
+          - SettingsViewController-tvOS.swift
       - path: src
+        excludes:
+          - Display/VMDisplayViewController-tvOS.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.Xthrx.iSteam
@@ -37,7 +42,12 @@ targets:
         excludes:
           - Info.plist
           - Info-tvOS.plist
+          - AppDelegate-tvOS.swift
+          - LaunchSetupViewController-tvOS.swift
+          - SettingsViewController-tvOS.swift
       - path: src
+        excludes:
+          - Display/VMDisplayViewController-tvOS.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.Xthrx.iSteam.Nightly
