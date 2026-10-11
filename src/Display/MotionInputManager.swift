@@ -1,3 +1,4 @@
+#if !os(tvOS)
 import Foundation
 import CoreMotion
 
@@ -61,3 +62,30 @@ final class MotionInputManager {
         previousPitch = nil
     }
 }
+#else
+import Foundation
+
+/// CoreMotion is unavailable on tvOS; retain the shared API as a no-op so the
+/// common display controller can build for Apple TV without device-motion input.
+final class MotionInputManager {
+    static let shared = MotionInputManager()
+    private init() {}
+
+    var isAvailable: Bool { false }
+    var isRunning: Bool { false }
+    var sensitivity: Double {
+        get {
+            let stored = UserDefaults.standard.double(forKey: "iSteam.motionSensitivity")
+            return stored > 0 ? min(stored, 5) : 1
+        }
+        set {
+            UserDefaults.standard.set(min(max(newValue, 0.1), 5), forKey: "iSteam.motionSensitivity")
+        }
+    }
+    var onOrientation: ((Double, Double, Double) -> Void)?
+    var onLookDelta: ((Double, Double) -> Void)?
+    func start() {}
+    func stop() {}
+    func recenter() {}
+}
+#endif
