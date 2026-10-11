@@ -8,13 +8,13 @@ on:
   workflow_dispatch:
     inputs:
       channel:
-        description: Release channel (both platforms are always built)
+        description: Choose which release channel to publish (both iOS and tvOS)
         type: choice
         required: true
-        default: nightly
+        default: Nightly
         options:
-          - nightly
-          - main
+          - Nightly
+          - Main
 
 permissions:
   contents: write
@@ -31,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ github.event_name == 'push' && fromJSON('[{"platform":"iOS","channel":"nightly"},{"platform":"tvOS","channel":"nightly"},{"platform":"iOS","channel":"main"},{"platform":"tvOS","channel":"main"}]') || (github.event_name == 'workflow_dispatch' && inputs.channel == 'main' && fromJSON('[{"platform":"iOS","channel":"main"},{"platform":"tvOS","channel":"main"}]')) || fromJSON('[{"platform":"iOS","channel":"nightly"},{"platform":"tvOS","channel":"nightly"}]') }}
+        include: ${{ fromJSON(format('[{"platform":"iOS","channel":"{0}"},{"platform":"tvOS","channel":"{0}"}]', github.event_name == 'workflow_dispatch' && inputs.channel == 'Main' && 'main' || 'nightly')) }}
     env:
       RELEASE_CHANNEL: ${{ matrix.channel }}
       VERSION: 0.1.${{ format('{0}', github.run_number) }}
@@ -115,7 +115,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        channel: ${{ github.event_name == 'push' && fromJSON('["nightly","main"]') || (github.event_name == 'workflow_dispatch' && inputs.channel == 'main' && fromJSON('["main"]')) || fromJSON('["nightly"]') }}
+        channel: ${{ fromJSON(format('["{0}"]', github.event_name == 'workflow_dispatch' && inputs.channel == 'Main' && 'main' || 'nightly')) }}
     env:
       RELEASE_CHANNEL: ${{ matrix.channel }}
       VERSION: 0.1.${{ format('{0}', github.run_number) }}
@@ -197,13 +197,6 @@ jobs:
           token: ${{ secrets.PAGES_TOKEN }}
           path: website
 
-      - name: Download main iOS build for AltStore feed
-        if: matrix.channel == 'nightly' && github.event_name == 'push'
-        uses: actions/download-artifact@v4
-        with:
-          name: iSteam-iOS-main
-          path: altstore-main
-
       - name: Update legacy AltStore source and publish iOS IPA
         if: matrix.channel == 'nightly' || github.event_name == 'workflow_dispatch'
         env:
@@ -211,7 +204,6 @@ jobs:
           BUILD_NUMBER: ${{ github.run_number }}
           CHANNEL: ${{ matrix.channel }}
           VERSION: ${{ steps.meta.outputs.version }}
-          PUSH_HAS_MAIN: ${{ github.event_name == 'push' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -227,9 +219,6 @@ jobs:
           build_number = os.environ["BUILD_NUMBER"]
           current_version = os.environ["VERSION"]
           channels = [(channel, Path("build/iSteam-ios.ipa"), current_version)]
-          main_ipa = Path("altstore-main/iSteam-ios.ipa")
-          if os.environ["PUSH_HAS_MAIN"] == "true" and channel == "nightly" and main_ipa.exists():
-              channels.append(("main", main_ipa, f"0.1.{int(build_number):03d}"))
 
           manifest_path = website / "AltSource.json"
           manifest = json.loads(manifest_path.read_text())
