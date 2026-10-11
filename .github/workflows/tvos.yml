@@ -1,0 +1,58 @@
+name: i-Steam tvOS Nightly
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: tvos-nightly
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/Homebrew
+          key: brew-xcodegen-${{ runner.os }}-v1
+      - name: Install XcodeGen
+        run: brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate --spec project.yml
+      - name: Build tvOS nightly
+        run: |
+          set -euo pipefail
+          xcodebuild -project iSteam.xcodeproj -scheme iSteamTV -configuration Release -sdk appletvos -destination 'generic/platform=tvOS' -derivedDataPath "$PWD/build/tvDerivedData" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 build
+      - name: Package tvOS app
+        run: |
+          set -euo pipefail
+          APP="build/tvDerivedData/Build/Products/Release-appletvos/iSteamTV.app"
+          test -d "$APP"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist" | grep -Fx "com.Xthrx.iSteam.tvOS"
+          mkdir -p build/tvPayload
+          cp -R "$APP" build/tvPayload/iSteamTV.app
+          ditto -c -k --sequesterRsrc --keepParent build/tvPayload build/iSteam-tvOS-nightly.ipa
+          unzip -t build/iSteam-tvOS-nightly.ipa >/dev/null
+          shasum -a 256 build/iSteam-tvOS-nightly.ipa > build/iSteam-tvOS-nightly.ipa.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iSteam-tvOS-Nightly
+          path: |
+            build/iSteam-tvOS-nightly.ipa
+            build/iSteam-tvOS-nightly.ipa.sha256
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish tvOS nightly release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: tvos-nightly-${{ github.run_id }}
+          name: tvOS Nightly #${{ github.run_number }}
+          prerelease: true
+          files: |
+            build/iSteam-tvOS-nightly.ipa
+            build/iSteam-tvOS-nightly.ipa.sha256

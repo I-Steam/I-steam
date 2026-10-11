@@ -1,0 +1,55 @@
+name: i-Steam iOS Nightly
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: ios-nightly
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/Homebrew
+          key: brew-xcodegen-${{ runner.os }}-v1
+      - name: Install XcodeGen
+        run: brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate --spec project.yml
+      - name: Build and archive iOS nightly
+        run: |
+          set -euo pipefail
+          xcodebuild -project iSteam.xcodeproj -scheme iSteamNightly -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -archivePath "$PWD/build/iSteamNightly.xcarchive" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 archive
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          mkdir -p build/Payload
+          cp -R build/iSteamNightly.xcarchive/Products/Applications/iSteam.app build/Payload/iSteam.app
+          ditto -c -k --sequesterRsrc --keepParent build/Payload build/iSteam-ios-nightly.ipa
+          unzip -t build/iSteam-ios-nightly.ipa >/dev/null
+          shasum -a 256 build/iSteam-ios-nightly.ipa > build/iSteam-ios-nightly.ipa.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iSteam-iOS-Nightly
+          path: |
+            build/iSteam-ios-nightly.ipa
+            build/iSteam-ios-nightly.ipa.sha256
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish iOS nightly release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios-nightly-${{ github.run_id }}
+          name: iOS Nightly #${{ github.run_number }}
+          prerelease: true
+          files: |
+            build/iSteam-ios-nightly.ipa
+            build/iSteam-ios-nightly.ipa.sha256

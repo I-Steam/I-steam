@@ -4,11 +4,11 @@ options:
   xcodeVersion: "26.0"
   deploymentTarget:
     iOS: "16.0"
+    tvOS: "17.0"
 settings:
   base:
     SWIFT_VERSION: "5.9"
-    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
-    ARCHS: "arm64 arm64e"
+    ARCHS: "arm64"
     EXCLUDED_ARCHS[sdk=iphonesimulator*]: "arm64e"
 targets:
   iSteam:
@@ -25,14 +25,7 @@ targets:
         INFOPLIST_FILE: iSteam/Info.plist
         CODE_SIGN_ENTITLEMENTS: iSteam/iSteam.entitlements
         SWIFT_OBJC_BRIDGING_HEADER: iSteam/iSteam-Bridging-Header.h
-        OTHER_LDFLAGS:
-          - "$(inherited)"
-          - "-ObjC"
-          - "-framework"
-          - "Metal"
-          - "-framework"
-          - "MetalKit"
-
+        OTHER_LDFLAGS: ["$(inherited)", "-ObjC", "-framework", "Metal", "-framework", "MetalKit"]
   iSteamNightly:
     type: application
     platform: iOS
@@ -47,14 +40,18 @@ targets:
         INFOPLIST_FILE: iSteam/Info.plist
         CODE_SIGN_ENTITLEMENTS: iSteam/iSteam.entitlements
         SWIFT_OBJC_BRIDGING_HEADER: iSteam/iSteam-Bridging-Header.h
-        SWIFT_VERSION: "5.9"
-        IPHONEOS_DEPLOYMENT_TARGET: "16.0"
-        ARCHS: "arm64 arm64e"
-        EXCLUDED_ARCHS[sdk=iphonesimulator*]: "arm64e"
-        OTHER_LDFLAGS:
-          - "$(inherited)"
-          - "-ObjC"
-          - "-framework"
-          - "Metal"
-          - "-framework"
-          - "MetalKit"
+        OTHER_LDFLAGS: ["$(inherited)", "-ObjC", "-framework", "Metal", "-framework", "MetalKit"]
+  iSteamTV:
+    type: application
+    platform: tvOS
+    sources:
+      - path: iSteam
+      - path: src
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.Xthrx.iSteam.tvOS
+        PRODUCT_NAME: iSteamTV
+        INFOPLIST_KEY_CFBundleDisplayName: i-Steam tvOS
+        INFOPLIST_FILE: iSteam/Info-tvOS.plist
+        SWIFT_OBJC_BRIDGING_HEADER: iSteam/iSteam-Bridging-Header.h
+        OTHER_LDFLAGS: ["$(inherited)", "-ObjC", "-framework", "Metal", "-framework", "MetalKit"]
