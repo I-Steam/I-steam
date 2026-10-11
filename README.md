@@ -1,66 +1,91 @@
 # i-Steam
 
-i-Steam is an experimental iOS frontend for exploring game-runtime and virtual-machine concepts. It is **not a finished Steam client or general-purpose Windows gaming solution**.
+i-Steam is an experimental iOS app and early tvOS interface for researching Steam-library, guest-runtime, and virtual-machine concepts. It is **not a finished Steam client, PC emulator, or general-purpose Windows gaming solution**.
 
-## Features and project status
+- GitHub: https://github.com/I-Steam/I-steam
+- GitLab mirror: https://gitlab.com/chantinlongxthrx/I-steam
+- Releases: https://github.com/I-Steam/I-steam/releases
+- Build history: https://github.com/I-Steam/I-steam/actions
 
-- Main menu includes an official Steam Store link, game/EXE import, and a full-page launch setup.
-- Named VM configuration slots and last-session metadata are saved locally.
-- Ubuntu is the default guest choice; Windows 10 requires the user to import legitimate full installation media.
-- Bounded Windows PE / Linux ELF metadata inspection and guest-process scaffolding.
-- VM configuration and display scaffolding; full-system emulation remains incomplete.
-- Metal display experiments and frame-pacing/resolution settings.
-- Custom touchscreen keyboard and hardware-keyboard F-key bar UI.
-- CI builds an unsigned SideStore IPA from an iOS device archive; the slow iOS Simulator boot/launch step is removed.
-- Android guest experiment toggle is a UI flag only; it does not install or boot Android.
-- macOS guest option is intentionally disabled on iOS; Apple Hypervisor.framework is not available to ordinary iOS apps.
+## Current status
 
-**Important warning:** Nightly releases are experimental, unsigned, and may be broken or incomplete. A successful compile/simulator test does not prove that a physical iPhone/iPad can run a guest OS or a Steam game. Imported OS images can be stored, but booting them is not implemented. EXE files can be imported into the library, but execution is not implemented. Guest input injection, full QEMU integration, Box64 runtime integration, Wine/Proton, Windows API compatibility, and real 3D GPU translation are not complete.
+### iOS app
 
-## Install
+- Library/import UI for game and executable files.
+- Steam Store link via the iOS app's browser experience.
+- VM configuration slots and last-session metadata saved locally.
+- OS-image import and external-drive/shared-directory scaffolding.
+- Bounded, read-only Windows PE and Linux ELF metadata inspection.
+- Guest memory, block-device, x86-64 interpreter and VM configuration prototypes.
+- Metal presentation, frame pacing, resolution settings, keyboard and controller UI experiments.
+- JIT-related workflow/protocol experiments; actual JIT availability depends on device, iOS version, signing, and pairing setup.
 
-Read **[INSTALL.md](INSTALL.md)** for downloading the correct IPA artifact and installing with SideStore. Releases contain an unsigned IPA; it must be signed before iOS can install it.
+### tvOS app
 
-## Automated builds and releases
+- A separate Apple TV target with a basic remote-friendly interface preview.
+- Launch-session, Store and Settings actions currently show explanatory notices.
+- The tvOS interface is **not yet connected to the iOS guest-runtime code** and does not boot an operating system or launch Steam games.
 
-- [GitHub Actions build workflow](https://github.com/I-Steam/I-steam/actions/workflows/build.yml)
-- [All GitHub releases](https://github.com/I-Steam/I-steam/releases)
-- [All workflow runs](https://github.com/I-Steam/I-steam/actions)
+### Important limitations
 
-Behavior:
-- **Push to `main`:** builds and publishes a Nightly pre-release only after the device archive and IPA packaging pass.
-- **Scheduled run:** runs nightly at 02:00 UTC and publishes a Nightly pre-release only after required steps pass.
-- **Manual run:** use **Run workflow** and select `nightly` (pre-release) or `main` (non-prerelease, marked latest).
-- Failed runs display a warning and summary link; **no release is published when required build/test/package steps fail**.
-- Each run uses a unique tag based on the GitHub Actions run number, such as `nightly-123` or `main-124`.
+A successful compile or IPA packaging check does not prove that an app can boot a guest OS or run a game on a physical device. At present, imported OS images are not bootable through an integrated full-system emulator, imported EXE files are not executed by a complete Windows runtime, and the tvOS UI is a separate prototype.
 
-## Settings and compatibility
+The project does not yet provide a complete CPU/system emulator, full QEMU integration, integrated Box64 runtime, Wine/Proton, Windows API compatibility layer, functional guest networking/input bridge, or production-ready 3D GPU translation. Anti-cheat compatibility is not promised. The Android experiment switch is a UI flag only. macOS guest support and Apple's Hypervisor.framework are unavailable to ordinary iOS apps and are not implemented here.
 
-- **Hypervisor.framework** is shown disabled on iOS because ordinary iOS apps cannot use Apple's Hypervisor.framework. Use the QEMU/JIT or interpreter prototype choices instead.
-- Device Compatibility shows the current device family and iOS version plus the known hypervisor limitation.
-- **Android guest experiment** is an opt-in UI flag only. Android emulation/boot support is not implemented.
-- **macOS VM** is shown disabled on iOS. This project does not currently implement a macOS guest runtime.
+## Install and test
+
+- **iOS:** Read [INSTALL.md](INSTALL.md). The CI IPA is unsigned and must be signed with a compatible tool such as SideStore before installation.
+- **tvOS:** See [docs/TVOS.md](docs/TVOS.md). The tvOS IPA is a packaged build artifact, not a promise of direct installability; it is unsigned and must be signed/provisioned appropriately for the target device.
+- **Build/release behavior:** See [docs/RELEASES.md](docs/RELEASES.md).
+
+## Build and release channels
+
+The single workflow [release.yml](.github/workflows/release.yml) builds both iOS and tvOS and publishes their IPAs together in one release.
+
+- **Automatic push to `main`:** publishes Nightly only.
+- **Scheduled build:** runs daily at 02:00 UTC and publishes Nightly only.
+- **Manual GitHub Actions run:** choose **Nightly** or **Main**; both platform artifacts are included in the resulting release.
+- **Manual GitLab pipeline:** choose the channel input, then the GitLab pipeline dispatches the corresponding GitHub workflow run.
+- Existing releases are not automatically deleted by the workflow.
+- The release job runs only after both platform build jobs succeed and verifies that the IPA ZIP containers and SHA-256 checksums are valid.
+- The release assets are unsigned prototypes. A structurally valid IPA is not necessarily signed or installable.
+
+The website/AltStore source update is conditional on the `PAGES_TOKEN` secret being configured with write access to the website repository. The iOS app is the normal SideStore install target; the tvOS listing is informational and does not mean SideStore can install it on every device.
+
+## Repository map
+
+| Path | Purpose |
+| --- | --- |
+| `iSteam/` | iOS app, native helpers, resources and app configuration |
+| `tvOSApp/` | Separate tvOS interface prototype |
+| `src/Core/` | VM configuration, engine/session scaffolding and logs |
+| `src/Runtime/` | Guest-memory, loader, process and storage prototypes |
+| `src/QEMU/` | QEMU command/backend scaffolding; not a complete integrated emulator |
+| `src/Display/`, `src/GPU/` | Display, input, GPU and frame-pacing experiments |
+| `docs/` | Architecture, host-device bridge, release and tvOS notes |
+| `.github/workflows/release.yml` | Combined iOS + tvOS CI and release workflow |
+| `.gitlab-ci.yml` | GitLab-to-GitHub sync and manual workflow dispatch |
 
 ## Runtime engineering roadmap
 
-See [docs/SHARPEMU_REUSE_NOTES.md](docs/SHARPEMU_REUSE_NOTES.md) for the SharpEmu architecture review, the PE-inspection hardening in this build, licensing cautions, and the staged plan for implementing a real guest runtime. SharpEmu is a PS5 emulator written in C#; its source is not directly portable to this Swift/iOS project. This change does not copy SharpEmu source code.
+See [docs/SHARPEMU_REUSE_NOTES.md](docs/SHARPEMU_REUSE_NOTES.md) for architecture review, bounded PE inspection, licensing cautions and staged runtime milestones. See [docs/HOST_DEVICE_BRIDGE.md](docs/HOST_DEVICE_BRIDGE.md) for current host/device bridge boundaries.
 
 ## Credits and technical references
 
-These links are references and inspiration, not a claim that their code is bundled in i-Steam or that their maintainers endorse this project.
+These projects are references, not a claim that their code is bundled in i-Steam or that their maintainers endorse this project.
 
-- **[SharpEmu](https://github.com/sharpemu/sharpemu)** — PS5 emulator research reference for emulator subsystem separation, validation and diagnostics; no SharpEmu code is bundled by this change. See the [reuse notes](docs/SHARPEMU_REUSE_NOTES.md).
-- **[QEMU](https://www.qemu.org/)** — open-source machine emulation and virtualization; reference for the full-system VM direction.
-- **[Box64](https://github.com/ptitSeb/box64)** — x86-64 user-mode emulation project; reference for possible runtime work.
-- **[StikDebug](https://github.com/StephenDev0/StikDebug)** — reference for JIT-related workflows and iOS development.
-- **[LiveExec32](https://github.com/LiveContainer/LiveExec32)** — 32-bit binary execution on 64-bit iOS; architectural reference only, not integrated as a complete runtime.
-- **[MeloNX](https://github.com/AzureDominus/melonx)** — iOS emulator project referenced for UI/performance ideas; not integrated into i-Steam.
-- **[SideStore](https://sidestore.io/)** and [documentation](https://docs.sidestore.io/) — installation/signing guidance.
+- [QEMU](https://www.qemu.org/) — full-system emulation reference.
+- [Box64](https://github.com/ptitSeb/box64) — x86-64 user-mode emulation reference.
+- [StikDebug](https://github.com/StephenDev0/StikDebug) — JIT-related iOS development reference.
+- [LiveExec32](https://github.com/LiveContainer/LiveExec32) — architectural reference for binary execution on iOS.
+- [MeloNX](https://github.com/AzureDominus/melonx) — iOS emulator UI/performance reference.
+- [SharpEmu](https://github.com/sharpemu/sharpemu) — emulator architecture research reference; no SharpEmu source is copied as part of this documentation.
+- [SideStore](https://sidestore.io/) and [official documentation](https://docs.sidestore.io/) — iOS signing and installation guidance.
 
-Third-party projects retain their own licenses and copyrights. Check each upstream license and required notices before redistributing code or binaries. No endorsement is implied.
+Third-party projects retain their own licenses and copyrights. Check upstream licenses and required notices before redistributing code. No endorsement is implied.
 
 ## Disclaimer
 
-i-Steam is not affiliated with, endorsed by, or sponsored by Valve Corporation or Steam. Steam is a Valve trademark. The project does not bypass anti-cheat systems and does not promise games requiring kernel drivers will work.
+i-Steam is not affiliated with, endorsed by, or sponsored by Valve Corporation. Steam is a Valve trademark. This project does not bypass anti-cheat systems and does not guarantee that any particular game will run.
 
-llms such as ChatGPT and Claude were used during debugging
+AI assistants, including ChatGPT and Claude, have been used as aids during development and debugging; changes should still be reviewed and tested by maintainers.

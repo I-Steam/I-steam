@@ -1,59 +1,65 @@
-# Install i-Steam on iPad or iPhone
+# Install i-Steam on iPhone or iPad
 
-This guide covers installing the **unsigned SideStore IPA** produced by GitHub Actions. The app must be signed on the device before iOS can launch it.
+This guide covers the **unsigned iOS IPA** produced by the combined GitHub Actions workflow. The IPA must be signed with a compatible method before iOS can install and launch it.
 
-> ⚠️ **Nightly warning:** Builds are experimental and may contain bugs or incomplete features. The app currently does not provide a complete Steam/Windows/Linux gaming runtime, and a successful device build does not prove that a guest OS or game will boot.
+> **Experimental software:** i-Steam does not yet provide a complete Steam/Windows/Linux gaming runtime. Installing the app does not mean imported operating systems or games will boot.
 
 ## Requirements
 
 - A compatible iPhone or iPad.
-- [SideStore](https://sidestore.io/) installed and paired/configured using its [official documentation](https://docs.sidestore.io/).
-- The IPA artifact from a successful GitHub Actions run.
+- [SideStore](https://sidestore.io/) installed and configured using the [official documentation](https://docs.sidestore.io/).
+- An IPA downloaded from a successful build/release.
 
-## 1. Download the IPA
+## Download from a release
 
-1. Open [i-Steam GitHub Actions builds](https://github.com/I-Steam/I-steam/actions/workflows/build.yml).
-2. Open the newest run marked **Success**. Do not use a run that is running or failed.
-3. Under **Artifacts**, download **iSteam-SideStore**. GitHub downloads the artifact as a ZIP.
-4. Open the ZIP in Files and extract it.
-5. Locate `iSteam-SideStore.ipa`. Do not install the outer artifact ZIP or the `.xcarchive`.
-6. Alternatively, check [GitHub Releases](https://github.com/I-Steam/I-steam/releases) for the latest published Nightly or Main build. Releases are published only when required build/test/package steps pass.
+1. Open [i-Steam releases](https://github.com/I-Steam/I-steam/releases).
+2. Open the latest **Nightly** release for testing, or **Main** if you specifically want the manually published main channel.
+3. Download **`iSteam-ios.ipa`**. The same release also contains a separate tvOS IPA and SHA-256 checksum files; do not choose the tvOS file for an iPhone/iPad.
+4. Optionally verify the download using the matching `.sha256` file. The checksum file must correspond to the exact IPA downloaded.
 
-## 2. Install through SideStore
+## Download from a workflow run
 
-1. Open SideStore on the iPad/iPhone.
-2. On **My Apps**, use SideStore's import/add-app action to select `iSteam-SideStore.ipa`.
-3. Follow SideStore's signing and installation prompts. If pairing, refresh, or signing is required, use the [official SideStore documentation](https://docs.sidestore.io/).
-4. When installation finishes, try opening iSteam.
+1. Open [GitHub Actions](https://github.com/I-Steam/I-steam/actions/workflows/release.yml).
+2. Open a completed run marked **Success**.
+3. In the Artifacts section, select the iOS artifact named similar to `iSteam-iOS-nightly` or `iSteam-iOS-main`.
+4. Extract the downloaded artifact ZIP in Files and locate `iSteam-ios.ipa`.
 
-The artifact is **unsigned**. Copying it into Files alone does not install it.
+Do not install the outer artifact ZIP, a checksum file, or an Xcode archive.
 
-## 3. If using LiveContainer
+## Install with SideStore
 
-Import the actual `.ipa`, not the artifact ZIP or Xcode archive. A LiveContainer error such as `Bad file descriptor` or an executable path ending in `/(null)` requires checking the app bundle's `Info.plist` and executable. A successful Xcode build or simulator test does not guarantee LiveContainer compatibility.
+1. Open SideStore.
+2. Use SideStore's import/add-app action to select `iSteam-ios.ipa`.
+3. Follow its signing and installation prompts.
+4. If signing, pairing or refreshing fails, consult the [official SideStore documentation](https://docs.sidestore.io/).
 
-## 4. Troubleshooting failed builds
+The released IPA is **unsigned**. Saving it in Files does not install it by itself. Signing and app-refresh limits are controlled by your signing method and Apple account/device configuration.
 
-1. Open the [workflow runs](https://github.com/I-Steam/I-steam/actions).
-2. Open the failed run and inspect the **first failing step**, especially any Swift compiler error.
-3. No release should be published for a failed build. The workflow adds a warning and a summary link when it fails.
-4. After a source fix is pushed to `main`, wait for the new workflow run to finish before downloading an IPA.
+## If using LiveContainer
+
+Import the actual `.ipa`, not the downloaded artifact ZIP. LiveContainer compatibility is not guaranteed. If it fails, capture the complete crash log and check whether the app's executable, bundle metadata and dependencies are compatible with the current LiveContainer build.
+
+## Troubleshooting
+
+- **Workflow failed:** open the [workflow run](https://github.com/I-Steam/I-steam/actions/workflows/release.yml) and inspect the first failing step. A release should only be published after the required platform builds and release checks succeed.
+- **IPA won't install:** make sure you downloaded `iSteam-ios.ipa`, not `iSteam-tvOS.ipa`, and sign it with a compatible method.
+- **App installs but crashes:** provide the full device crash log and iOS version. A successful build/package check does not prove runtime correctness.
+- **Checksum mismatch:** download the IPA and its matching checksum again from the same release.
 
 ## Current limitations
 
-- Imported OS images can be copied into app storage, but booting them is not implemented. Windows 10 requires user-supplied installation media; the project does not bundle Windows.
-- EXE files can be imported into the library but cannot yet be executed by an integrated Windows runtime.
-- The current IPA is iOS-only; native Apple TV support needs a separate tvOS target.
-- The Android experiment switch is a UI flag only; there is no Android boot runtime.
-- macOS guest launch and Apple Hypervisor.framework are disabled on iOS.
-- QEMU, Box64, Wine/Proton, Windows APIs, guest input injection, and real 3D GPU translation are not fully integrated.
-- Compatibility with arbitrary Steam games is not guaranteed.
+- Imported OS images are not bootable through an integrated full-system emulator yet.
+- EXE files can be imported and inspected, but a complete Windows runtime is not integrated.
+- QEMU, Box64, Wine/Proton, Windows APIs, guest networking/input and 3D GPU translation are incomplete.
+- Android guest selection is an experiment/UI flag, not a working Android runtime.
+- macOS guest launch and Apple's Hypervisor.framework are not supported by ordinary iOS apps.
+- Game and anti-cheat compatibility is not guaranteed.
 
 ## Links
 
-- [GitHub repository](https://github.com/I-Steam/I-steam)
-- [GitHub Releases](https://github.com/I-Steam/I-steam/releases)
-- [GitHub Actions builds](https://github.com/I-Steam/I-steam/actions/workflows/build.yml)
-- [SideStore website](https://sidestore.io/)
+- [Repository](https://github.com/I-Steam/I-steam)
+- [Releases](https://github.com/I-Steam/I-steam/releases)
+- [Combined build workflow](https://github.com/I-Steam/I-steam/actions/workflows/release.yml)
+- [SideStore](https://sidestore.io/)
 - [SideStore documentation](https://docs.sidestore.io/)
-- [Credits and technical references](README.md#credits-and-technical-references)
+- [Credits and references](README.md#credits-and-technical-references)
