@@ -75,10 +75,10 @@ jobs:
         if: matrix.platform == 'tvOS'
         run: |
           set -euo pipefail
-          xcodebuild -project iSteam.xcodeproj -scheme iSteamTV -configuration Release -sdk appletvos -destination 'generic/platform=tvOS' -derivedDataPath "$PWD/build/tvDerivedData" MARKETING_VERSION="0.1.$(printf '%03d' "$GITHUB_RUN_NUMBER")" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 build
+          xcodebuild -project iSteam.xcodeproj -scheme iSteamTV -configuration Release -sdk appletvos -destination 'generic/platform=tvOS' -derivedDataPath "$PWD/build/tvDerivedData" MARKETING_VERSION="0.1.$(printf '%03d' "$GITHUB_RUN_NUMBER")" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" PRODUCT_BUNDLE_IDENTIFIER="${{ github.event_name == 'workflow_dispatch' && inputs.channel == 'main' && 'com.xthrx.isteam.tvos' || 'com.xthrx.isteam.tvos.nightly' }}" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 build
           APP="build/tvDerivedData/Build/Products/Release-appletvos/iSteamTV.app"
           test -d "$APP"
-          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist" | grep -Fx "com.xthrx.isteam.tvos"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist" | grep -Fx "${{ github.event_name == 'workflow_dispatch' && inputs.channel == 'main' && 'com.xthrx.isteam.tvos' || 'com.xthrx.isteam.tvos.nightly' }}"
           mkdir -p build/tvPayload
           cp -R "$APP" build/tvPayload/iSteamTV.app
           ditto -c -k --sequesterRsrc --keepParent build/tvPayload build/iSteam-tvOS.ipa
