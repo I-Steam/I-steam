@@ -47,6 +47,9 @@ jobs:
             build/iSteam-tvOS-nightly.ipa.sha256
           if-no-files-found: error
           retention-days: 14
+      - name: Generate release version
+        id: version
+        run: echo "number=0.1.$(printf '%03d' "$GITHUB_RUN_NUMBER")" >> "$GITHUB_OUTPUT"
       - name: Remove previous nightly release and tag
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -57,7 +60,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: tvos-nightly
-          name: tvOS Nightly
+          name: ${{ steps.version.outputs.number }} tvOS Nightly
           prerelease: true
           make_latest: false
           files: |
@@ -75,7 +78,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: tvos-main
-          name: tvOS Main
+          name: ${{ steps.version.outputs.number }} tvOS Main
           prerelease: false
           make_latest: false
           files: |
