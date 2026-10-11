@@ -88,7 +88,7 @@ brew install xcodegen
 xcodegen generate --spec project.yml
 ```
 
-Open `iSteam.xcodeproj` in Xcode and select a scheme:
+Open `iSteam.xcodeproj` in Xcode and choose a scheme:
 
 - `iSteam` — iOS main build.
 - `iSteamNightly` — iOS nightly build.
@@ -111,19 +111,12 @@ More details: [Installation](INSTALL.md) · [Release workflow](docs/RELEASES.md)
 
 ## Contributing
 
-Bug reports, documentation fixes, and focused pull requests are welcome.
-
-1. Describe the issue and the device/iOS or tvOS version.
-2. Include a failing workflow link or useful build/crash log when possible.
-3. Keep changes scoped and document platform-specific behavior.
-4. Distinguish successful compilation from real-device and guest-runtime testing.
-5. Check third-party licenses and attribution requirements before redistributing code.
-
-Open an issue or pull request in the [GitHub repository](https://github.com/I-Steam/I-steam).
+Bug reports, documentation improvements, and focused pull requests are welcome. Please read the [contribution guide](CONTRIBUTING.md) before submitting changes.
 
 ## Documentation
 
 - [Installation guide](INSTALL.md)
+- [Contribution guide](CONTRIBUTING.md)
 - [Build and release workflow](docs/RELEASES.md)
 - [tvOS status and roadmap](docs/TVOS.md)
 - [Host-device bridge](docs/HOST_DEVICE_BRIDGE.md)
