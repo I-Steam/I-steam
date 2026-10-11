@@ -31,7 +31,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(format('[{"platform":"iOS","channel":"{0}"},{"platform":"tvOS","channel":"{0}"}]', github.event_name == 'workflow_dispatch' && inputs.channel == 'Main' && 'main' || 'nightly')) }}
+        platform: [iOS, tvOS]
+        channel: ${{ fromJSON(format('["{0}"]', github.event_name == 'workflow_dispatch' && inputs.channel == 'Main' && 'main' || 'nightly')) }}
     env:
       RELEASE_CHANNEL: ${{ matrix.channel }}
       VERSION: 0.1.${{ format('{0}', github.run_number) }}
