@@ -131,17 +131,27 @@ final class ELF64Loader {
 
     private func u16(_ data: Data, _ offset: Int) -> UInt16? {
         guard offset >= 0, offset <= data.count, data.count - offset >= 2 else { return nil }
-        return UInt16(data[offset]) | UInt16(data[offset + 1]) << 8
+        return data.withUnsafeBytes { raw in
+            guard let bytes = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return nil }
+            return UInt16(bytes[offset]) | UInt16(bytes[offset + 1]) << 8
+        }
     }
 
     private func u32(_ data: Data, _ offset: Int) -> UInt32? {
         guard offset >= 0, offset <= data.count, data.count - offset >= 4 else { return nil }
-        return UInt32(data[offset]) | UInt32(data[offset + 1]) << 8 |
-            UInt32(data[offset + 2]) << 16 | UInt32(data[offset + 3]) << 24
+        return data.withUnsafeBytes { raw in
+            guard let bytes = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return nil }
+            var value: UInt32 = 0
+            return isteam_read_le32(bytes, raw.count, offset, &value) ? value : nil
+        }
     }
 
     private func u64(_ data: Data, _ offset: Int) -> UInt64? {
-        guard let low = u32(data, offset), let high = u32(data, offset + 4) else { return nil }
-        return UInt64(low) | UInt64(high) << 32
+        guard offset >= 0, offset <= data.count, data.count - offset >= 8 else { return nil }
+        return data.withUnsafeBytes { raw in
+            guard let bytes = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return nil }
+            var value: UInt64 = 0
+            return isteam_read_le64(bytes, raw.count, offset, &value) ? value : nil
+        }
     }
 }
