@@ -134,6 +134,94 @@ jobs:
             ${{ steps.meta.outputs.asset }}
             ${{ steps.meta.outputs.checksum }}
 
+      - name: Publish iOS build to AltStore website source
+        if: matrix.platform == 'iOS'
+        uses: actions/checkout@v4
+        with:
+          repository: I-Steam/I-steam.github.io
+          ref: main
+          token: ${{ secrets.PAGES_TOKEN }}
+          path: website
+
+      - name: Update AltStore manifests and publish IPA
+        if: matrix.platform == 'iOS'
+        env:
+          RELEASE_CHANNEL: ${{ env.RELEASE_CHANNEL }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${{ secrets.PAGES_TOKEN }}" || { echo "PAGES_TOKEN is required and must have Contents write access to I-Steam/I-steam.github.io"; exit 1; }
+          python3 - <<'PY'
+          import datetime, hashlib, json, os, shutil
+          from pathlib import Path
+
+          channel = os.environ["RELEASE_CHANNEL"]
+          version = os.environ["VERSION"]
+          build_number = os.environ["BUILD_NUMBER"]
+          source_ipa = Path("build/iSteam-ios.ipa")
+          website = Path("website")
+          downloads = website / "downloads"
+          downloads.mkdir(parents=True, exist_ok=True)
+          filename = f"iSteam-{channel}-{version}.ipa"
+          versioned_path = downloads / filename
+          shutil.copy2(source_ipa, versioned_path)
+          stable_name = "iSteam-nightly.ipa" if channel == "nightly" else "iSteam-release.ipa"
+          shutil.copy2(source_ipa, downloads / stable_name)
+
+          data = source_ipa.read_bytes()
+          digest = hashlib.sha256(data).hexdigest()
+          now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+          bundle_id = "com.xthrx.isteam.nightly" if channel == "nightly" else "com.xthrx.isteam"
+          app_name = "i-Steam Nightly" if channel == "nightly" else "i-Steam Release"
+          download_url = f"https://i-steam.github.io/downloads/{filename}"
+          version_entry = {
+              "version": version,
+              "buildVersion": str(build_number),
+              "date": now,
+              "size": len(data),
+              "sha256": digest,
+              "downloadURL": download_url,
+              "localizedDescription": f"{'NIGHTLY' if channel == 'nightly' else 'MAIN'} build {version}. SHA-256: {digest}. Unsigned prototype; sign with SideStore before installing.",
+              "minOSVersion": "16.0"
+          }
+
+          manifest_path = website / "AltSource.json"
+          manifest = json.loads(manifest_path.read_text())
+          for app in manifest.get("apps", []):
+              if app.get("name") == app_name or app.get("bundleIdentifier", "").lower() in ("com.xthrx.isteam", "com.xthrx.isteam.nightly"):
+                  app["bundleIdentifier"] = bundle_id
+                  if app.get("name") == app_name:
+                      versions = app.setdefault("versions", [])
+                      versions = [v for v in versions if not (v.get("version") == version and str(v.get("buildVersion", "")) == str(build_number))]
+                      app["versions"] = ([version_entry] + versions)[:10]
+          manifest_path.write_text(json.dumps(manifest, indent=2) + "\\n")
+
+          alt_path = website / "alt" / "source.json"
+          if alt_path.exists():
+              alt = json.loads(alt_path.read_text())
+              for app in alt.get("apps", []):
+                  name = app.get("name", "")
+                  if name == app_name or name.lower() in ("i-steam release", "i-steam nightly"):
+                      is_nightly = name.lower().endswith("nightly")
+                      app["bundleIdentifier"] = "com.xthrx.isteam.nightly" if is_nightly else "com.xthrx.isteam"
+                      app["downloadURL"] = f"https://i-steam.github.io/downloads/{'iSteam-nightly.ipa' if is_nightly else 'iSteam-release.ipa'}"
+              alt_path.write_text(json.dumps(alt, indent=2) + "\\n")
+
+          checksum_path = downloads / (stable_name + ".sha256")
+          checksum_path.write_text(f"{digest}  {stable_name}\\n")
+          PY
+          git -C website config user.name "i-Steam Release Bot"
+          git -C website config user.email "release-bot@users.noreply.github.com"
+          git -C website add AltSource.json alt/source.json downloads
+          if git -C website diff --cached --quiet; then
+            echo "AltStore source already up to date."
+          else
+            git -C website commit -m "Publish iOS ${{ env.RELEASE_CHANNEL }} build ${{ steps.meta.outputs.version }}"
+            git -C website push origin HEAD:main
+          fi
+
       - name: Delete legacy releases and tags
         if: matrix.platform == 'iOS'
         env:
