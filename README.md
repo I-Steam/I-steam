@@ -62,3 +62,5 @@ Third-party projects retain their own licenses and copyrights. Check each upstre
 ## Disclaimer
 
 i-Steam is not affiliated with, endorsed by, or sponsored by Valve Corporation or Steam. Steam is a Valve trademark. The project does not bypass anti-cheat systems and does not promise games requiring kernel drivers will work.
+
+llms such as ChatGPT and Claude were used during debugging
