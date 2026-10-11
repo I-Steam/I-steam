@@ -17,13 +17,9 @@ targets:
     sources:
       - path: iSteam
         excludes:
+          - Info.plist
           - Info-tvOS.plist
-          - AppDelegate-tvOS.swift
-          - LaunchSetupViewController-tvOS.swift
-          - SettingsViewController-tvOS.swift
       - path: src
-        excludes:
-          - Display/VMDisplayViewController-tvOS.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.Xthrx.iSteam
@@ -39,13 +35,9 @@ targets:
     sources:
       - path: iSteam
         excludes:
+          - Info.plist
           - Info-tvOS.plist
-          - AppDelegate-tvOS.swift
-          - LaunchSetupViewController-tvOS.swift
-          - SettingsViewController-tvOS.swift
       - path: src
-        excludes:
-          - Display/VMDisplayViewController-tvOS.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.Xthrx.iSteam.Nightly
@@ -59,23 +51,10 @@ targets:
     type: application
     platform: tvOS
     sources:
-      - path: iSteam
-        excludes:
-          - Info.plist
-          - AppDelegate.swift
-          - ConsoleViewController.swift
-          - CrashLogViewController.swift
-          - LaunchSetupViewController.swift
-          - SettingsViewController.swift
-      - path: src
-        excludes:
-          - Display/TouchGamepadView.swift
-          - Display/VMDisplayViewController.swift
+      - path: tvOSApp
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.Xthrx.iSteam.tvOS
         PRODUCT_NAME: iSteamTV
         INFOPLIST_KEY_CFBundleDisplayName: i-Steam tvOS
         INFOPLIST_FILE: iSteam/Info-tvOS.plist
-        SWIFT_OBJC_BRIDGING_HEADER: iSteam/iSteam-Bridging-Header.h
-        OTHER_LDFLAGS: ["$(inherited)", "-ObjC", "-framework", "Metal", "-framework", "MetalKit"]

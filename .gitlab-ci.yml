@@ -7,9 +7,12 @@ spec:
       default: iOS
 ---
 stages: [sync, dispatch]
+
 sync_to_github:
   stage: sync
+  resource_group: github-main-sync
   image: alpine:latest
+  interruptible: false
   before_script:
     - apk add --no-cache git
   script:
@@ -17,6 +20,7 @@ sync_to_github:
     - git config user.email "sync@i-steam.local"
     - git remote set-url origin "https://oauth2:${GITHUB_SYNC_TOKEN}@github.com/I-Steam/I-steam.git"
     - git push --force origin HEAD:main
+
 dispatch_manual_build:
   stage: dispatch
   image: curlimages/curl:8.12.1
