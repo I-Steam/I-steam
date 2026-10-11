@@ -81,3 +81,20 @@ jobs:
           files: |
             build/iSteam-ios-nightly.ipa
             build/iSteam-ios-nightly.ipa.sha256
+      - name: Delete legacy releases and tags
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release list --limit 1000 --json tagName --jq '.[].tagName' | while IFS= read -r tag; do
+            case "$tag" in
+              ios-nightly|tvos-nightly|ios-main|tvos-main)
+                echo "Keeping current release: $tag"
+                ;;
+              *)
+                echo "Deleting legacy release and tag: $tag"
+                gh release delete "$tag" --yes --cleanup-tag
+                ;;
+            esac
+          done
