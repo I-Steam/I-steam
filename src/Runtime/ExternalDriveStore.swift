@@ -29,12 +29,12 @@ final class ExternalDriveStore {
     func readDocument(at url: URL) throws -> Data {
         let granted = url.startAccessingSecurityScopedResource()
         defer { if granted { url.stopAccessingSecurityScopedResource() } }
-        var readError: Error?
+        var readError: NSError?
         var result: Data?
         let coordinator = NSFileCoordinator(filePresenter: nil)
         coordinator.coordinate(readingItemAt: url, options: [], error: &readError) { coordinatedURL in
             do { result = try Data(contentsOf: coordinatedURL, options: [.mappedIfSafe]) }
-            catch { readError = error }
+            catch { readError = error as NSError }
         }
         if let readError { throw readError }
         guard let result else { throw CocoaError(.fileReadUnknown) }
