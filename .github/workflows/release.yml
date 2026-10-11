@@ -36,6 +36,7 @@ jobs:
     env:
       RELEASE_CHANNEL: ${{ matrix.channel }}
       VERSION: 0.1.${{ format('{0}', github.run_number) }}
+      PAGES_TOKEN: ${{ secrets.PAGES_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -186,7 +187,7 @@ jobs:
             These are unsigned prototype builds. Sign them with a compatible signer before installing.
 
       - name: Checkout AltStore website
-        if: matrix.channel == 'nightly' || github.event_name == 'workflow_dispatch'
+        if: (matrix.channel == 'nightly' || github.event_name == 'workflow_dispatch') && env.PAGES_TOKEN != ''
         uses: actions/checkout@v4
         with:
           repository: I-Steam/I-steam.github.io
@@ -195,7 +196,7 @@ jobs:
           path: website
 
       - name: Update legacy AltStore source and publish iOS IPA
-        if: matrix.channel == 'nightly' || github.event_name == 'workflow_dispatch'
+        if: (matrix.channel == 'nightly' || github.event_name == 'workflow_dispatch') && env.PAGES_TOKEN != ''
         env:
           PAGES_TOKEN: ${{ secrets.PAGES_TOKEN }}
           BUILD_NUMBER: ${{ github.run_number }}
