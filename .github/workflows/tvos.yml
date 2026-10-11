@@ -9,7 +9,7 @@ permissions:
   contents: write
 concurrency:
   group: tvos-nightly
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   build:
     runs-on: macos-15
