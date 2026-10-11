@@ -1,7 +1,56 @@
 import UIKit
+#if !os(tvOS)
 import UniformTypeIdentifiers
-import SafariServices
+#endif
+import WebKit
 
+#if os(tvOS)
+final class LibraryViewController: UIViewController {
+    private let stack = UIStackView()
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "i-Steam"
+        view.backgroundColor = .systemBackground
+        stack.axis = .vertical
+        stack.alignment = .fill
+        stack.distribution = .fillEqually
+        stack.spacing = 24
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 100),
+            stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -100),
+            stack.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            stack.heightAnchor.constraint(equalToConstant: 300)
+        ])
+        let heading = UILabel()
+        heading.text = "i-Steam"
+        heading.font = .systemFont(ofSize: 44, weight: .bold)
+        heading.textAlignment = .center
+        stack.addArrangedSubview(heading)
+        stack.addArrangedSubview(makeButton("Launch session") { [weak self] in
+            self?.navigationController?.pushViewController(LaunchSetupViewController(), animated: true)
+        })
+        stack.addArrangedSubview(makeButton("Steam Store") { [weak self] in
+            guard let url = URL(string: "https://store.steampowered.com/") else { return }
+            self?.present(UINavigationController(rootViewController: SteamStoreViewController(url: url)), animated: true)
+        })
+        stack.addArrangedSubview(makeButton("Settings") { [weak self] in
+            self?.navigationController?.pushViewController(SettingsViewController(), animated: true)
+        })
+    }
+
+    private func makeButton(_ title: String, action: @escaping () -> Void) -> UIButton {
+        var config = UIButton.Configuration.filled()
+        config.title = title
+        config.cornerStyle = .large
+        let button = UIButton(configuration: config)
+        button.addAction(UIAction { _ in action() }, for: .primaryActionTriggered)
+        return button
+    }
+}
+#else
 final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
     private let scrollView = UIScrollView()
     private let stack = UIStackView()
@@ -109,10 +158,9 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
             showMessage("Steam Store", "The Steam Store URL is invalid.")
             return
         }
-        // Present inside the app rather than handing off to Safari or another app.
-        let browser = SFSafariViewController(url: url)
-        browser.dismissButtonStyle = .close
-        present(browser, animated: true)
+        // Use WKWebView so the store stays embedded in i-Steam on iOS and tvOS.
+        let browser = SteamStoreViewController(url: url)
+        present(UINavigationController(rootViewController: browser), animated: true)
     }
 
     private func browseExternalDrive() {
@@ -189,5 +237,47 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default))
         present(alert, animated: true)
+    }
+}
+
+#endif
+
+private final class SteamStoreViewController: UIViewController, WKNavigationDelegate {
+    private let url: URL
+    private let webView = WKWebView(frame: .zero)
+
+    init(url: URL) {
+        self.url = url
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Steam Store"
+        view.backgroundColor = .systemBackground
+        navigationItem.leftBarButtonItem = UIBarButtonItem(
+            title: "Close",
+            style: .done,
+            target: self,
+            action: #selector(closeStore)
+        )
+        webView.navigationDelegate = self
+        webView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(webView)
+        NSLayoutConstraint.activate([
+            webView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            webView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            webView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            webView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+        webView.load(URLRequest(url: url))
+    }
+
+    @objc private func closeStore() {
+        dismiss(animated: true)
     }
 }
