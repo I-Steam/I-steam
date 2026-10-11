@@ -1,104 +1,49 @@
 import Foundation
 
-/// Sparse, bounds-checked guest physical memory.
+/// Sparse guest memory backed by native C++ pages. Bounds are checked by the
+/// native implementation; absent pages read as zero without allocating memory.
 final class GuestMemory {
     static let pageSize: UInt64 = 4096
-
     let size: UInt64
-    private var pages: [UInt64: Data] = [:]
+    private let native: OpaquePointer
     private let lock = NSLock()
 
     init(size: UInt64) {
         self.size = size
-    }
-
-    /// Reads bytes from guest physical memory. Unallocated pages read as zero.
-    func read(offset: UInt64, length: Int) -> Data? {
-        guard length >= 0, offset <= size else { return nil }
-        let byteCount = UInt64(length)
-        guard byteCount <= size - offset else { return nil }
-        if length == 0 { return Data() }
-
-        var result = Data(count: length)
-        lock.lock()
-        defer { lock.unlock() }
-
-        var guestOffset = offset
-        var resultOffset = 0
-        while resultOffset < length {
-            let pageIndex = guestOffset / Self.pageSize
-            let pageOffset = Int(guestOffset % Self.pageSize)
-            let amount = min(length - resultOffset, Int(Self.pageSize) - pageOffset)
-            if let page = pages[pageIndex] {
-                result.replaceSubrange(resultOffset..<(resultOffset + amount),
-                                       with: page[pageOffset..<(pageOffset + amount)])
-            }
-            guestOffset += UInt64(amount)
-            resultOffset += amount
+        guard let handle = isteam_guest_memory_create(size) else {
+            fatalError("Unable to allocate native guest memory handle")
         }
-        return result
+        self.native = OpaquePointer(handle)
     }
 
-    /// Writes only after validating that the whole range fits.
+    deinit { isteam_guest_memory_destroy(UnsafeMutablePointer<ISTeamGuestMemory>(native)) }
+
+    func read(offset: UInt64, length: Int) -> Data? {
+        guard length >= 0, offset <= size, UInt64(length) <= size - offset else { return nil }
+        if length == 0 { return Data() }
+        var data = Data(count: length)
+        let success = data.withUnsafeMutableBytes { bytes -> Bool in
+            guard let base = bytes.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return false }
+            return isteam_guest_memory_read(UnsafeMutablePointer<ISTeamGuestMemory>(native), offset, base, length)
+        }
+        return success ? data : nil
+    }
+
     @discardableResult
     func write(_ data: Data, offset: UInt64) -> Bool {
-        guard offset <= size else { return false }
-        let byteCount = UInt64(data.count)
-        guard byteCount <= size - offset else { return false }
+        guard offset <= size, UInt64(data.count) <= size - offset else { return false }
         if data.isEmpty { return true }
-
-        lock.lock()
-        defer { lock.unlock() }
-        var guestOffset = offset
-        var sourceOffset = 0
-        while sourceOffset < data.count {
-            let pageIndex = guestOffset / Self.pageSize
-            let pageOffset = Int(guestOffset % Self.pageSize)
-            let amount = min(data.count - sourceOffset, Int(Self.pageSize) - pageOffset)
-            var page = pages[pageIndex] ?? Data(count: Int(Self.pageSize))
-            page.replaceSubrange(pageOffset..<(pageOffset + amount),
-                                 with: data[sourceOffset..<(sourceOffset + amount)])
-            pages[pageIndex] = page
-            guestOffset += UInt64(amount)
-            sourceOffset += amount
+        return data.withUnsafeBytes { bytes in
+            guard let base = bytes.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return false }
+            return isteam_guest_memory_write(UnsafeMutablePointer<ISTeamGuestMemory>(native), offset, base, data.count)
         }
-        return true
     }
 
-    /// Zeroes a range without allocating a buffer proportional to its size.
-    /// Missing pages already read as zero, so they remain unallocated.
     @discardableResult
     func zero(offset: UInt64, length: UInt64) -> Bool {
-        guard offset <= size, length <= size - offset else { return false }
-        if length == 0 { return true }
-
-        lock.lock()
-        defer { lock.unlock() }
-        var guestOffset = offset
-        let end = offset + length
-        while guestOffset < end {
-            let pageIndex = guestOffset / Self.pageSize
-            let pageOffset = Int(guestOffset % Self.pageSize)
-            let amount = Int(min(end - guestOffset, Self.pageSize - UInt64(pageOffset)))
-            if var page = pages[pageIndex] {
-                page.replaceSubrange(pageOffset..<(pageOffset + amount),
-                                     with: repeatElement(UInt8(0), count: amount))
-                pages[pageIndex] = page
-            }
-            guestOffset += UInt64(amount)
-        }
-        return true
+        isteam_guest_memory_zero(UnsafeMutablePointer<ISTeamGuestMemory>(native), offset, length)
     }
 
-    func clear() {
-        lock.lock()
-        pages.removeAll(keepingCapacity: false)
-        lock.unlock()
-    }
-
-    var allocatedPageCount: Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return pages.count
-    }
+    func clear() { isteam_guest_memory_clear(UnsafeMutablePointer<ISTeamGuestMemory>(native)) }
+    var allocatedPageCount: Int { Int(isteam_guest_memory_allocated_pages(UnsafeMutablePointer<ISTeamGuestMemory>(native))) }
 }

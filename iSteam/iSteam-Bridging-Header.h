@@ -3,4 +3,5 @@
 #include "Box64Bridge.h"
 #include "JIT26Protocol.h"
 #include "NativeEmulation.h"
+#include "NativeGuestMemory.h"
 #endif
