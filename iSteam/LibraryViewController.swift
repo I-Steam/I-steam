@@ -11,7 +11,7 @@ final class LibraryViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "i-Steam"
-        view.backgroundColor = .systemBackground
+        view.backgroundColor = .black
         stack.axis = .vertical
         stack.alignment = .fill
         stack.distribution = .fillEqually
