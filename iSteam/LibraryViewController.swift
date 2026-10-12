@@ -123,8 +123,8 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
         if let os = UserDefaults.standard.string(forKey: "iSteam.customOSPath") {
             osStatus = "Imported OS image: " + URL(fileURLWithPath: os).lastPathComponent + "\nSaved locally; OS boot integration is not yet implemented."
         } else { osStatus = "No custom OS image imported." }
-        let driveName = UserDefaults.standard.string(forKey: "iSteam.externalDrive.name")
-        statusLabel.text = osStatus + (driveName.map { "\nLast selected external document: " + $0 } ?? "\nExternal drives are accessed through the iOS Files picker.")
+        let driveName = ExternalDriveStore.shared.rememberedName
+        statusLabel.text = osStatus + (driveName.map { "\nRemembered Files location: " + $0 + "\nProvider access is revalidated when the location is used." } ?? "\nExternal storage is accessed through the iOS Files picker.")
     }
 
     private func makeButton(_ title: String, detail: String, symbol: String, primary: Bool, action: @escaping () -> Void) -> UIButton {
