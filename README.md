@@ -35,7 +35,6 @@ Use the source URL below in a compatible AltStore-based app. Source availability
 https://i-steam.github.io/AltSource.json
 ```
 
-<h3 align="center">
 <a href="https://altdirect.app/?url=https://i-steam.github.io/AltSource.json" target="_blank"><img src="https://altdirect.app/assets/png/AltSource_Blue.png" alt="Add AltSource" width="200"></a>
 
 [SideStore installation guide](https://docs.sidestore.io/)
