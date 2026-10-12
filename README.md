@@ -11,7 +11,7 @@
 
 ![Alt](https://repobeats.axiom.co/api/embed/60c92ea5e53d1048f89bf703d5444e243a2c5244.svg "Repobeats analytics image")
 
-i-Steam explores what a Steam-oriented game library and guest-runtime experience might look like on Apple mobile devices. The repository contains an iOS app, native helper code, runtime experiments, and an early Apple TV interface.
+i-Steam is a Steam-oriented game library and guest-runtime experience might look like on Apple mobile devices. The repository contains an iOS app, native helper code, runtime experiments, and an early Apple TV interface.
 
 > [!WARNING]
 > **i-Steam is experimental and is not yet a working PC emulator.** It does not currently boot arbitrary Windows/Linux images through a fully integrated emulator or promise that Steam games will run. The tvOS interface is a prototype, not a game launcher. CI IPAs are unsigned; installation requires a compatible signing method, and packaging success does not prove the app works on a device.
