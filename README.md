@@ -35,7 +35,10 @@ Use the source URL below in a compatible AltStore-based app. Source availability
 https://i-steam.github.io/AltSource.json
 ```
 
-[Open AltDriect source](https://altdirect.app/?url=https://i-steam.github.io/AltSource.json) · [SideStore installation guide](https://docs.sidestore.io/)
+<h3 align="center">
+<a href="https://altdirect.app/?url=https://i-steam.github.io/AltSource.json" target="_blank"><img src="https://altdirect.app/assets/png/AltSource_Blue.png" alt="Add AltSource" width="200"></a>
+
+[SideStore installation guide](https://docs.sidestore.io/)
 
 The source includes separate entries for iOS Main, iOS Nightly, tvOS Main, and tvOS Nightly when published. Apple TV sideloading support depends on the installer and device; an IPA link alone does not guarantee tvOS installation.
 
