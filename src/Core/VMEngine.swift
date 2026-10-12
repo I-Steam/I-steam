@@ -2,9 +2,8 @@ import Foundation
 
 /// Coordinates a configured VM session.
 ///
-/// Important: this type is a session coordinator, not a full-system emulator.
-/// Until a bootable machine backend is integrated, starting a Windows/Linux
-/// session must fail visibly instead of reporting a false running state.
+/// This is not itself a full-system emulator. It refuses to report a guest as
+/// running until a bootable machine backend is actually integrated.
 final class VMEngine {
     enum State: Equatable {
         case stopped
@@ -22,12 +21,6 @@ final class VMEngine {
         self.configuration = configuration
     }
 
-    /// Starts a session only when a bootable guest backend is available.
-    ///
-    /// The current app includes an instruction-test interpreter for a small
-    /// x86-64 subset, but it does not yet include a full-system boot backend.
-    /// We therefore refuse to mark an OS session as running until that backend
-    /// can actually load firmware/kernel and provide devices.
     func start() {
         guard case .stopped = state else { return }
         state = .starting
@@ -44,9 +37,13 @@ final class VMEngine {
                 throw GuestEngineError.backendNotInstalled(configuration.architecture)
             }
 
-            // GuestMachine's built-in interpreter can execute only a limited
-            // instruction subset; it cannot boot Windows or a general Linux OS.
-            let message = "Full-system boot is unavailable: i-Steam has no integrated QEMU/firmware/device backend. The x86-64 interpreter is for limited instruction tests only."
+            let message: String
+            switch QEMURuntimeStatus.inspect() {
+            case .unavailable(let reason):
+                message = "Full-system boot unavailable. \(reason)"
+            case .ready(let libraryURL, let dataDirectory):
+                message = "QEMU files detected (\(libraryURL.lastPathComponent), \(dataDirectory.lastPathComponent)), but the in-process QEMU lifecycle/display bridge and a successful boot smoke test are not implemented. Refusing to report the guest as running."
+            }
             machine = nil
             state = .failed(message)
             EmulationLog.shared.write(message)
