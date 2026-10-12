@@ -158,34 +158,11 @@ jobs:
           VERSION="0.1.$(printf '%03d' "$GITHUB_RUN_NUMBER")"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$RELEASE_CHANNEL" >> "$GITHUB_OUTPUT"
-          echo "history_tag=$RELEASE_CHANNEL-$VERSION" >> "$GITHUB_OUTPUT"
           if [ "$RELEASE_CHANNEL" = "main" ]; then
             echo "title=$VERSION Main (iOS + tvOS)" >> "$GITHUB_OUTPUT"
-            echo "history_title=$VERSION Main (iOS + tvOS) — Build $GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
           else
             echo "title=$VERSION Nightly (iOS + tvOS)" >> "$GITHUB_OUTPUT"
-            echo "history_title=$VERSION Nightly (iOS + tvOS) — Build $GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Publish immutable versioned release (preserve history)
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.meta.outputs.history_tag }}
-          name: ${{ steps.meta.outputs.history_title }}
-          prerelease: ${{ env.RELEASE_CHANNEL == 'nightly' }}
-          make_latest: false
-          overwrite_files: false
-          files: |
-            build/iSteam-ios.ipa
-            build/iSteam-ios.ipa.sha256
-            build/iSteam-tvOS.ipa
-            build/iSteam-tvOS.ipa.sha256
-          body: |
-            Immutable archived i-Steam ${{ matrix.channel }} build ${{ steps.meta.outputs.version }}.
-            This versioned release is retained as build history; the channel release below remains the stable download link.
-
-            Includes iOS and tvOS IPA builds and SHA-256 checksums.
-            These are unsigned prototype builds. Sign them with a compatible signer before installing.
 
       - name: Publish combined release
         uses: softprops/action-gh-release@v2
