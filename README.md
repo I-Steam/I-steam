@@ -1,7 +1,7 @@
 # i-Steam
 
 > [!disclaimer]
-> **please read this before using this application**> [!warning]
+> **please read this before using this application**
 > **Important Notice Regarding I-steams current development stage**
 >
 > I-steam is still in development and is still highly unstable, which means **you may lose your data or get banned**. 
