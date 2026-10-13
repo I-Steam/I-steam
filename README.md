@@ -1,6 +1,6 @@
 # i-Steam
 
-> An *experimental, community-driven* iOS and tvOS project exploring a Steam-oriented library, guest-runtime architecture, and virtual-machine concepts.
+> An experimental, community-driven iOS and tvOS project exploring a Steam-oriented library, guest-runtime architecture, and virtual-machine concepts.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://makeapullrequest.com)
