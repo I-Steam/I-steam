@@ -1,6 +1,6 @@
 # i-Steam
 
-> [!disclaimer]
+> [!DISCLAIMER]
 > **please read this before using this application**
 > **Important Notice Regarding I-steams current development stage**
 >
