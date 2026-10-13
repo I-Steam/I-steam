@@ -5,7 +5,7 @@
 >
 > I-steam is still in development and is still highly unstable, which means **you may lose your data or get banned**. 
 > 
-> Furthermore, please note that we do not provide any support for issues of these development builds. and we will not take responsibility for any possessions lost whilst using this application use this application at your own risk 
+> Furthermore, please note that we do not provide any support for issues of these development builds. and **we will not take responsibility for any possessions lost whilst using this application** use this application at your own risk 
 
 
 > An experimental, community-driven iOS and tvOS project exploring a Steam-oriented library, guest-runtime architecture, and virtual-machine concepts.
