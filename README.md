@@ -1,11 +1,13 @@
 # i-Steam
 
-> [!disclaimer] **please read this before using this application**
+> [!disclaimer]
+> **please read this before using this application**> [!warning]
 > **Important Notice Regarding I-steams current development stage**
 >
 > I-steam is still in development and is still highly unstable, which means **you may lose your data or get banned**. 
 > 
-> Furthermore, please note that we do not provide any support for issues of these development builds. and **we will not take responsibility for any possessions lost whilst using this application** use this application at your own risk 
+> Furthermore, please note that we do not provide any support for issues of these development builds. and **we will not take responsibility for any possessions lost whilst using this application**. please use this application at your own risk
+> **by using this application you agree to all the notices above**
 
 
 > An experimental, community-driven iOS and tvOS project exploring a Steam-oriented library, guest-runtime architecture, and virtual-machine concepts.
