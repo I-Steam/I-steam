@@ -39,7 +39,7 @@ final class VMEngine {
             backend = candidate
             startupDeadline = .now() + 15
             EmulationLog.shared.write("QEMU launch accepted; waiting for the native main loop to become active.")
-            let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+            let timer = DispatchSource.makeTimerSource(queue: .main)
             timer.schedule(deadline: .now() + .milliseconds(100), repeating: .milliseconds(100))
             timer.setEventHandler { [weak self, weak candidate] in
                 guard let self, let candidate else { return }
