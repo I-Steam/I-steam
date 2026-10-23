@@ -102,11 +102,9 @@ jobs:
         with:
           name: iSteam-${{ matrix.platform }}-${{ matrix.channel }}
           path: |
-            build/iSteam-ios.ipa
-            build/iSteam-ios.ipa.sha256
-            build/iSteam-tvOS.ipa
-            build/iSteam-tvOS.ipa.sha256
-          if-no-files-found: ignore
+            build/iSteam-${{ matrix.platform == 'iOS' && 'ios' || 'tvOS' }}.ipa
+            build/iSteam-${{ matrix.platform == 'iOS' && 'ios' || 'tvOS' }}.ipa.sha256
+          if-no-files-found: error
           retention-days: 14
 
   release:
@@ -121,6 +119,7 @@ jobs:
     env:
       RELEASE_CHANNEL: ${{ matrix.channel }}
       VERSION: 0.1.${{ format('{0}', github.run_number) }}
+      PAGES_TOKEN: ${{ secrets.PAGES_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
