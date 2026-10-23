@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       channel:
-        description: Choose which release channel to publish (both iOS and tvOS)
+        description: Choose which release channel to publish (iOS, tvOS and visionOS)
         type: choice
         required: true
         default: Nightly
