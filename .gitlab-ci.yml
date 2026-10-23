@@ -6,7 +6,41 @@ spec:
       options: [Nightly, Main]
       default: Nightly
 ---
-stages: [sync, dispatch]
+stages: [validate, sync, dispatch]
+
+validate_build_configuration:
+  stage: validate
+  image: python:3.12-alpine
+  before_script:
+    - pip install --no-cache-dir pyyaml
+  script:
+    - python3 - <<'PY'
+      import pathlib, sys, yaml
+      workflow = pathlib.Path('.github/workflows/release.yml').read_text()
+      project = pathlib.Path('project.yml').read_text()
+      for name, text in [('release workflow', workflow), ('XcodeGen project', project)]:
+          try:
+              yaml.safe_load(text)
+          except yaml.YAMLError as error:
+              print(f'{name} YAML parse failed: {error}', file=sys.stderr)
+              raise SystemExit(1)
+      required = [
+          'platform: [iOS, tvOS, visionOS]',
+          'name: iSteam-iOS-${{ matrix.channel }}',
+          'name: iSteam-tvOS-${{ matrix.channel }}',
+          'name: iSteam-visionOS-${{ matrix.channel }}',
+          'PAGES_TOKEN: ${{ secrets.PAGES_TOKEN }}',
+          'if-no-files-found: error',
+          'build/iSteam-visionOS.ipa',
+      ]
+      missing = [item for item in required if item not in workflow]
+      if missing:
+          print('Missing release workflow requirements:', ', '.join(missing), file=sys.stderr)
+          raise SystemExit(1)
+      if 'if-no-files-found: ignore' in workflow:
+          raise SystemExit('Release artifacts must not silently ignore missing files.')
+      print('Release workflow and XcodeGen YAML parse; platform/artifact/token checks passed.')
+      PY
 
 sync_to_github:
   stage: sync
