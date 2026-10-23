@@ -63,8 +63,20 @@ final class GameLibraryTransferStore {
                 throw TransferError.invalidEntry
             }
         }
+        var profileGameIDs = Set<UUID>()
+        let validGameIDs = Set(GameStore.shared.games.map(\.id)).union(seen)
         for profile in backup.profiles {
             try profile.validate()
+            guard validGameIDs.contains(profile.gameID),
+                  profileGameIDs.insert(profile.gameID).inserted else {
+                throw TransferError.invalidProfile
+            }
+            guard profile.launchArguments.count <= 256,
+                  profile.launchArguments.allSatisfy({ $0.utf8.count <= 4096 && !$0.contains("\\0") }),
+                  profile.environment.count <= 128,
+                  profile.compatibilityNotes.utf8.count <= 16_384 else {
+                throw TransferError.invalidProfile
+            }
         }
 
         var current = GameStore.shared.games
@@ -85,6 +97,7 @@ final class GameLibraryTransferStore {
         case unsupportedVersion(Int)
         case tooManyEntries
         case invalidEntry
+        case invalidProfile
 
         var errorDescription: String? {
             switch self {
@@ -96,6 +109,8 @@ final class GameLibraryTransferStore {
                 return "The backup contains too many entries."
             case .invalidEntry:
                 return "The backup contains an invalid or duplicate game entry."
+            case .invalidProfile:
+                return "The backup contains an invalid, duplicate, or orphaned game profile."
             }
         }
     }
