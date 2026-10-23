@@ -41,7 +41,7 @@ final class GameLibraryTransferStore {
 
     @discardableResult
     func importBackup(from source: URL) throws -> Int {
-        let data = try Data(contentsOf: source)
+        let data = try ExternalDriveStore.shared.readDocument(at: source)
         guard data.count <= 20 * 1024 * 1024 else {
             throw TransferError.backupTooLarge
         }

@@ -62,7 +62,7 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
     private let statusLabel = UILabel()
     private var pickerPurpose: PickerPurpose = .game
 
-    private enum PickerPurpose { case game, operatingSystem, externalDrive }
+    private enum PickerPurpose { case game, operatingSystem, externalDrive, libraryBackup }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -110,6 +110,9 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
         stack.addArrangedSubview(makeButton("Import Custom OS", detail: "Choose an OS image or disk file", symbol: "externaldrive.badge.plus", primary: false) { [weak self] in self?.importOperatingSystem() })
         stack.addArrangedSubview(makeButton("Browse External Drive", detail: "Open USB, SD card, or Files-provider storage", symbol: "externaldrive", primary: false) { [weak self] in self?.browseExternalDrive() })
         stack.addArrangedSubview(makeButton("Import Game / Executable", detail: "Add a Windows PE or Linux ELF file", symbol: "plus.rectangle.on.folder", primary: false) { [weak self] in self?.importGame() })
+        stack.addArrangedSubview(makeButton("Export Library Backup", detail: "Save game metadata and per-game profiles as JSON", symbol: "square.and.arrow.up", primary: false) { [weak self] in self?.exportLibraryBackup() })
+        stack.addArrangedSubview(makeButton("Import Library Backup", detail: "Merge a validated i-Steam JSON backup", symbol: "square.and.arrow.down", primary: false) { [weak self] in self?.importLibraryBackup() })
+        stack.addArrangedSubview(makeButton("Runtime Capability Report", detail: "See which DroidDeck-style engines are actually available", symbol: "checkmark.shield", primary: false) { [weak self] in self?.showRuntimeCapabilities() })
         stack.addArrangedSubview(makeButton("Settings", detail: "Display, VM, input, and diagnostics", symbol: "gearshape", primary: false) { [weak self] in self?.openSettings() })
         statusLabel.textColor = .secondaryLabel
         statusLabel.font = .preferredFont(forTextStyle: .footnote)
@@ -182,6 +185,40 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
         picker.allowsMultipleSelection = false
         present(picker, animated: true)
     }
+    private func exportLibraryBackup() {
+        do {
+            let directory = FileManager.default.temporaryDirectory
+            let destination = directory.appendingPathComponent("iSteam-library-\(Int(Date().timeIntervalSince1970)).json")
+            try GameLibraryTransferStore.shared.export(to: destination)
+            let picker = UIDocumentPickerViewController(forExporting: [destination], asCopy: true)
+            present(picker, animated: true)
+        } catch {
+            showMessage("Backup export failed", error.localizedDescription)
+        }
+    }
+
+    private func importLibraryBackup() {
+        pickerPurpose = .libraryBackup
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.json], asCopy: false)
+        picker.delegate = self
+        picker.allowsMultipleSelection = false
+        present(picker, animated: true)
+    }
+
+    private func showRuntimeCapabilities() {
+        let lines = DroidDeckPortFeature.allCases.map { feature in
+            "\(feature.rawValue): \(feature.readiness.rawValue) — \(feature.explanation)"
+        }
+        let report = lines.joined(separator: "\\n\\n")
+        let alert = UIAlertController(title: "Runtime Capability Report", message: report, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        alert.addAction(UIAlertAction(title: "Copy report", style: .default) { [weak self] _ in
+            UIPasteboard.general.string = report
+            self?.showMessage("Copied", "The runtime capability report was copied to the clipboard.")
+        })
+        present(alert, animated: true)
+    }
+
     private func importOperatingSystem() {
         pickerPurpose = .operatingSystem
         var types: [UTType] = [.data, .diskImage]
@@ -196,6 +233,15 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
 
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         guard let source = urls.first else { return }
+        if pickerPurpose == .libraryBackup {
+            do {
+                let imported = try GameLibraryTransferStore.shared.importBackup(from: source)
+                showMessage("Backup imported", "Added \(imported) new game entr\(imported == 1 ? "y" : "ies"). Existing game IDs were left unchanged. Executable paths in the backup are metadata only and may need to be re-imported on this device.")
+            } catch {
+                showMessage("Backup import failed", error.localizedDescription)
+            }
+            return
+        }
         if pickerPurpose == .externalDrive {
             do {
                 try ExternalDriveStore.shared.remember(source)
