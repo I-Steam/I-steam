@@ -136,6 +136,7 @@ Bug reports, documentation improvements, and focused pull requests are welcome. 
 - [tvOS status and roadmap](docs/TVOS.md)
 - [Host-device bridge](docs/HOST_DEVICE_BRIDGE.md)
 - [Runtime architecture and roadmap](docs/SHARPEMU_REUSE_NOTES.md)
+- [DroidDeck feature-port plan](docs/DROIDDECK_PORT_PLAN.md)
 
 ## Credits and technical references
 
