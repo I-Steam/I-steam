@@ -4,8 +4,11 @@ struct QEMUCommandBuilder {
     let configuration: VMConfiguration
 
     func arguments(diskImage: URL? = nil, firmware: URL? = nil) -> [String] {
+        // Build one machine declaration. Repeating -machine overrides/conflicts
+        // with the earlier setting on several QEMU builds.
+        let machine = configuration.bootWindows ? "q35,usb=on" : "q35"
         var args = [
-            "-machine", "q35",
+            "-machine", machine,
             "-nodefaults",
             "-m", "\(configuration.memoryMB)",
             "-smp", "\(configuration.cpuCount)",
@@ -15,22 +18,21 @@ struct QEMUCommandBuilder {
         ]
 
         if configuration.bootWindows {
-            args += ["-machine", "q35,usb=on"]
-            args += ["-device", "virtio-rng-pci"]
-            args += ["-device", "virtio-balloon-pci"]
+            args += ["-device", "virtio-rng-pci", "-device", "virtio-balloon-pci"]
         }
 
-        if configuration.gpu == .virtioGPUGL || configuration.gpu == .virtioRAMFBGL {
-            args += ["-display", "egl-headless,gl=on"]
-        } else {
-            args += ["-display", "none"]
-        }
+        // The current i-Steam renderer does not yet consume a QEMU display
+        // surface. Keep QEMU headless rather than requesting EGL on iOS, where
+        // the Linux egl-headless display backend is not available.
+        args += ["-display", "none"]
 
         if let firmware {
             args += ["-drive", "if=pflash,format=raw,readonly=on,file=\(firmware.path)"]
         }
         if let diskImage {
-            args += ["-drive", "if=virtio,format=qcow2,file=\(diskImage.path)"]
+            let ext = diskImage.pathExtension.lowercased()
+            let format = ext == "qcow2" || ext == "qcow" ? "qcow2" : "raw"
+            args += ["-drive", "if=virtio,format=\(format),file=\(diskImage.path)"]
         }
 
         return args

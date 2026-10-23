@@ -1,8 +1,7 @@
 import Foundation
 
-/// Coordinates a configured VM session. A session is only reported as running
-/// after the native QEMU runtime accepts the launch request and its main loop
-/// reports active. Without a compatible bundled runtime, startup fails clearly.
+/// Coordinates a configured VM session. "Running" means the native QEMU main
+/// loop has entered its active state; accepting a launch request is not enough.
 final class VMEngine {
     enum State: Equatable {
         case stopped
@@ -16,6 +15,7 @@ final class VMEngine {
     private let configuration: VMConfiguration
     private var backend: QEMUBackend?
     private var monitor: DispatchSourceTimer?
+    private var startupDeadline: DispatchTime?
 
     init(configuration: VMConfiguration) {
         self.configuration = configuration
@@ -37,19 +37,13 @@ final class VMEngine {
             let candidate = QEMUBackend(configuration: configuration)
             try candidate.start(diskImage: diskImage, firmware: firmware)
             backend = candidate
-            state = .running
-            EmulationLog.shared.write("QEMU session started; guest OS boot has not yet been independently verified.")
+            startupDeadline = .now() + 15
+            EmulationLog.shared.write("QEMU launch accepted; waiting for the native main loop to become active.")
             let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
-            timer.schedule(deadline: .now() + 1, repeating: 1)
+            timer.schedule(deadline: .now() + .milliseconds(100), repeating: .milliseconds(100))
             timer.setEventHandler { [weak self, weak candidate] in
                 guard let self, let candidate else { return }
-                if !candidate.isRunning {
-                    self.monitor?.cancel()
-                    self.monitor = nil
-                    self.backend = nil
-                    self.state = .failed("QEMU main loop exited. Check the emulator log and guest boot image.")
-                    EmulationLog.shared.write("QEMU main loop exited unexpectedly.")
-                }
+                self.checkStartup(candidate)
             }
             monitor = timer
             timer.resume()
@@ -61,11 +55,40 @@ final class VMEngine {
         }
     }
 
+    private func checkStartup(_ candidate: QEMUBackend) {
+        guard case .starting = state else {
+            if case .running = state, !candidate.isRunning {
+                fail("QEMU main loop exited. Check the emulator log and guest boot image.")
+            }
+            return
+        }
+        if candidate.isRunning {
+            state = .running
+            startupDeadline = nil
+            EmulationLog.shared.write("QEMU main loop is active. Guest OS boot is not independently verified.")
+            return
+        }
+        if let deadline = startupDeadline, DispatchTime.now() >= deadline {
+            fail("QEMU did not enter its active main loop within 15 seconds. Verify the bundled runtime and its startup logs.")
+        }
+    }
+
+    private func fail(_ message: String) {
+        monitor?.cancel()
+        monitor = nil
+        startupDeadline = nil
+        backend?.stop()
+        backend = nil
+        state = .failed(message)
+        EmulationLog.shared.write(message)
+    }
+
     func stop() {
         guard case .stopped = state else {
             state = .stopping
             monitor?.cancel()
             monitor = nil
+            startupDeadline = nil
             backend?.stop()
             backend = nil
             EmulationLog.shared.write("Stopped session: \(configuration.name)")
