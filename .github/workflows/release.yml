@@ -74,7 +74,7 @@ jobs:
           cp -R "$APP" build/Payload/iSteam.app
           ditto -c -k --sequesterRsrc --keepParent build/Payload build/iSteam-ios.ipa
           unzip -t build/iSteam-ios.ipa >/dev/null
-          bash scripts/validate-apple-package.sh build/iSteam-ios.ipa iSteam.app com.xthrx.isteam
+          bash scripts/validate-apple-package.sh build/iSteam-ios.ipa iSteam.app "$EXPECTED_BUNDLE"
           shasum -a 256 build/iSteam-ios.ipa > build/iSteam-ios.ipa.sha256
 
       - name: Build and package tvOS IPA
