@@ -72,7 +72,7 @@ final class GameLibraryTransferStore {
                 throw TransferError.invalidProfile
             }
             guard profile.launchArguments.count <= 256,
-                  profile.launchArguments.allSatisfy({ $0.utf8.count <= 4096 && !$0.contains("\\0") }),
+                  profile.launchArguments.allSatisfy({ $0.utf8.count <= 4096 && !$0.contains("\0") }),
                   profile.environment.count <= 128,
                   profile.compatibilityNotes.utf8.count <= 16_384 else {
                 throw TransferError.invalidProfile
