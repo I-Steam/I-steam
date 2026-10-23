@@ -1,8 +1,8 @@
 import Foundation
 
-/// Coordinates a configured VM session.
-/// A guest is never reported as running until a bootable machine backend
-/// actually starts and confirms that it is alive.
+/// Coordinates a configured VM session. A session is only reported as running
+/// after the native QEMU runtime accepts the launch request and its main loop
+/// reports active. Without a compatible bundled runtime, startup fails clearly.
 final class VMEngine {
     enum State: Equatable {
         case stopped
@@ -14,16 +14,16 @@ final class VMEngine {
 
     private(set) var state: State = .stopped
     private let configuration: VMConfiguration
-    private var machine: GuestMachine?
+    private var backend: QEMUBackend?
+    private var monitor: DispatchSourceTimer?
 
     init(configuration: VMConfiguration) {
         self.configuration = configuration
     }
 
-    func start() {
+    func start(diskImage: URL, firmware: URL? = nil) {
         guard case .stopped = state else { return }
         state = .starting
-
         EmulationLog.shared.write("Preparing session: \(configuration.name)")
         EmulationLog.shared.write("Guest: \(configuration.bootWindows ? "Windows" : "Linux")")
         EmulationLog.shared.write("CPU=\(configuration.architecture.rawValue) RAM=\(configuration.memoryMB)MB CPUs=\(configuration.cpuCount)")
@@ -34,41 +34,43 @@ final class VMEngine {
             guard configuration.architecture == .x86_64 else {
                 throw GuestEngineError.backendNotInstalled(configuration.architecture)
             }
-
-            // Do not allocate guest RAM until a usable full-system backend has
-            // been confirmed. The current repository only contains a CPU
-            // interpreter and a QEMU command preview, not a bootable machine.
-            let message: String
-            switch QEMURuntimeStatus.inspect() {
-            case .unavailable(let reason):
-                message = "Full-system boot unavailable. \(reason)"
-            case .ready(let libraryURL, let dataDirectory):
-                message = "QEMU files detected (\(libraryURL.lastPathComponent), \(dataDirectory.lastPathComponent)), but the native QEMU lifecycle, device, display/input bridge, and boot smoke test are missing. Refusing to allocate guest RAM or report the guest as running."
+            let candidate = QEMUBackend(configuration: configuration)
+            try candidate.start(diskImage: diskImage, firmware: firmware)
+            backend = candidate
+            state = .running
+            EmulationLog.shared.write("QEMU session started; guest OS boot has not yet been independently verified.")
+            let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+            timer.schedule(deadline: .now() + 1, repeating: 1)
+            timer.setEventHandler { [weak self, weak candidate] in
+                guard let self, let candidate else { return }
+                if !candidate.isRunning {
+                    self.monitor?.cancel()
+                    self.monitor = nil
+                    self.backend = nil
+                    self.state = .failed("QEMU main loop exited. Check the emulator log and guest boot image.")
+                    EmulationLog.shared.write("QEMU main loop exited unexpectedly.")
+                }
             }
-            machine = nil
-            state = .failed(message)
-            EmulationLog.shared.write(message)
+            monitor = timer
+            timer.resume()
         } catch {
-            machine = nil
+            backend?.stop()
+            backend = nil
             state = .failed(error.localizedDescription)
             EmulationLog.shared.write("Session start failed: \(error.localizedDescription)")
         }
     }
 
     func stop() {
-        guard case .running = state else {
-            if case .failed = state {
-                machine?.stop()
-                machine = nil
-                state = .stopped
-            }
+        guard case .stopped = state else {
+            state = .stopping
+            monitor?.cancel()
+            monitor = nil
+            backend?.stop()
+            backend = nil
+            EmulationLog.shared.write("Stopped session: \(configuration.name)")
+            state = .stopped
             return
         }
-
-        state = .stopping
-        machine?.stop()
-        machine = nil
-        EmulationLog.shared.write("Stopped session: \(configuration.name)")
-        state = .stopped
     }
 }
