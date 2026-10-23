@@ -31,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [iOS, tvOS]
+        platform: [iOS, tvOS, visionOS]
         channel: ${{ fromJSON(format('["{0}"]', github.event_name == 'workflow_dispatch' && inputs.channel == 'Main' && 'main' || 'nightly')) }}
     env:
       RELEASE_CHANNEL: ${{ matrix.channel }}
@@ -97,13 +97,29 @@ jobs:
           unzip -t build/iSteam-tvOS.ipa >/dev/null
           shasum -a 256 build/iSteam-tvOS.ipa > build/iSteam-tvOS.ipa.sha256
 
+      - name: Build and package visionOS app
+        if: matrix.platform == 'visionOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="0.1.$(printf '%03d' "$GITHUB_RUN_NUMBER")"
+          xcodebuild -project iSteam.xcodeproj -scheme iSteamVision -configuration Release -sdk xros -destination 'generic/platform=visionOS' -derivedDataPath "$PWD/build/visionDerivedData" MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 build
+          APP="build/visionDerivedData/Build/Products/Release-xros/iSteamVision.app"
+          test -d "$APP"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist" | grep -Fx "com.xthrx.isteam.visionos"
+          mkdir -p build/visionPayload/Payload
+          cp -R "$APP" build/visionPayload/Payload/iSteamVision.app
+          ditto -c -k --sequesterRsrc --keepParent build/visionPayload/Payload build/iSteam-visionOS.ipa
+          unzip -t build/iSteam-visionOS.ipa >/dev/null
+          shasum -a 256 build/iSteam-visionOS.ipa > build/iSteam-visionOS.ipa.sha256
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: iSteam-${{ matrix.platform }}-${{ matrix.channel }}
           path: |
-            build/iSteam-${{ matrix.platform == 'iOS' && 'ios' || 'tvOS' }}.ipa
-            build/iSteam-${{ matrix.platform == 'iOS' && 'ios' || 'tvOS' }}.ipa.sha256
+            build/iSteam-${{ matrix.platform == 'iOS' && 'ios' || matrix.platform == 'tvOS' && 'tvOS' || 'visionOS' }}.ipa
+            build/iSteam-${{ matrix.platform == 'iOS' && 'ios' || matrix.platform == 'tvOS' && 'tvOS' || 'visionOS' }}.ipa.sha256
           if-no-files-found: error
           retention-days: 14
 
@@ -137,17 +153,21 @@ jobs:
           name: iSteam-tvOS-${{ matrix.channel }}
           path: build
 
+      - name: Download visionOS build
+        uses: actions/download-artifact@v4
+        with:
+          name: iSteam-visionOS-${{ matrix.channel }}
+          path: build
+
       - name: Verify combined release assets
         run: |
           set -euo pipefail
-          test -s build/iSteam-ios.ipa
-          test -s build/iSteam-ios.ipa.sha256
-          test -s build/iSteam-tvOS.ipa
-          test -s build/iSteam-tvOS.ipa.sha256
-          unzip -t build/iSteam-ios.ipa >/dev/null
-          unzip -t build/iSteam-tvOS.ipa >/dev/null
-          shasum -a 256 -c build/iSteam-ios.ipa.sha256
-          shasum -a 256 -c build/iSteam-tvOS.ipa.sha256
+          for asset in iSteam-ios iSteam-tvOS iSteam-visionOS; do
+            test -s "build/$asset.ipa"
+            test -s "build/$asset.ipa.sha256"
+            unzip -t "build/$asset.ipa" >/dev/null
+            shasum -a 256 -c "build/$asset.ipa.sha256"
+          done
 
       - name: Set release metadata
         id: meta
@@ -176,12 +196,15 @@ jobs:
             build/iSteam-ios.ipa.sha256
             build/iSteam-tvOS.ipa
             build/iSteam-tvOS.ipa.sha256
+            build/iSteam-visionOS.ipa
+            build/iSteam-visionOS.ipa.sha256
           body: |
             i-Steam ${{ matrix.channel }} build ${{ steps.meta.outputs.version }}.
 
-            Includes both platform builds:
+            Includes unsigned prototype builds:
             - **iOS:** `iSteam-ios.ipa`
             - **tvOS:** `iSteam-tvOS.ipa`
+            - **visionOS:** `iSteam-visionOS.ipa`
 
             These are unsigned prototype builds. Sign them with a compatible signer before installing.
 
