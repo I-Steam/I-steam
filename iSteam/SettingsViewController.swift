@@ -15,7 +15,7 @@ final class SettingsViewController: UITableViewController {
         tableView.tableFooterView = UIView()
     }
 
-    override func numberOfSections(in tableView: UITableView) -> Int { 10 }
+    override func numberOfSections(in tableView: UITableView) -> Int { 11 }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         switch section {
@@ -25,13 +25,13 @@ final class SettingsViewController: UITableViewController {
         case 3: return frameRates.count
         case 4: return vrModes.count + 2
         case 5: return jitMethods.count
-        case 6, 7, 8, 9: return 1
+        case 6, 7, 8, 9, 10: return 1
         default: return 0
         }
     }
 
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        ["Windows Runtime", "VM / Hypervisor", "Resolution", "Display / FPS", "VR / Input", "JIT", "Diagnostics", "Performance", "Android Experiment", "Device Compatibility"][section]
+        ["Windows Runtime", "VM / Hypervisor", "Resolution", "Display / FPS", "VR / Input", "JIT", "Diagnostics", "Performance", "Android Experiment", "Device Compatibility", "DroidDeck Port"][section]
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -96,10 +96,14 @@ final class SettingsViewController: UITableViewController {
             c.text = "Enable Android guest experiment"
             c.secondaryText = "Experimental UI flag only. Android boot/runtime support is not integrated."
             cell.accessoryView = makeSwitch(isOn: UserDefaults.standard.bool(forKey: "iSteam.androidExperiment"), action: #selector(toggleAndroidExperiment(_:)))
-        default:
+        case 9:
             c.text = "\(UIDevice.current.model) · iOS \(UIDevice.current.systemVersion)"
             c.secondaryText = "Hypervisor.framework: unavailable to ordinary iOS apps. QEMU/JIT or interpreter paths are the supported prototype choices. macOS guest boot is disabled on iOS."
             c.secondaryTextProperties.numberOfLines = 0
+        default:
+            c.text = "DroidDeck feature status"
+            c.secondaryText = "See which library, controller, storage, XR and guest-runtime features are implemented, partial or unavailable."
+            cell.accessoryType = .disclosureIndicator
         }
         cell.contentConfiguration = c
         return cell
@@ -162,6 +166,8 @@ final class SettingsViewController: UITableViewController {
             let alert = UIAlertController(title: "Performance", message: PerformanceManager.shared.detailedSummary, preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "OK", style: .default))
             present(alert, animated: true)
+        case 10:
+            navigationController?.pushViewController(DroidDeckPortStatusViewController(), animated: true)
         default:
             break
         }
