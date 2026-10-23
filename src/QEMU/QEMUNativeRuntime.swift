@@ -39,10 +39,10 @@ final class QEMUNativeRuntime {
         defer { strings.forEach { if let value = $0 { free(value) } } }
         var errorBuffer = [CChar](repeating: 0, count: 512)
 
-        let pointerStrings: [UnsafePointer<CChar>?] = strings.map { value in
+        let pointerStrings: [UnsafePointer<CChar>] = strings.compactMap { value in
             value.map { UnsafePointer<CChar>($0) }
         }
-        guard pointerStrings.allSatisfy({ $0 != nil }) else {
+        guard pointerStrings.count == arguments.count else {
             throw RuntimeError.runtimeUnavailable("Unable to allocate QEMU argument strings.")
         }
 
