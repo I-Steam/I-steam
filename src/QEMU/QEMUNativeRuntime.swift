@@ -1,8 +1,7 @@
 import Foundation
 
-/// Thin Swift wrapper around the optional, signed in-process QEMU library.
-/// The app must bundle a QEMU build compiled for arm64 iOS and exporting the
-/// lifecycle functions used by QEMUNativeBridge.c.
+/// Owns one native QEMU session and keeps any Files-provider security scopes
+/// alive for the full lifetime of QEMU (not just while constructing argv).
 final class QEMUNativeRuntime {
     enum RuntimeError: LocalizedError {
         case runtimeUnavailable(String)
@@ -15,9 +14,18 @@ final class QEMUNativeRuntime {
     }
 
     private(set) var started = false
+    private var scopedURLs: [URL] = []
 
     func start(configuration: VMConfiguration, diskImage: URL, firmware: URL? = nil) throws {
         guard !started else { return }
+
+        try configuration.validateForStart()
+        guard configuration.architecture == .x86_64 else {
+            throw RuntimeError.runtimeUnavailable(
+                "The bundled QEMU bridge is currently configured for x86_64 guests only."
+            )
+        }
+
         let libraryURL: URL
         let dataDirectory: URL
         switch QEMURuntimeStatus.inspect() {
@@ -28,11 +36,28 @@ final class QEMUNativeRuntime {
             dataDirectory = data
         }
 
-        guard FileManager.default.fileExists(atPath: diskImage.path) else {
-            throw RuntimeError.runtimeUnavailable("The selected guest disk image does not exist.")
+        // A disk/firmware selected from Files may be outside the app container.
+        // Keep access active until QEMU has stopped because QEMU opens these
+        // files asynchronously and may continue reading them for the whole run.
+        var newlyScoped: [URL] = []
+        for url in [diskImage, firmware].compactMap({ $0 }) {
+            let granted = url.startAccessingSecurityScopedResource()
+            if granted { newlyScoped.append(url) }
+            do {
+                let values = try url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+                guard values.isRegularFile == true, let size = values.fileSize, size > 0 else {
+                    throw RuntimeError.runtimeUnavailable(
+                        "The selected disk or firmware must be a non-empty regular file."
+                    )
+                }
+            } catch {
+                newlyScoped.forEach { $0.stopAccessingSecurityScopedResource() }
+                throw error
+            }
         }
 
-        var args = QEMUCommandBuilder(configuration: configuration).arguments(diskImage: diskImage, firmware: firmware)
+        var args = QEMUCommandBuilder(configuration: configuration)
+            .arguments(diskImage: diskImage, firmware: firmware)
         args += ["-L", dataDirectory.path]
         let arguments = ["qemu-system-\(configuration.architecture.rawValue)"] + args
         let strings: [UnsafeMutablePointer<CChar>?] = arguments.map { strdup($0) }
@@ -43,6 +68,7 @@ final class QEMUNativeRuntime {
             value.map { UnsafePointer<CChar>($0) }
         }
         guard pointerStrings.count == arguments.count else {
+            newlyScoped.forEach { $0.stopAccessingSecurityScopedResource() }
             throw RuntimeError.runtimeUnavailable("Unable to allocate QEMU argument strings.")
         }
 
@@ -58,17 +84,39 @@ final class QEMUNativeRuntime {
         }
 
         guard success else {
+            newlyScoped.forEach { $0.stopAccessingSecurityScopedResource() }
             let message = String(cString: errorBuffer)
-            throw RuntimeError.runtimeUnavailable(message.isEmpty ? "The native QEMU bridge failed to start." : message)
+            throw RuntimeError.runtimeUnavailable(
+                message.isEmpty ? "The native QEMU bridge failed to start." : message
+            )
         }
+
+        scopedURLs = newlyScoped
         started = true
-        EmulationLog.shared.write("QEMU runtime start requested with disk \(diskImage.lastPathComponent)")
+        EmulationLog.shared.write(
+            "QEMU runtime start requested with disk \(diskImage.lastPathComponent)"
+        )
     }
 
     func stop() {
         guard started else { return }
         isteam_qemu_request_stop()
+        // The C bridge's stop request is asynchronous. Do not release the
+        // security scopes here; QEMU may still be unwinding its main loop.
+        // Polling is handled by VMEngine, which observes isRunning becoming false.
         started = false
+        releaseScopesWhenStopped()
+    }
+
+    private func releaseScopesWhenStopped() {
+        guard !isteam_qemu_is_running() else {
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + .milliseconds(250)) { [weak self] in
+                self?.releaseScopesWhenStopped()
+            }
+            return
+        }
+        scopedURLs.forEach { $0.stopAccessingSecurityScopedResource() }
+        scopedURLs.removeAll()
     }
 
     var isRunning: Bool { isteam_qemu_is_running() }
