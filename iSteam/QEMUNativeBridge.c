@@ -52,11 +52,22 @@ static void *qemu_thread_main(void *unused) {
     }
 
     if (g_qemu_cleanup) g_qemu_cleanup();
+
+    // Keep a local handle so a new session cannot overwrite the pointer we
+    // need to close. QEMU is fully unwound before the library is unloaded.
     pthread_mutex_lock(&g_lock);
     g_running = false;
     g_thread_created = false;
     release_arguments();
+    void *finished_library = g_library;
+    g_library = NULL;
+    g_qemu_init = NULL;
+    g_qemu_main_loop = NULL;
+    g_qemu_cleanup = NULL;
+    g_qemu_shutdown = NULL;
     pthread_mutex_unlock(&g_lock);
+
+    if (finished_library) dlclose(finished_library);
     return NULL;
 }
 
