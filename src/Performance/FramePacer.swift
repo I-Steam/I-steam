@@ -14,7 +14,7 @@ final class FramePacer {
         lastTimestamp = 0
         frames = 0
         let display = CADisplayLink(target: self, selector: #selector(tick(_:)))
-        let maximum = max(1, UIScreen.main.maximumFramesPerSecond)
+        let maximum = max(1, DisplayCapabilities.maximumFramesPerSecond)
         let target = min(max(24, RuntimeSettings.shared.frameRate.value), maximum)
         if #available(iOS 15.0, *) {
             display.preferredFrameRateRange = CAFrameRateRange(

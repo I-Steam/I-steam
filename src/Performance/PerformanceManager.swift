@@ -8,7 +8,7 @@ final class PerformanceManager {
 
     var summary: String {
         let device = MTLCreateSystemDefaultDevice() == nil ? "No Metal device" : "Metal"
-        return "\(device) • \(UIScreen.main.maximumFramesPerSecond)Hz display • target \(RuntimeSettings.shared.frameRate.value) FPS"
+        return "\(device) • \(DisplayCapabilities.maximumFramesPerSecond)Hz display • target \(RuntimeSettings.shared.frameRate.value) FPS"
     }
 
     var detailedSummary: String {

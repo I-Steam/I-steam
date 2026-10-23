@@ -39,15 +39,23 @@ final class QEMUNativeRuntime {
         defer { strings.forEach { if let value = $0 { free(value) } } }
         var errorBuffer = [CChar](repeating: 0, count: 512)
 
-        let success = strings.map { $0.map { UnsafePointer<CChar>($0) } }
-            .withUnsafeBufferPointer { pointerBuffer in
-                libraryURL.path.withCString { libraryPath in
-                    errorBuffer.withUnsafeMutableBufferPointer { errorPointer in
-                        isteam_qemu_start(Int32(pointerBuffer.count), pointerBuffer.baseAddress,
-                                          libraryPath, errorPointer.baseAddress, Int32(errorPointer.count))
-                    }
+        let pointerStrings: [UnsafePointer<CChar>?] = strings.map { value in
+            value.map { UnsafePointer<CChar>($0) }
+        }
+        guard pointerStrings.allSatisfy({ $0 != nil }) else {
+            throw RuntimeError.runtimeUnavailable("Unable to allocate QEMU argument strings.")
+        }
+
+        let success = pointerStrings.withUnsafeBufferPointer { pointerBuffer -> Bool in
+            guard let argv = pointerBuffer.baseAddress else { return false }
+            return libraryURL.path.withCString { libraryPath in
+                errorBuffer.withUnsafeMutableBufferPointer { errorPointer -> Bool in
+                    guard let error = errorPointer.baseAddress else { return false }
+                    return isteam_qemu_start(Int32(pointerBuffer.count), argv,
+                                             libraryPath, error, Int32(errorPointer.count))
                 }
             }
+        }
 
         guard success else {
             let message = String(cString: errorBuffer)

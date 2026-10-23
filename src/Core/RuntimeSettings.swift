@@ -102,7 +102,7 @@ enum DisplayFrameRate: String, CaseIterable {
         case .fps40: return "Balanced target"
         case .fps60: return "Standard target"
         case .fps80, .fps90: return "High refresh target; device may cap it"
-        case .fps120: return UIScreen.main.maximumFramesPerSecond >= 120 ? "120 Hz target" : "Device refresh rate may cap this"
+        case .fps120: return DisplayCapabilities.maximumFramesPerSecond >= 120 ? "120 Hz target" : "Device refresh rate may cap this"
         case .custom: return "Choose a target from 24–120 FPS"
         }
     }

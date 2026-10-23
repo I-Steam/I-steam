@@ -10,7 +10,11 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         UISwitch.appearance().onTintColor = .systemGreen
         UISwitch.appearance().tintColor = .systemGray4
         UISwitch.appearance().thumbTintColor = .white
+        #if os(visionOS)
+        let window = UIWindow()
+        #else
         let window = UIWindow(frame: UIScreen.main.bounds)
+        #endif
         let navigation = UINavigationController(rootViewController: LibraryViewController())
         navigation.navigationBar.prefersLargeTitles = true
         window.rootViewController = navigation

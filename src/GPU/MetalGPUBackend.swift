@@ -34,7 +34,7 @@ final class MetalGPUBackend: NSObject, GPUBackend {
         view.enableSetNeedsDisplay = true
         view.isPaused = true
         view.clearColor = MTLClearColor(red: 0.025, green: 0.03, blue: 0.045, alpha: 1)
-        view.preferredFramesPerSecond = min(self.targetFrameRate, UIScreen.main.maximumFramesPerSecond)
+        view.preferredFramesPerSecond = min(self.targetFrameRate, DisplayCapabilities.maximumFramesPerSecond)
         view.delegate = self
     }
 

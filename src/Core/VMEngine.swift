@@ -21,6 +21,14 @@ final class VMEngine {
         self.configuration = configuration
     }
 
+    /// The UI can open before a guest disk is chosen. Do not invent a disk path
+    /// or report a successful boot; keep the renderer available and explain the missing input.
+    func start() {
+        guard case .stopped = state else { return }
+        state = .failed("Choose a guest disk image in the VM setup screen before starting the engine.")
+        EmulationLog.shared.write("VM start blocked: no guest disk image was supplied.")
+    }
+
     func start(diskImage: URL, firmware: URL? = nil) {
         guard case .stopped = state else { return }
         state = .starting
