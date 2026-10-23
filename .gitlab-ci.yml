@@ -27,8 +27,7 @@ validate_build_configuration:
               raise SystemExit(1)
       required = [
           'platform: [iOS, tvOS, visionOS]',
-          'name: iSteam-iOS-${{ matrix.channel }}',
-          'name: iSteam-tvOS-${{ matrix.channel }}',
+          'name: iSteam-${{ matrix.platform }}-${{ matrix.channel }}',
           'name: iSteam-visionOS-${{ matrix.channel }}',
           'PAGES_TOKEN: ${{ secrets.PAGES_TOKEN }}',
           'if-no-files-found: error',
