@@ -14,7 +14,8 @@ validate_build_configuration:
   before_script:
     - pip install --no-cache-dir pyyaml
   script:
-    - python3 - <<'PY'
+    - |
+      python3 - <<'PY'
       import pathlib, sys, yaml
       workflow = pathlib.Path('.github/workflows/release.yml').read_text()
       project = pathlib.Path('project.yml').read_text()
