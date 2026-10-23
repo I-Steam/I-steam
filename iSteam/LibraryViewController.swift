@@ -209,7 +209,7 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
         let lines = DroidDeckPortFeature.allCases.map { feature in
             "\(feature.rawValue): \(feature.readiness.rawValue) — \(feature.explanation)"
         }
-        let report = lines.joined(separator: "\\n\\n")
+        let report = lines.joined(separator: "\n\n")
         let alert = UIAlertController(title: "Runtime Capability Report", message: report, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default))
         alert.addAction(UIAlertAction(title: "Copy report", style: .default) { [weak self] _ in
