@@ -1,17 +1,15 @@
 import Foundation
 
 /// Thin Swift wrapper around the optional, signed in-process QEMU library.
-/// The app must bundle a QEMU build specifically compiled for arm64 iOS and
-/// exporting the lifecycle functions used by QEMUNativeBridge.c.
+/// The app must bundle a QEMU build compiled for arm64 iOS and exporting the
+/// lifecycle functions used by QEMUNativeBridge.c.
 final class QEMUNativeRuntime {
     enum RuntimeError: LocalizedError {
         case runtimeUnavailable(String)
-        case invalidArguments
 
         var errorDescription: String? {
             switch self {
             case .runtimeUnavailable(let message): return message
-            case .invalidArguments: return "QEMU launch arguments are empty."
             }
         }
     }
@@ -20,11 +18,14 @@ final class QEMUNativeRuntime {
 
     func start(configuration: VMConfiguration, diskImage: URL, firmware: URL? = nil) throws {
         guard !started else { return }
-        guard case .ready(let libraryURL, let dataDirectory) = QEMURuntimeStatus.inspect() else {
-            if case .unavailable(let reason) = QEMURuntimeStatus.inspect() {
-                throw RuntimeError.runtimeUnavailable(reason)
-            }
-            throw RuntimeError.runtimeUnavailable("QEMU runtime is unavailable.")
+        let libraryURL: URL
+        let dataDirectory: URL
+        switch QEMURuntimeStatus.inspect() {
+        case .unavailable(let reason):
+            throw RuntimeError.runtimeUnavailable(reason)
+        case .ready(let library, let data):
+            libraryURL = library
+            dataDirectory = data
         }
 
         guard FileManager.default.fileExists(atPath: diskImage.path) else {
@@ -33,19 +34,17 @@ final class QEMUNativeRuntime {
 
         var args = QEMUCommandBuilder(configuration: configuration).arguments(diskImage: diskImage, firmware: firmware)
         args += ["-L", dataDirectory.path]
-        let argv = (["qemu-system-\(configuration.architecture.rawValue)"] + args) as NSArray
+        let arguments = ["qemu-system-\(configuration.architecture.rawValue)"] + args
+        let strings: [UnsafeMutablePointer<CChar>?] = arguments.map { strdup($0) }
+        defer { strings.forEach { if let value = $0 { free(value) } } }
         var errorBuffer = [CChar](repeating: 0, count: 512)
-        let success: Bool = argv.withUnsafeBufferPointer { _ in
-            let strings = (argv as? [String] ?? []).map { strdup($0) }
-            defer { strings.forEach { if let value = $0 { free(value) } } }
-            return strings.withUnsafeBufferPointer { buffer in
-                let pointers = buffer.map { $0.map { UnsafePointer<CChar>($0) } }
-                return pointers.withUnsafeBufferPointer { pointerBuffer in
-                    isteam_qemu_start(Int32(pointerBuffer.count), pointerBuffer.baseAddress,
-                                      libraryURL.path, &errorBuffer, Int32(errorBuffer.count))
-                }
+
+        let success = strings.map { $0.map { UnsafePointer<CChar>($0) } }
+            .withUnsafeBufferPointer { pointerBuffer in
+                isteam_qemu_start(Int32(pointerBuffer.count), pointerBuffer.baseAddress,
+                                  libraryURL.path, &errorBuffer, Int32(errorBuffer.count))
             }
-        }
+
         guard success else {
             let message = String(cString: errorBuffer)
             throw RuntimeError.runtimeUnavailable(message.isEmpty ? "The native QEMU bridge failed to start." : message)

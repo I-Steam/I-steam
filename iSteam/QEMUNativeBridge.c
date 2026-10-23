@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef int (*qemu_init_fn)(int, char **);
+typedef void (*qemu_init_fn)(int, char **);
 typedef int (*qemu_main_loop_fn)(void);
 typedef void (*qemu_cleanup_fn)(void);
 typedef void (*qemu_shutdown_request_fn)(void);
@@ -15,7 +15,6 @@ static void *g_library = NULL;
 static pthread_t g_thread;
 static bool g_thread_created = false;
 static bool g_running = false;
-static bool g_stop_requested = false;
 static char g_error[512] = {0};
 static int g_argc = 0;
 static char **g_argv = NULL;
@@ -30,17 +29,17 @@ static void set_error(const char *message) {
     pthread_mutex_unlock(&g_lock);
 }
 
+static void release_arguments(void) {
+    if (!g_argv) return;
+    for (int i = 0; i < g_argc; ++i) free(g_argv[i]);
+    free(g_argv);
+    g_argv = NULL;
+    g_argc = 0;
+}
+
 static void *qemu_thread_main(void *unused) {
     (void)unused;
-    int init_result = g_qemu_init(g_argc, g_argv);
-    if (init_result != 0) {
-        set_error("qemu_init returned a non-zero status");
-        pthread_mutex_lock(&g_lock);
-        g_running = false;
-        pthread_mutex_unlock(&g_lock);
-        goto cleanup;
-    }
-
+    g_qemu_init(g_argc, g_argv);
     pthread_mutex_lock(&g_lock);
     g_running = true;
     pthread_mutex_unlock(&g_lock);
@@ -52,12 +51,11 @@ static void *qemu_thread_main(void *unused) {
         set_error(message);
     }
 
-cleanup:
     if (g_qemu_cleanup) g_qemu_cleanup();
     pthread_mutex_lock(&g_lock);
     g_running = false;
     g_thread_created = false;
-    g_stop_requested = false;
+    release_arguments();
     pthread_mutex_unlock(&g_lock);
     return NULL;
 }
@@ -146,7 +144,6 @@ bool isteam_qemu_start(int argc, const char * const *argv,
 void isteam_qemu_request_stop(void) {
     pthread_mutex_lock(&g_lock);
     bool active = g_thread_created || g_running;
-    g_stop_requested = active;
     qemu_shutdown_request_fn shutdown_fn = g_qemu_shutdown;
     pthread_mutex_unlock(&g_lock);
     if (active && shutdown_fn) shutdown_fn();
@@ -159,6 +156,4 @@ bool isteam_qemu_is_running(void) {
     return value;
 }
 
-const char *isteam_qemu_last_error(void) {
-    return g_error;
-}
+const char *isteam_qemu_last_error(void) { return g_error; }
