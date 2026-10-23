@@ -1,17 +1,36 @@
 import Foundation
 
-/// QEMU's block driver must match the image container. Guessing qcow2 for every
-/// file makes ordinary raw installer images fail before firmware can boot.
+/// Supported QEMU disk containers. Detection uses file signatures rather than
+/// filename extensions, which can be wrong after a user renames an image.
 enum QEMUDiskImageFormat: String {
     case raw
     case qcow2
+    case vmdk
+    case vhdx
 
     static func detect(at url: URL) -> QEMUDiskImageFormat {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return .raw }
         defer { try? handle.close() }
-        // qcow2 starts with the four-byte magic 0x514649fb ("QFI\xfb").
-        guard let header = try? handle.read(upToCount: 4), header.count == 4 else { return .raw }
-        return header == Data([0x51, 0x46, 0x49, 0xfb]) ? .qcow2 : .raw
+
+        guard let header = try? handle.read(upToCount: 512), let header, !header.isEmpty else {
+            return .raw
+        }
+
+        // qcow2: 0x514649fb ("QFI\xfb") at byte zero.
+        if header.count >= 4, header.prefix(4) == Data([0x51, 0x46, 0x49, 0xfb]) {
+            return .qcow2
+        }
+        // VMDK sparse extent: "KDMV" at byte zero. Descriptor VMDKs are
+        // text files and safely fall back to raw unless a descriptor parser
+        // is added; guessing a container from a .vmdk suffix is unsafe.
+        if header.count >= 4, header.prefix(4) == Data([0x4b, 0x44, 0x4d, 0x56]) {
+            return .vmdk
+        }
+        // VHDX signature is the eight ASCII bytes "vhdxfile".
+        if header.count >= 8, String(data: header.prefix(8), encoding: .ascii) == "vhdxfile" {
+            return .vhdx
+        }
+        return .raw
     }
 }
 
