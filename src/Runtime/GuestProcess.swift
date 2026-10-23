@@ -22,10 +22,13 @@ final class GuestProcessManager {
     private init() {}
 
     func inspect(_ url: URL) -> GuestProcessFormatResult {
-        guard let handle = try? FileHandle(forReadingFrom: url) else {
-            return .failure("Unable to read executable")
+        guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
+              values.isRegularFile == true, let size = values.fileSize, size >= 2,
+              let handle = try? FileHandle(forReadingFrom: url) else {
+            return .failure("The selected executable is not a readable regular file")
         }
-        let data = (try? handle.read(upToCount: 4096)) ?? Data()
+        defer { try? handle.close() }
+        let data = (try? handle.read(upToCount: min(4096, size))) ?? Data()
         if data.count >= 2 && data[data.startIndex] == 0x4D && data[data.startIndex + 1] == 0x5A {
             return .success(.windowsPE)
         }
