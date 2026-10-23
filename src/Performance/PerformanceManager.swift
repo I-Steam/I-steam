@@ -13,7 +13,7 @@ final class PerformanceManager {
 
     var detailedSummary: String {
         """
-        Display maximum: \(UIScreen.main.maximumFramesPerSecond) Hz
+        Display maximum: \(DisplayCapabilities.maximumFramesPerSecond) Hz
         Selected target: \(RuntimeSettings.shared.frameRate.value) FPS
         GPU: \(MTLCreateSystemDefaultDevice() == nil ? "Unavailable" : "Metal")
         Translation cache: enabled
