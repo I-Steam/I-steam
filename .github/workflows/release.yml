@@ -74,6 +74,7 @@ jobs:
           cp -R "$APP" build/Payload/iSteam.app
           ditto -c -k --sequesterRsrc --keepParent build/Payload build/iSteam-ios.ipa
           unzip -t build/iSteam-ios.ipa >/dev/null
+          bash scripts/validate-apple-package.sh build/iSteam-ios.ipa iSteam.app com.xthrx.isteam
           shasum -a 256 build/iSteam-ios.ipa > build/iSteam-ios.ipa.sha256
 
       - name: Build and package tvOS IPA
@@ -95,6 +96,7 @@ jobs:
           cp -R "$APP" build/tvPayload/Payload/iSteamTV.app
           ditto -c -k --sequesterRsrc --keepParent build/tvPayload/Payload build/iSteam-tvOS.ipa
           unzip -t build/iSteam-tvOS.ipa >/dev/null
+          bash scripts/validate-apple-package.sh build/iSteam-tvOS.ipa iSteamTV.app "$EXPECTED_BUNDLE"
           shasum -a 256 build/iSteam-tvOS.ipa > build/iSteam-tvOS.ipa.sha256
 
       - name: Build and package visionOS app
@@ -111,6 +113,7 @@ jobs:
           cp -R "$APP" build/visionPayload/Payload/iSteamVision.app
           ditto -c -k --sequesterRsrc --keepParent build/visionPayload/Payload build/iSteam-visionOS.ipa
           unzip -t build/iSteam-visionOS.ipa >/dev/null
+          bash scripts/validate-apple-package.sh build/iSteam-visionOS.ipa iSteamVision.app com.xthrx.isteam.visionos
           shasum -a 256 build/iSteam-visionOS.ipa > build/iSteam-visionOS.ipa.sha256
 
       - name: Upload build artifact
