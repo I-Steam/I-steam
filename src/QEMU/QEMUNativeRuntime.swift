@@ -41,8 +41,12 @@ final class QEMUNativeRuntime {
 
         let success = strings.map { $0.map { UnsafePointer<CChar>($0) } }
             .withUnsafeBufferPointer { pointerBuffer in
-                isteam_qemu_start(Int32(pointerBuffer.count), pointerBuffer.baseAddress,
-                                  libraryURL.path, &errorBuffer, Int32(errorBuffer.count))
+                libraryURL.path.withCString { libraryPath in
+                    errorBuffer.withUnsafeMutableBufferPointer { errorPointer in
+                        isteam_qemu_start(Int32(pointerBuffer.count), pointerBuffer.baseAddress,
+                                          libraryPath, errorPointer.baseAddress, Int32(errorPointer.count))
+                    }
+                }
             }
 
         guard success else {
