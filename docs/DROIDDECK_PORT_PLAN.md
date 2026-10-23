@@ -44,3 +44,14 @@ A feature is complete only when code and dependencies are committed, licenses ar
 ## Source and licensing
 
 Inventory based on the uploaded DroidDeck-main.zip README, Android app sources, native components, XR/glasses modules, GPU modules, runtime integration and build workflows. DroidDeck source is GPL-3.0; any code-level reuse must comply with that license and all third-party notices.
+
+## Implemented portable services (2026-10-23)
+
+The first code-level port batch adds `src/Steam/DroidDeckFeatureServices.swift`:
+
+- Versioned JSON library backup export/import with a 20 MB file cap, bounded entry counts, duplicate-ID and invalid-field checks, atomic export, and merge-without-overwrite semantics.
+- Backup includes library metadata and per-game runtime profiles. Import does not execute anything, restore sandbox permissions, or reconnect external file paths; paths remain untrusted metadata.
+- Default per-game profile creation from global resolution/FPS preferences.
+- A feature-readiness registry that explicitly distinguishes host-side partial features from unavailable runtime-dependent features.
+
+This is a useful native port of portable product flows, not the completion of DroidDeck's Linux/Windows gaming engine. The Android FEX/Proton/Turnip/Gamescope/SteamVR stack cannot be made functional by copying its UI or Kotlin files. The full-system QEMU feature remains unavailable until a compatible arm64 iOS QEMU library is built, bundled, loaded and demonstrated booting a guest on device. The feature registry intentionally reports that limitation.
