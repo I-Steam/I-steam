@@ -10,7 +10,7 @@ enum QEMUDiskImageFormat: String {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return .raw }
         defer { try? handle.close() }
         // qcow2 starts with the four-byte magic 0x514649fb ("QFI\xfb").
-        guard let header = try? handle.read(upToCount: 4), header?.count == 4 else { return .raw }
+        guard let header = try? handle.read(upToCount: 4), header.count == 4 else { return .raw }
         return header == Data([0x51, 0x46, 0x49, 0xfb]) ? .qcow2 : .raw
     }
 }
