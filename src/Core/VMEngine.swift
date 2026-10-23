@@ -1,9 +1,8 @@
 import Foundation
 
 /// Coordinates a configured VM session.
-///
-/// This is not itself a full-system emulator. It refuses to report a guest as
-/// running until a bootable machine backend is actually integrated.
+/// A guest is never reported as running until a bootable machine backend
+/// actually starts and confirms that it is alive.
 final class VMEngine {
     enum State: Equatable {
         case stopped
@@ -31,18 +30,20 @@ final class VMEngine {
         EmulationLog.shared.write("Requested accelerator=\(configuration.accelerator.rawValue); GPU=\(configuration.gpu.rawValue); FPS=\(configuration.displayFPS)")
 
         do {
-            let guest = GuestMachine(configuration: configuration)
-            machine = guest
+            try configuration.validateForStart()
             guard configuration.architecture == .x86_64 else {
                 throw GuestEngineError.backendNotInstalled(configuration.architecture)
             }
 
+            // Do not allocate guest RAM until a usable full-system backend has
+            // been confirmed. The current repository only contains a CPU
+            // interpreter and a QEMU command preview, not a bootable machine.
             let message: String
             switch QEMURuntimeStatus.inspect() {
             case .unavailable(let reason):
                 message = "Full-system boot unavailable. \(reason)"
             case .ready(let libraryURL, let dataDirectory):
-                message = "QEMU files detected (\(libraryURL.lastPathComponent), \(dataDirectory.lastPathComponent)), but the in-process QEMU lifecycle/display bridge and a successful boot smoke test are not implemented. Refusing to report the guest as running."
+                message = "QEMU files detected (\(libraryURL.lastPathComponent), \(dataDirectory.lastPathComponent)), but the native QEMU lifecycle, device, display/input bridge, and boot smoke test are missing. Refusing to allocate guest RAM or report the guest as running."
             }
             machine = nil
             state = .failed(message)
