@@ -12,7 +12,7 @@ enum QEMUDiskImageFormat: String {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return .raw }
         defer { try? handle.close() }
 
-        guard let header = try? handle.read(upToCount: 512), let header, !header.isEmpty else {
+        guard let header = try? handle.read(upToCount: 512), !header.isEmpty else {
             return .raw
         }
 
@@ -38,8 +38,6 @@ struct QEMUCommandBuilder {
     let configuration: VMConfiguration
 
     func arguments(diskImage: URL? = nil, firmware: URL? = nil) -> [String] {
-        // Construct one machine option; repeated -machine arguments are
-        // ambiguous and can cause QEMU to reject or override configuration.
         let machine = configuration.bootWindows ? "q35,usb=on" : "q35"
         var args = [
             "-machine", machine,
@@ -72,7 +70,6 @@ struct QEMUCommandBuilder {
             let format = QEMUDiskImageFormat.detect(at: diskImage).rawValue
             args += ["-drive", "if=virtio,format=\(format),file=\(diskImage.path)"]
         }
-
         return args
     }
 }
