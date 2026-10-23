@@ -1,17 +1,16 @@
 # i-Steam
 
 > [!DISCLAIMER]
-> 
+>
 > **please read this before using this application**
 > **Important Notice Regarding I-steams current development stage**
 >
-> I-steam is still in development and is still highly unstable, which means **you may lose your data or get banned**. 
-> 
+> I-steam is still in development and is still highly unstable, which means **you may lose your data or get banned**.
+>
 > Furthermore, please note that we do not provide any support for issues of these development builds. and **we will not take responsibility for any possessions lost whilst using this application**. please use this application at your own risk
 > **by using this application you agree to all the notices above**
 
-
-> An experimental, community-driven iOS and tvOS project exploring a Steam-oriented library, guest-runtime architecture, and virtual-machine concepts.
+> An experimental, community-driven iOS, tvOS and visionOS project exploring a Steam-oriented library, guest-runtime architecture, and virtual-machine concepts.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://makeapullrequest.com)
@@ -20,113 +19,16 @@
 
 [**GitHub**](https://github.com/I-Steam/I-steam) · [**All releases**](https://github.com/I-Steam/I-steam/releases) · [**Nightly builds**](https://github.com/I-Steam/I-steam/releases/tag/nightly) · [**GitLab mirror**](https://gitlab.com/chantinlongxthrx/I-steam) · [**AltStore source**](https://altdirect.app/?url=https://i-steam.github.io/AltSource.json)
 
-![Alt](https://repobeats.axiom.co/api/embed/60c92ea5e53d1048f89bf703d5444e243a2c5244.svg "Repobeats analytics image")
-
-i-Steam is a Steam-oriented game library and guest-runtime experience might look like on Apple mobile devices. The repository contains an iOS app, native helper code, runtime experiments, and an early Apple TV interface.
+i-Steam is an experimental Steam-oriented game library and guest-runtime project for Apple devices. It contains an iOS app, early tvOS and visionOS targets, native helper code, runtime experiments, and portable game-library features.
 
 > [!WARNING]
-> **i-Steam is experimental and is not yet a working PC emulator.** It does not currently boot arbitrary Windows/Linux images through a fully integrated emulator or promise that Steam games will run. The tvOS interface is a prototype, not a game launcher. CI IPAs are unsigned; installation requires a compatible signing method, and packaging success does not prove the app works on a device.
+> **i-Steam is not yet a working PC emulator.** It does not currently boot arbitrary Windows/Linux images through a fully integrated emulator or promise that Steam games will run. The tvOS interface is a prototype, not a game launcher. CI IPAs are unsigned; installation requires a compatible signing method, and packaging success does not prove the app works on a device.
 
-## Downloads
+## DroidDeck port status
 
-Choose the build channel and platform below. Nightly builds contain recent changes and may be unstable; Main is the project's main release channel.
+The portable native port now includes library backup/restore, per-game profile defaults, validated artwork caching, local compatibility records, and runtime-component manifest/SHA-256 verification. These are app features, not proof that a guest operating system or Windows game can run.
 
-| Channel | iOS | tvOS |
-| --- | --- | --- |
-| **Main** | [Download iOS IPA](https://github.com/I-Steam/I-steam/releases/tag/main) | [Download tvOS IPA](https://github.com/I-Steam/I-steam/releases/tag/main) |
-| **Nightly** | [Download nightly IPA](https://github.com/I-Steam/I-steam/releases/tag/nightly) | [Download nightly IPA](https://github.com/I-Steam/I-steam/releases/tag/nightly) |
-
-Each release contains both platform packages and SHA-256 checksum files. Open the release page and choose the asset for your device. These are unsigned prototype packages and must be signed before installation.
-
-### Add the AltStore source
-
-Use the source URL below in a compatible AltStore-based app. Source availability depends on the website publishing workflow and the configured repository token.
-
-```text
-https://i-steam.github.io/AltSource.json
-```
-
-<a href="https://altdirect.app/?url=https://i-steam.github.io/AltSource.json" target="_blank"><img src="https://altdirect.app/assets/png/AltSource_Blue.png" alt="Add AltSource" width="200"></a>
-
-[SideStore installation guide](https://docs.sidestore.io/)
-
-The source includes separate entries for iOS Main, iOS Nightly, tvOS Main, and tvOS Nightly when published. Apple TV sideloading support depends on the installer and device; an IPA link alone does not guarantee tvOS installation.
-
-## Features and project status
-
-### iOS app
-
-- Experimental library and import flows for executable and operating-system files.
-- Local VM/session configuration and last-session metadata.
-- File selection and shared-directory handling.
-- Bounded, read-only metadata inspection for Windows PE and Linux ELF files.
-- Guest-memory and block-device prototypes.
-- Early display, Metal presentation, frame-pacing, keyboard, controller, and JIT-related experiments.
-- Research into app-container and binary-execution approaches used by projects such as LiveContainer.
-
-These are works in progress. Importing a file or inspecting its metadata does not execute it, and a storage prototype is not a complete virtual storage controller. JIT behavior depends on iOS version, device, signing, entitlements, and supported tooling; i-Steam does not enable JIT for every app.
-
-### tvOS app
-
-The tvOS target is an early Siri Remote-friendly interface preview. Its Launch session, Steam Store, and Settings actions currently display explanatory notices. It does **not** boot an operating system or launch games.
-
-See [the tvOS status and roadmap](docs/TVOS.md).
-
-### Runtime and native helpers
-
-The repository contains exploratory components for guest memory, image/file inspection, storage, display, and host-device services. A complete full-system CPU/machine emulator, integrated QEMU runtime, Box64 execution environment, Wine/Proton, Windows API compatibility layer, functional guest networking/input path, and production-ready 3D GPU translation are not yet integrated. Android selection is a UI experiment. Compatibility with arbitrary games or anti-cheat systems is not promised.
-
-## Requirements
-
-### To build from source
-
-- A Mac running a compatible version of Xcode.
-- XcodeGen, installable with Homebrew: `brew install xcodegen`.
-- Git and an iPhone/iPad or Apple TV simulator for testing.
-- Physical-device installation requires appropriate signing and provisioning.
-
-The project currently declares iOS 16 and tvOS 17 deployment targets. Confirm the current project settings and CI logs for exact SDK compatibility.
-
-### Installation notes
-
-- **Unsigned IPA:** use a compatible signer and follow that tool's installation instructions.
-- **AltStore source:** add `https://i-steam.github.io/AltSource.json` in a compatible app.
-- **Troubleshooting:** include your device/OS version and the relevant build or crash log when reporting an issue.
-- **File access:** iOS file-picker access and persistent bookmark access are different; a selected file may not remain accessible if its security-scoped bookmark cannot be created or reopened.
-
-## Building
-
-Generate the Xcode project:
-
-```sh
-brew install xcodegen
-xcodegen generate --spec project.yml
-```
-
-Open `iSteam.xcodeproj` in Xcode and choose a scheme:
-
-- `iSteam` — iOS main build.
-- `iSteamNightly` — iOS nightly build.
-- `iSteamTV` — tvOS prototype.
-
-For hosted builds, use the [Build & Release workflow](https://github.com/I-Steam/I-steam/actions/workflows/release.yml).
-
-## Build and release channels
-
-- **Push to `main`:** starts the Nightly channel.
-- **Scheduled workflow:** runs daily at 02:00 UTC.
-- **Manual GitHub Actions run:** choose **Nightly** or **Main**.
-- **Manual GitLab pipeline:** can dispatch the GitHub workflow.
-- **Release assets:** iOS IPA, tvOS IPA, and SHA-256 checksum files.
-- **Older releases:** the workflow is configured not to automatically delete old releases.
-
-Website/AltStore-source publishing requires the `PAGES_TOKEN` secret to have suitable write access to [the website repository](https://github.com/I-Steam/I-steam.github.io). Builds are unsigned prototypes. ZIP and checksum validation verify packaging integrity only, not installability, runtime behavior, or guest OS compatibility.
-
-More details: [Installation](INSTALL.md) · [Release workflow](docs/RELEASES.md) · [tvOS roadmap](docs/TVOS.md).
-
-## Contributing
-
-Bug reports, documentation improvements, and focused pull requests are welcome. Please read the [contribution guide](CONTRIBUTING.md) before submitting changes.
+See [DroidDeck feature-port inventory](docs/DROIDDECK_PORT_PLAN.md) and [implemented vs unavailable status](docs/DROIDDECK_PORT_STATUS.md). Full-system QEMU, Windows Proton/Wine, FEX, Turnip/Vulkan, Flatpak/AppImage, SteamVR and vendor-specific XR support remain gated on compatible native runtimes and device validation.
 
 ## Documentation
 
@@ -137,7 +39,11 @@ Bug reports, documentation improvements, and focused pull requests are welcome. 
 - [Host-device bridge](docs/HOST_DEVICE_BRIDGE.md)
 - [Runtime architecture and roadmap](docs/SHARPEMU_REUSE_NOTES.md)
 - [DroidDeck feature-port plan](docs/DROIDDECK_PORT_PLAN.md)
-- Portable library transfer, per-game profile defaults, and feature readiness services are in `src/Steam/DroidDeckFeatureServices.swift`.
+- [DroidDeck port status](docs/DROIDDECK_PORT_STATUS.md)
+- Portable library transfer and profile defaults: src/Steam/DroidDeckFeatureServices.swift
+- Artwork cache: src/Steam/GameArtworkStore.swift
+- Compatibility records: src/Windows/GameCompatibilityDatabase.swift
+- Runtime manifest verification: src/Runtime/RuntimeComponentManifest.swift
 
 ## Credits and technical references
 
@@ -146,7 +52,7 @@ These projects are research references; listing them does not mean their code is
 - [QEMU](https://www.qemu.org/) — full-system emulation reference.
 - [Box64](https://github.com/ptitSeb/box64) — x86-64 user-mode emulation reference.
 - [StikDebug](https://github.com/StephenDev0/StikDebug) — JIT-related iOS development reference.
-- [LiveContainer](https://github.com/LiveContainer/LiveContainer) and [LiveExec32](https://github.com/LiveContainer/LiveExec32) — iOS app-container and binary-execution research.
+- [LiveContainer](https://github.com/LiveContainer/LiveContainer) and [LiveExec32](https://github.com/LiveContainer/LiveExec32) — iOS app-container and binary-execution research reference.
 - [MeloNX](https://github.com/AzureDominus/melonx) — iOS emulator UI and performance reference.
 - [SharpEmu](https://github.com/sharpemu/sharpemu) — emulator architecture research reference.
 - [SideStore](https://sidestore.io/) — iOS signing and installation reference.
