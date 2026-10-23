@@ -26,6 +26,11 @@ enum QEMUDiskImageFormat: String {
         if header.count >= 4, header.prefix(4) == Data([0x4b, 0x44, 0x4d, 0x56]) {
             return .vmdk
         }
+        // A descriptor VMDK is a text file rather than a sparse extent.
+        if let prefix = String(data: header.prefix(32), encoding: .ascii),
+           prefix.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("# Disk DescriptorFile") {
+            return .vmdk
+        }
         // VHDX signature is the eight ASCII bytes "vhdxfile".
         if header.count >= 8, String(data: header.prefix(8), encoding: .ascii) == "vhdxfile" {
             return .vhdx
