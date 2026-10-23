@@ -54,11 +54,19 @@ struct QEMUCommandBuilder {
             "-device", configuration.gpu.rawValue
         ]
 
+        // Give guests a clock, a boot menu, and isolated user-mode networking.
+        // User-mode networking does not bridge the iOS host's LAN or expose
+        // inbound ports unless an explicit hostfwd rule is configured.
+        args += ["-rtc", "base=utc,clock=host"]
+        args += ["-boot", "menu=on,strict=off"]
+        args += ["-netdev", "user,id=isteam-net0"]
+        args += ["-device", "virtio-net-pci,netdev=isteam-net0"]
+        args += ["-device", "virtio-rng-pci"]
+
         if configuration.bootWindows {
             args += ["-device", "qemu-xhci"]
             args += ["-device", "usb-kbd"]
             args += ["-device", "usb-tablet"]
-            args += ["-device", "virtio-rng-pci"]
             args += ["-device", "virtio-balloon-pci"]
         }
 
