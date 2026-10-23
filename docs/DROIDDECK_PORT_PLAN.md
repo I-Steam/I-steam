@@ -55,3 +55,8 @@ The first code-level port batch adds `src/Steam/DroidDeckFeatureServices.swift`:
 - A feature-readiness registry that explicitly distinguishes host-side partial features from unavailable runtime-dependent features.
 
 This is a useful native port of portable product flows, not the completion of DroidDeck's Linux/Windows gaming engine. The Android FEX/Proton/Turnip/Gamescope/SteamVR stack cannot be made functional by copying its UI or Kotlin files. The full-system QEMU feature remains unavailable until a compatible arm64 iOS QEMU library is built, bundled, loaded and demonstrated booting a guest on device. The feature registry intentionally reports that limitation.
+
+
+### Second native port batch: controller profiles
+
+`src/Display/ControllerMappingStore.swift` adds a validated, persisted controller profile with logical button actions, left/right stick deadzones, optional look-Y inversion, and stick swapping. `ControllerInputManager` now applies those preferences to GameController events. This improves host-side controller configuration; it does not itself emulate a USB/Bluetooth controller inside a guest OS. Profiles fall back to safe defaults if stored data is invalid.
