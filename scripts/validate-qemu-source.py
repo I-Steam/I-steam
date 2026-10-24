@@ -22,7 +22,7 @@ required = {
         "func tapKey(_ key: String)",
         "numberOfColours = Int(Self.u16(header, 3))",
     ],
-    "src/QEMU/QEMUCommandBuilder.swift": ['"-vnc", "127.0.0.1:0"'],
+    "src/QEMU/QEMUCommandBuilder.swift": [\n        '"-vnc", "127.0.0.1:0"',\n        '"-device", VMConfiguration.GPUModel.virtioGPU.rawValue',\n    ],
     "src/Display/VMDisplayViewController.swift": [
         "vncClient.onFrame", "vncClient.start()", "vncClient.tapKey(key)"
     ],
