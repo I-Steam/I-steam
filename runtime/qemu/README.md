@@ -1,8 +1,8 @@
 # QEMU runtime component
 
-i-Steam already contains a native loader bridge in `iSteam/QEMUNativeBridge.c`.
-The Swift adapter at `src/Runtime/QEMURuntimeBackend.swift` connects the app's
-runtime lifecycle to that bridge.
+i-Steam already contains a native loader bridge in `iSteam/QEMUNativeBridge.c`
+and a Swift session owner in `src/QEMU/QEMURuntime.swift`. This folder documents
+the runtime artifact contract and provides a validation script.
 
 ## Required runtime artifact
 
