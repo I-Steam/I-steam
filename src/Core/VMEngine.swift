@@ -1,7 +1,8 @@
 import Foundation
 
-/// Coordinates a configured VM session. "Running" means the native QEMU main
-/// loop has entered its active state; accepting a launch request is not enough.
+/// Coordinates one QEMU session. UTM's iOS QEMU runtime is single-session per
+/// app process, so a stopped or failed QEMU session cannot be relaunched until
+/// the app process is restarted.
 final class VMEngine {
     enum State: Equatable {
         case stopped
@@ -21,8 +22,6 @@ final class VMEngine {
         self.configuration = configuration
     }
 
-    /// The UI can open before a guest disk is chosen. Do not invent a disk path
-    /// or report a successful boot; keep the renderer available and explain the missing input.
     func start() {
         guard case .stopped = state else { return }
         state = .failed("Choose a guest disk image in the VM setup screen before starting the engine.")
@@ -46,7 +45,7 @@ final class VMEngine {
             try candidate.start(diskImage: diskImage, firmware: firmware)
             backend = candidate
             startupDeadline = .now() + 15
-            EmulationLog.shared.write("QEMU launch accepted; waiting for the native main loop to become active.")
+            EmulationLog.shared.write("QEMU launch accepted; waiting for native initialization.")
             let timer = DispatchSource.makeTimerSource(queue: .main)
             timer.schedule(deadline: .now() + .milliseconds(100), repeating: .milliseconds(100))
             timer.setEventHandler { [weak self, weak candidate] in
@@ -64,12 +63,23 @@ final class VMEngine {
     }
 
     private func checkStartup(_ candidate: QEMUBackend) {
+        if case .stopping = state {
+            guard !candidate.isActive else { return }
+            monitor?.cancel()
+            monitor = nil
+            backend = nil
+            state = .stopped
+            EmulationLog.shared.write("QEMU session stopped; restart requires relaunching i-Steam.")
+            return
+        }
+
         guard case .starting = state else {
             if case .running = state, !candidate.isRunning {
                 fail("QEMU main loop exited. Check the emulator log and guest boot image.")
             }
             return
         }
+
         if candidate.isRunning {
             state = .running
             startupDeadline = nil
@@ -78,6 +88,10 @@ final class VMEngine {
         }
         if let error = candidate.lastError {
             fail("QEMU startup/runtime error: \(error)")
+            return
+        }
+        if !candidate.isActive {
+            fail("QEMU initialization ended before its main loop became active.")
             return
         }
         if let deadline = startupDeadline, DispatchTime.now() >= deadline {
@@ -98,13 +112,28 @@ final class VMEngine {
     func stop() {
         guard case .stopped = state else {
             state = .stopping
-            monitor?.cancel()
-            monitor = nil
             startupDeadline = nil
             backend?.stop()
-            backend = nil
-            EmulationLog.shared.write("Stopped session: \(configuration.name)")
-            state = .stopped
+
+            guard let candidate = backend, candidate.isActive else {
+                monitor?.cancel()
+                monitor = nil
+                backend = nil
+                state = .stopped
+                EmulationLog.shared.write("Stopped session: \(configuration.name)")
+                return
+            }
+
+            monitor?.cancel()
+            let timer = DispatchSource.makeTimerSource(queue: .main)
+            timer.schedule(deadline: .now() + .milliseconds(100), repeating: .milliseconds(100))
+            timer.setEventHandler { [weak self, weak candidate] in
+                guard let self, let candidate else { return }
+                self.checkStartup(candidate)
+            }
+            monitor = timer
+            timer.resume()
+            EmulationLog.shared.write("QEMU stop requested; waiting for native cleanup.")
             return
         }
     }
