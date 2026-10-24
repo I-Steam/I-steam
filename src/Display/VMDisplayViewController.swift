@@ -175,7 +175,7 @@ final class VMDisplayViewController: UIViewController {
         pad.onMove = { [weak self] point in self?.vncClient.setMovement(x: Float(point.x), y: Float(point.y)) }
         pad.onLook = { [weak self] delta in
             guard VRSettings.shared.pointerLockEnabled else { return }
-            self?.vncClient.movePointer(dx: Float(delta.x), dy: Float(delta.y))
+            self?.vncClient.movePointer(dx: Float(delta.x), dy: -Float(delta.y))
         }
         pad.onButton = { [weak self] key, down in self?.vncClient.sendButton(key, down: down) }
         view.addSubview(pad)
@@ -190,7 +190,7 @@ final class VMDisplayViewController: UIViewController {
 
     private func configureControllerInput() {
         let input = ControllerInputManager.shared
-        input.onMove = { [weak self] x, y in self?.vncClient.setMovement(x: x, y: y) }
+        input.onMove = { [weak self] x, y in self?.vncClient.setMovement(x: x, y: -y) }
         input.onLook = { [weak self] x, y in
             guard VRSettings.shared.pointerLockEnabled else { return }
             self?.vncClient.movePointer(dx: x, dy: y)
