@@ -35,8 +35,6 @@ final class QEMUVNCClient {
             onStatus?("Invalid local VNC port.")
             return
         }
-        let connection = NWConnection(host: "127.0.0.1", port: endpointPort, using: .tcp)
-        self.connection = connection
         readerTask = Task { [weak self] in
             guard let self else { return }
             var lastError: Error = ClientError.connection("QEMU VNC server did not start.")
@@ -236,10 +234,10 @@ final class QEMUVNCClient {
                 }
                 onFrame?(framebuffer, framebufferWidth, framebufferHeight)
                 try await requestFramebufferUpdate(incremental: true, connection: connection)
-            case 1: // SetColourMapEntries
-                _ = try await receiveExactly(5, from: connection)
-                let header = try await receiveExactly(2, from: connection)
-                _ = try await receiveExactly(Int(Self.u16(header, 0)) * 6, from: connection)
+            case 1: // SetColourMapEntries: padding + first-colour + colour-count.
+                let header = try await receiveExactly(5, from: connection)
+                let numberOfColours = Int(Self.u16(header, 3))
+                _ = try await receiveExactly(numberOfColours * 6, from: connection)
             case 2: // Bell
                 break
             case 3: // ServerCutText
@@ -271,8 +269,16 @@ final class QEMUVNCClient {
     }
 
     func tapKey(_ key: String) {
-        sendKey(key, down: true)
-        sendKey(key, down: false)
+        guard let connection, let keysym = Self.keysym(for: key) else { return }
+        let value = UInt32(keysym)
+        let press = Data([4, 1, 0, 0, UInt8((value >> 24) & 0xff),
+                          UInt8((value >> 16) & 0xff), UInt8((value >> 8) & 0xff), UInt8(value & 0xff)])
+        let release = Data([4, 0, 0, 0, UInt8((value >> 24) & 0xff),
+                            UInt8((value >> 16) & 0xff), UInt8((value >> 8) & 0xff), UInt8(value & 0xff)])
+        Task {
+            try? await self.send(press, to: connection)
+            try? await self.send(release, to: connection)
+        }
     }
 
     func setMovement(x: Float, y: Float) {
