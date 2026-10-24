@@ -13,6 +13,7 @@ required = {
     "src/QEMU/QEMUCommandBuilder.swift": [
         '"-vnc", "127.0.0.1:0"',
         '"-device", VMConfiguration.GPUModel.virtioGPU.rawValue',
+        'configuration.name == "SteamOS Gaming Mode"',
     ],
     "src/Display/VMDisplayViewController.swift": [
         "vncClient.onFrame", "vncClient.start()", "vncClient.tapKey(key)"
@@ -25,6 +26,9 @@ required = {
         'dlsym(library, "qemu_main_loop")',
         'dlsym(library, "qemu_cleanup")',
     ],
+    "iSteam/LaunchSetupViewController.swift": [
+        '"SteamOS Gaming Mode"', 'VMConfiguration.defaultSteamOS',
+    ],
 }
 failed = False
 for name, tokens in required.items():
@@ -34,12 +38,12 @@ for name, tokens in required.items():
             print(f"{name}: missing required integration {token!r}", file=sys.stderr)
             failed = True
 
-for name in ("src/QEMU/QEMUCommandBuilder.swift", "scripts/validate-qemu-source.py"):
-    source = Path(name).read_text(encoding="utf-8")
-    if r"\\n" in source:
-        print(f"{name}: literal escaped newline found in source", file=sys.stderr)
-        failed = True
+# Catch the accidental literal backslash-n that previously entered Swift comments.
+builder = Path("src/QEMU/QEMUCommandBuilder.swift").read_text(encoding="utf-8")
+if r"\n" in builder:
+    print("src/QEMU/QEMUCommandBuilder.swift: literal escaped newline found in source", file=sys.stderr)
+    failed = True
 
 if failed:
     raise SystemExit(1)
-print("QEMU bridge formatting and VNC integration checks passed.")
+print("QEMU bridge and SteamOS mode source checks passed.")
