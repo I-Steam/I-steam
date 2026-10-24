@@ -32,7 +32,7 @@ struct VMConfiguration: Codable, Identifiable, Equatable {
         return VMConfiguration(
             id: UUID(), name: "Windows Steam", architecture: .x86_64,
             memoryMB: 4096, cpuCount: 4, accelerator: .jit,
-            gpu: .virtioRAMFBGL,
+            gpu: .virtioGPU,
             displayWidth: resolution.width,
             displayHeight: resolution.height,
             displayFPS: RuntimeSettings.shared.frameRate.value,
@@ -44,7 +44,7 @@ struct VMConfiguration: Codable, Identifiable, Equatable {
         let resolution = RuntimeSettings.shared.renderResolution
         return VMConfiguration(
             id: UUID(), name: "Ubuntu", architecture: .x86_64, memoryMB: 4096,
-            cpuCount: 4, accelerator: .jit, gpu: .virtioGPUGL,
+            cpuCount: 4, accelerator: .jit, gpu: .virtioGPU,
             displayWidth: resolution.width,
             displayHeight: resolution.height,
             displayFPS: RuntimeSettings.shared.frameRate.value,
