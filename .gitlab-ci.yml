@@ -47,13 +47,28 @@ sync_to_github:
   resource_group: github-main-sync
   image: alpine:latest
   interruptible: false
+  # Never let a feature-branch or merge-request pipeline overwrite GitHub main.
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
   before_script:
     - apk add --no-cache git
   script:
-    - git config user.name "i-Steam Sync"
-    - git config user.email "sync@i-steam.local"
-    - git remote set-url origin "https://oauth2:${GITHUB_SYNC_TOKEN}@github.com/I-Steam/I-steam.git"
-    - git push --force origin HEAD:refs/heads/main
+    - |
+      set -eu
+      if [ -z "${GITHUB_SYNC_TOKEN:-}" ]; then
+        echo "GITHUB_SYNC_TOKEN is missing. Add a valid GitHub token as a masked GitLab CI/CD variable."
+        exit 1
+      fi
+      git config user.name "i-Steam Sync"
+      git config user.email "sync@i-steam.local"
+      git remote add github "https://x-access-token:${GITHUB_SYNC_TOKEN}@github.com/I-Steam/I-steam.git"
+      # Verify authentication before attempting to push; never print the token.
+      if ! git ls-remote github refs/heads/main >/dev/null 2>&1; then
+        echo "GitHub authentication failed. Replace GITHUB_SYNC_TOKEN with a valid token that has Contents: Read and write access to I-Steam/I-steam."
+        exit 1
+      fi
+      # Safe fast-forward push only. Divergence fails instead of destroying GitHub commits.
+      git push github HEAD:refs/heads/main
 
 dispatch_manual_build:
   stage: dispatch
