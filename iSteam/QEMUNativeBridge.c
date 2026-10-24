@@ -56,8 +56,8 @@ static void *qemu_thread_main(void *unused) {
 
     // UTM's current launcher treats qemu_init as an int-returning function and
     // qemu_main_loop as void. Do not mark the VM running if initialization fails.
-    int init_result = g_qemu_init(g_argc, (const char * const *)g_argv,
-                                  (const char * const *)environ);
+    int init_result = g_qemu_init(g_argc, (const char **)g_argv,
+                                  (const char **)environ);
     if (init_result != 0) {
         char message[128];
         snprintf(message, sizeof(message), "QEMU initialization failed with status %d", init_result);
