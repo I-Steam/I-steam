@@ -51,8 +51,10 @@ if [ -z "$data_dir" ]; then
   echo "QEMU lifecycle library was found, but no QEMU BIOS/data directory was found. Runtime cannot boot guests without data files." >&2
   exit 4
 fi
-mkdir -p "$OUT/QEMU/share"
-cp -R "$data_dir"/. "$OUT/QEMU/share/"
+
+# QEMUNativeRuntime passes the app's QEMU/ directory to QEMU's -L option.
+# Put the discovered QEMU data files directly in that directory.
+cp -R "$data_dir"/. "$OUT/QEMU/"
 
 cat > "$OUT/BUILD-INFO.txt" <<EOF
 Source: utmapp/UTM at the revision checked out by the workflow
@@ -61,9 +63,9 @@ Library source: $candidate
 Architectures: $ARCHS
 Lifecycle exports: verified by nm before packaging
 Data source: $data_dir
-Package layout: QEMU/libqemu-system-x86_64.dylib and QEMU/share/
+Package layout: QEMU/libqemu-system-x86_64.dylib plus QEMU data files at QEMU/
 Important: this artifact still must be embedded and code-signed in i-Steam, and guest boot must be tested on a physical device.
 EOF
 
 test -s "$OUT/QEMU/libqemu-system-x86_64.dylib"
-find "$OUT/QEMU/share" -type f -size +0c -print -quit | grep -q .
+find "$OUT/QEMU" -type f -size +0c ! -name 'libqemu-system-x86_64.dylib' -print -quit | grep -q .
