@@ -66,7 +66,11 @@ final class VMDisplayViewController: UIViewController {
         }
         vncClient.onStatus = { [weak self] message in
             DispatchQueue.main.async {
-                self?.status.text = message
+                guard let self else { return }
+                // Preserve the actual engine failure instead of replacing it with
+                // the VNC client's expected connection-retry message.
+                if case .failed = self.engine.state { return }
+                self.status.text = message
                 if message.contains("unavailable") {
                     EmulationLog.shared.write(message)
                 }
@@ -74,7 +78,12 @@ final class VMDisplayViewController: UIViewController {
         }
         status.text = "Starting QEMU • waiting for guest display"
         engine.start(diskImage: diskImage)
-        vncClient.start()
+        if case .failed(let message) = engine.state {
+            status.text = "VM failed • \(message)"
+            EmulationLog.shared.write("Display launch failed: \(message)")
+        } else {
+            vncClient.start()
+        }
     }
 
     private func applyCardboardLayout() {
