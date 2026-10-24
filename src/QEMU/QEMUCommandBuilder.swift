@@ -71,11 +71,11 @@ struct QEMUCommandBuilder {
             args += ["-device", "virtio-balloon-pci"]
         }
 
-        if configuration.gpu == .virtioGPUGL || configuration.gpu == .virtioRAMFBGL {
-            args += ["-display", "egl-headless,gl=on"]
-        } else {
-            args += ["-display", "none"]
-        }
+        // UTM renders through its SPICE client / renderer stack. i-Steam has
+        // not ported that stack yet, so keep QEMU headless rather than requesting
+        // EGL/GL backends that are not bundled on iOS. The guest will boot without
+        // a visible console until the SPICE display adapter is integrated.
+        args += ["-display", "none"]
 
         if let firmware {
             args += ["-drive", "if=pflash,format=raw,readonly=on,file=\(firmware.path)"]

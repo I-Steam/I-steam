@@ -119,5 +119,5 @@ final class QEMUNativeRuntime {
         scopedURLs.removeAll()
     }
 
-    var isRunning: Bool { isteam_qemu_is_running() }
+    var isRunning: Bool { isteam_qemu_is_running() }\n\n    var lastError: String? {\n        let message = String(cString: isteam_qemu_last_error())\n        return message.isEmpty ? nil : message\n    }
 }

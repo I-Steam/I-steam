@@ -1,3 +1,11 @@
+/*
+ * UTM QEMU lifecycle integration reference:
+ * https://github.com/utmapp/UTM/blob/main/Services/UTMQemuSystem.m
+ *
+ * Adapted for i-Steam. Copyright (c) 2026 i-Steam contributors.
+ * UTM reference implementation is licensed under Apache-2.0.
+ * See THIRD_PARTY_NOTICES.md for attribution and license information.
+ */
 #include "QEMUNativeBridge.h"
 #include <dlfcn.h>
 #include <pthread.h>
@@ -9,9 +17,9 @@ extern char **environ;
 
 #define ISTEAM_QEMU_SHUTDOWN_CAUSE_HOST_UI 4
 
-// Match the three-argument embedding entry point used by current QEMU/UTM builds.
-typedef void (*qemu_init_fn)(int, char **, char **);
-typedef int (*qemu_main_loop_fn)(void);
+// Signatures match UTM Services/UTMQemuSystem.m for its QEMU build.
+typedef int (*qemu_init_fn)(int, const char *[], const char *[]);
+typedef void (*qemu_main_loop_fn)(void);
 typedef void (*qemu_cleanup_fn)(void);
 // QEMU's ShutdownCause enum is passed as an int; HOST_UI is value 4.
 typedef void (*qemu_shutdown_request_fn)(int);
@@ -45,19 +53,22 @@ static void release_arguments(void) {
 
 static void *qemu_thread_main(void *unused) {
     (void)unused;
-    g_qemu_init(g_argc, g_argv, environ);
-    pthread_mutex_lock(&g_lock);
-    g_running = true;
-    pthread_mutex_unlock(&g_lock);
 
-    int loop_result = g_qemu_main_loop();
-    if (loop_result != 0) {
+    // UTM's current launcher treats qemu_init as an int-returning function and
+    // qemu_main_loop as void. Do not mark the VM running if initialization fails.
+    int init_result = g_qemu_init(g_argc, (const char * const *)g_argv,
+                                  (const char * const *)environ);
+    if (init_result != 0) {
         char message[128];
-        snprintf(message, sizeof(message), "QEMU main loop exited with status %d", loop_result);
+        snprintf(message, sizeof(message), "QEMU initialization failed with status %d", init_result);
         set_error(message);
+    } else {
+        pthread_mutex_lock(&g_lock);
+        g_running = true;
+        pthread_mutex_unlock(&g_lock);
+        g_qemu_main_loop();
+        if (g_qemu_cleanup) g_qemu_cleanup();
     }
-
-    if (g_qemu_cleanup) g_qemu_cleanup();
 
     // Keep a local handle so a new session cannot overwrite the pointer we
     // need to close. QEMU is fully unwound before the library is unloaded.
@@ -104,9 +115,9 @@ bool isteam_qemu_start(int argc, const char * const *argv,
     qemu_main_loop_fn loop_fn = (qemu_main_loop_fn)dlsym(library, "qemu_main_loop");
     qemu_cleanup_fn cleanup_fn = (qemu_cleanup_fn)dlsym(library, "qemu_cleanup");
     qemu_shutdown_request_fn shutdown_fn = (qemu_shutdown_request_fn)dlsym(library, "qemu_system_shutdown_request");
-    if (!init_fn || !loop_fn || !cleanup_fn || !shutdown_fn) {
+    if (!init_fn || !loop_fn || !cleanup_fn) {
         dlclose(library);
-        if (error_buffer && error_capacity > 0) snprintf(error_buffer, error_capacity, "QEMU library lacks required exported lifecycle symbols (qemu_init, qemu_main_loop, qemu_cleanup, qemu_system_shutdown_request)");
+        if (error_buffer && error_capacity > 0) snprintf(error_buffer, error_capacity, "QEMU library lacks required lifecycle symbols (qemu_init, qemu_main_loop, qemu_cleanup)");
         return false;
     }
 
@@ -163,7 +174,7 @@ void isteam_qemu_request_stop(void) {
     bool active = g_thread_created || g_running;
     qemu_shutdown_request_fn shutdown_fn = g_qemu_shutdown;
     pthread_mutex_unlock(&g_lock);
-    if (active && shutdown_fn) shutdown_fn(ISTEAM_QEMU_SHUTDOWN_CAUSE_HOST_UI);
+    if (active && shutdown_fn) shutdown_fn(ISTEAM_QEMU_SHUTDOWN_CAUSE_HOST_UI);\n    else if (active) set_error("This QEMU build does not export qemu_system_shutdown_request; graceful stop is unavailable.");
 }
 
 bool isteam_qemu_is_running(void) {

@@ -16,7 +16,7 @@ enum QEMURuntimeStatus {
         ].compactMap { $0 }
 
         guard let library = candidates.first(where: { FileManager.default.fileExists(atPath: $0.path) }) else {
-            return .unavailable("No embedded QEMU device runtime was found. Bundle a code-signed arm64 iOS QEMU library with exported qemu_init, qemu_main_loop, qemu_cleanup and qemu_system_shutdown_request symbols.")
+            return .unavailable("No embedded QEMU device runtime was found. The UTM-style launcher expects a code-signed arm64 iOS QEMU library exporting qemu_init, qemu_main_loop and qemu_cleanup. Graceful stop additionally needs qemu_system_shutdown_request.")
         }
 
         let dataDirectory = bundle.bundleURL.appendingPathComponent("QEMU", isDirectory: true)

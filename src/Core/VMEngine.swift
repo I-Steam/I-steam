@@ -76,6 +76,10 @@ final class VMEngine {
             EmulationLog.shared.write("QEMU main loop is active. Guest OS boot is not independently verified.")
             return
         }
+        if let error = candidate.lastError {
+            fail("QEMU startup/runtime error: \(error)")
+            return
+        }
         if let deadline = startupDeadline, DispatchTime.now() >= deadline {
             fail("QEMU did not enter its active main loop within 15 seconds. Verify the bundled runtime and its startup logs.")
         }
