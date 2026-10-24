@@ -21,16 +21,16 @@ i-Steam is adapting selected parts of UTM's Apple-platform QEMU integration. Thi
 - Follows UTM's documented iOS limitation that QEMU can only be initialized once per app process. After a QEMU session has started, force-quit and relaunch i-Steam before attempting another session.
 - Wires a selected disk image into the argument builder, recognizes ISO-9660 media and attaches it as a CD-ROM.
 - Passes the QEMU data directory using -L.
-- Keeps QEMU headless while no guest display backend is integrated, instead of falsely claiming that the app's separate Metal view is showing guest graphics.
+- Adds a loopback-only QEMU VNC server and a minimal RFB client that forwards real framebuffer rectangles to the Metal texture backend. The VNC client supports raw rectangles and DesktopSize updates; it does not implement SPICE or accelerated 3D guest graphics.
 - Adds source-format validation to CI to catch accidentally committed literal line-break escape sequences.
 
 ## Still required for a working guest OS
 
 1. **Runtime build and packaging:** build UTM's compatible QEMU fork for iOS device arm64 and package its dynamic library, matching data files, and every required dependency into the app. The repository currently does not contain that runtime.
-2. **Display:** integrate a real guest display path, such as UTM's SPICE server/client/renderer stack, and connect it to the i-Steam view. The existing Metal renderer is not a QEMU framebuffer.
-3. **Input:** send keyboard, pointer, and controller events to QEMU input devices. The existing on-screen controls currently log some events rather than injecting them into the guest.
+2. **Display:** the app now has a basic loopback VNC/RFB display path for raw framebuffer updates. Verify that the pinned QEMU build enables VNC, test pixel formats/resolution changes, and consider UTM's SPICE stack for accelerated graphics. The Metal renderer is only a presenter; the VNC client supplies its pixels.
+3. **Input:** basic RFB keyboard events, pointer movement, touch-stick WASD, and controller buttons are wired. Validate key mappings, mouse-button events, hardware keyboard support, and controller layouts against real guests.
 4. **Device/boot coverage:** validate QEMU arguments and devices against the exact runtime build, then boot a redistributable test image on a physical iPad. Main-loop startup alone does not prove that Linux or Windows booted.
-5. **Guest support:** test storage formats, firmware, networking, USB, sound, and supported guest architectures against the devices actually compiled into QEMU.
+5. **Guest support:** test storage formats, firmware, networking, USB, sound, and supported guest architectures against the devices actually compiled into QEMU. The current configuration supports x86_64 only and does not expose audio.
 
 ## Important distinction
 
