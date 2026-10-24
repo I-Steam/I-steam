@@ -55,6 +55,22 @@ jobs:
           echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
           echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
 
+          # UTM's QEMU link step uses platform-availability checks. Homebrew LLVM
+          # does not ship an iOS compiler-rt, so force-load Apple's iOS runtime
+          # from the active Xcode toolchain when the linker builds QEMU dylibs.
+          CLANG="$(xcrun --sdk iphoneos --find clang)"
+          RESOURCE_DIR="$("$CLANG" -print-resource-dir)"
+          RUNTIME="$RESOURCE_DIR/lib/darwin/libclang_rt.ios.a"
+          if [ ! -f "$RUNTIME" ]; then
+            RUNTIME="$(find "$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang" -path '*/lib/darwin/libclang_rt.ios.a' -print -quit)"
+          fi
+          if [ -z "$RUNTIME" ] || [ ! -f "$RUNTIME" ]; then
+            echo "Apple's libclang_rt.ios.a was not found in the selected Xcode toolchain." >&2
+            exit 1
+          fi
+          echo "IOS_COMPILER_RT=$RUNTIME" >> "$GITHUB_ENV"
+          echo "Using iOS compiler runtime: $RUNTIME"
+
       - name: Cache UTM dependency build and sysroot
         if: ${{ !inputs.rebuild_dependencies }}
         uses: actions/cache@v4
@@ -71,6 +87,7 @@ jobs:
         run: |
           set -euo pipefail
           cd UTM
+          export LDFLAGS="${LDFLAGS:-} -Wl,-force_load,$IOS_COMPILER_RT"
           if [ "${{ inputs.rebuild_dependencies }}" = "true" ] || [ ! -f build-iOS-arm64/BUILD_SUCCESS ]; then
             ./scripts/build_dependencies.sh -p ios -a arm64
           else
