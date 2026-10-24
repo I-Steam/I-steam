@@ -64,4 +64,4 @@ This is a useful native port of portable product flows, not the completion of Dr
 
 ### SteamOS gaming-mode profile
 
-A native SteamOS Gaming Mode profile is now available from Launch Setup and the tvOS prototype. It applies a game-oriented Linux VM configuration and USB keyboard/tablet devices. This is a portable UX/configuration port from the DroidDeck concept; it does not reuse Android binaries or include Valve's SteamOS image. Runtime readiness remains blocked on the target-specific QEMU build, UEFI firmware and hardware boot validation.
+A native SteamOS Gaming Mode profile is now available from Launch Setup and the tvOS prototype. It applies a game-oriented Linux VM configuration, USB keyboard/tablet devices, and automatic UEFI selection when compatible firmware is bundled. This is a portable UX/configuration port from the DroidDeck concept; it does not reuse Android binaries or include Valve's SteamOS image. Runtime readiness remains blocked on the target-specific QEMU build, UEFI firmware and hardware boot validation.

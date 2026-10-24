@@ -66,6 +66,11 @@ if [ -z "$data_dir" ]; then
   exit 4
 fi
 cp -R "$data_dir"/. "$OUT/QEMU/"
+# Preserve UEFI firmware files even if UTM stores them outside the BIOS data folder.
+while IFS= read -r firmware_file; do
+  [ -n "$firmware_file" ] || continue
+  cp "$firmware_file" "$OUT/QEMU/$(basename "$firmware_file")"
+done < <(find "$APP" -type f \( -name 'OVMF_CODE.fd' -o -name 'OVMF_VARS.fd' -o -name 'edk2-x86_64-code.fd' -o -name 'edk2-x86_64-code.secboot.fd' -o -name 'edk2-x86_64-vars.fd' \) -print 2>/dev/null || true)
 
 cat > "$OUT/BUILD-INFO.txt" <<EOF
 Source: utmapp/UTM at the revision checked out by the workflow

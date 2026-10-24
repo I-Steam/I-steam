@@ -58,7 +58,7 @@ struct VMConfiguration: Codable, Identifiable, Equatable {
     static var defaultSteamOS: VMConfiguration {
         VMConfiguration(
             id: UUID(), name: "SteamOS Gaming Mode", architecture: .x86_64,
-            memoryMB: 8192, cpuCount: 4, accelerator: .jit, gpu: .virtioGPU,
+            memoryMB: 4096, cpuCount: 4, accelerator: .jit, gpu: .virtioGPU,
             displayWidth: 1280, displayHeight: 800, displayFPS: 60,
             bootWindows: false
         )

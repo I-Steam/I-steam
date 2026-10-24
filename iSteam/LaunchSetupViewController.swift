@@ -56,7 +56,7 @@ final class LaunchSetupViewController: UIViewController, UIDocumentPickerDelegat
         heading.font = .systemFont(ofSize: 30, weight: .bold)
         stack.addArrangedSubview(heading)
         let intro = UILabel()
-        intro.text = "Choose Ubuntu, SteamOS Gaming Mode, or Windows 10. SteamOS mode applies a game-focused Linux VM profile (8 GB RAM, 4 CPUs, 1280×800 at 60 FPS); it is not Valve’s Steam Deck OS image. Supply a compatible bootable Linux/SteamOS image. Guest boot still requires the bundled QEMU runtime and suitable UEFI firmware."
+        intro.text = "Choose Ubuntu, SteamOS Gaming Mode, or Windows 10. SteamOS mode applies a game-focused Linux VM profile (4 GB RAM, 4 CPUs, 1280×800 at 60 FPS); it is not Valve’s Steam Deck OS image. Supply a compatible bootable Linux/SteamOS image. Guest boot still requires the bundled QEMU runtime and suitable UEFI firmware."
         intro.font = .preferredFont(forTextStyle: .subheadline)
         intro.textColor = .secondaryLabel
         intro.numberOfLines = 0
@@ -155,7 +155,7 @@ final class LaunchSetupViewController: UIViewController, UIDocumentPickerDelegat
         config.displayHeight = isSteamOS ? 800 : RuntimeSettings.shared.renderResolution.height
         config.displayFPS = isSteamOS ? 60 : RuntimeSettings.shared.frameRate.value
         if isSteamOS {
-            config.memoryMB = max(config.memoryMB, 8192)
+            config.memoryMB = min(max(config.memoryMB, 4096), 4096)
             config.cpuCount = max(config.cpuCount, 4)
             config.accelerator = .jit
             config.gpu = .virtioGPU

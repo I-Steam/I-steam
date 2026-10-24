@@ -35,8 +35,22 @@ final class QEMUNativeRuntime {
             dataDirectory = data
         }
 
+        let selectedFirmware: URL?
+        if let firmware {
+            selectedFirmware = firmware
+        } else if configuration.name == "SteamOS Gaming Mode" {
+            guard let uefi = Self.findUEFIFirmware(in: dataDirectory) else {
+                throw RuntimeError.runtimeUnavailable(
+                    "SteamOS Gaming Mode requires an x86_64 UEFI firmware file (OVMF_CODE.fd or edk2-x86_64-code.fd) in the bundled QEMU data directory."
+                )
+            }
+            selectedFirmware = uefi
+        } else {
+            selectedFirmware = nil
+        }
+
         var newlyScoped: [URL] = []
-        for url in [diskImage, firmware].compactMap({ $0 }) {
+        for url in [diskImage, selectedFirmware].compactMap({ $0 }) {
             let granted = url.startAccessingSecurityScopedResource()
             if granted { newlyScoped.append(url) }
             do {
@@ -53,7 +67,7 @@ final class QEMUNativeRuntime {
         }
 
         let args = QEMUCommandBuilder(configuration: configuration)
-            .arguments(diskImage: diskImage, firmware: firmware) + ["-L", dataDirectory.path]
+            .arguments(diskImage: diskImage, firmware: selectedFirmware) + ["-L", dataDirectory.path]
         let arguments = ["qemu-system-\(configuration.architecture.rawValue)"] + args
         let strings: [UnsafeMutablePointer<CChar>?] = arguments.map { strdup($0) }
         defer { strings.forEach { if let value = $0 { free(value) } } }
@@ -89,6 +103,20 @@ final class QEMUNativeRuntime {
         scopedURLs = newlyScoped
         started = true
         EmulationLog.shared.write("QEMU launch requested with disk \(diskImage.lastPathComponent)")
+    }
+
+    private static func findUEFIFirmware(in directory: URL) -> URL? {
+        let names = ["OVMF_CODE.fd", "edk2-x86_64-code.fd", "edk2-x86_64-code.secboot.fd"]
+        for name in names {
+            let candidate = directory.appendingPathComponent(name)
+            if FileManager.default.fileExists(atPath: candidate.path) { return candidate }
+        }
+        if let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil) {
+            for case let url as URL in enumerator where names.contains(url.lastPathComponent) {
+                return url
+            }
+        }
+        return nil
     }
 
     func stop() {
