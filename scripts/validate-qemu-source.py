@@ -3,16 +3,16 @@
 from pathlib import Path
 import sys
 
-checks = {
+forbidden = {
     "iSteam/QEMUNativeBridge.c": [
-        r"shutdown_fn) shutdown_fn(ISTEAM_QEMU_SHUTDOWN_CAUSE_HOST_UI);\\n",
+        r"shutdown_fn) shutdown_fn(ISTEAM_QEMU_SHUTDOWN_CAUSE_HOST_UI);\n",
     ],
     "src/QEMU/QEMUNativeRuntime.swift": [
-        r"var isRunning: Bool { isteam_qemu_is_running() }\\n",
-        r"var lastError: String? {\\n",
+        r"var isRunning: Bool { isteam_qemu_is_running() }\n",
+        r"var lastError: String? {\n",
     ],
     "src/QEMU/QEMUBackend.swift": [
-        r"var isRunning: Bool { runtime.isRunning }\\n",
+        r"var isRunning: Bool { runtime.isRunning }\n",
     ],
 }
 required = {
@@ -28,14 +28,18 @@ required = {
     ],
 }
 failed = False
-for mapping, invert in ((checks, True), (required, False)):
-    for name, tokens in mapping.items():
-        source = Path(name).read_text(encoding="utf-8")
-        for token in tokens:
-            found = token in source
-            if found == invert:
-                print(f"{name}: {'found forbidden' if invert else 'missing required'} token {token!r}", file=sys.stderr)
-                failed = True
+for name, tokens in forbidden.items():
+    source = Path(name).read_text(encoding="utf-8")
+    for token in tokens:
+        if token in source:
+            print(f"{name}: found forbidden escaped line break {token!r}", file=sys.stderr)
+            failed = True
+for name, tokens in required.items():
+    source = Path(name).read_text(encoding="utf-8")
+    for token in tokens:
+        if token not in source:
+            print(f"{name}: missing required integration {token!r}", file=sys.stderr)
+            failed = True
 if failed:
     raise SystemExit(1)
 print("QEMU bridge formatting and VNC integration checks passed.")
