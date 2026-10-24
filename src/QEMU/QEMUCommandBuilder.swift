@@ -58,7 +58,8 @@ struct QEMUCommandBuilder {
         // User-mode networking does not bridge the iOS host's LAN or expose
         // inbound ports unless an explicit hostfwd rule is configured.
         args += ["-rtc", "base=utc,clock=host"]
-        args += ["-boot", "menu=on,strict=off"]
+        let bootFromISO = diskImage.map(Self.isISO9660) ?? false
+        args += ["-boot", bootFromISO ? "order=d,menu=on,strict=off" : "order=c,menu=on,strict=off"]
         args += ["-netdev", "user,id=isteam-net0"]
         args += ["-device", "virtio-net-pci,netdev=isteam-net0"]
         args += ["-device", "virtio-rng-pci"]
@@ -80,9 +81,25 @@ struct QEMUCommandBuilder {
             args += ["-drive", "if=pflash,format=raw,readonly=on,file=\(firmware.path)"]
         }
         if let diskImage {
-            let format = QEMUDiskImageFormat.detect(at: diskImage).rawValue
-            args += ["-drive", "if=virtio,format=\(format),file=\(diskImage.path)"]
+            if bootFromISO {
+                // ISO-9660 images are CD-ROM media, not hard disks.
+                args += ["-cdrom", diskImage.path]
+            } else {
+                let format = QEMUDiskImageFormat.detect(at: diskImage).rawValue
+                args += ["-drive", "if=virtio,format=\(format),file=\(diskImage.path)"]
+            }
         }
         return args
+    }
+
+    private static func isISO9660(_ url: URL) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? handle.close() }
+        do {
+            try handle.seek(toOffset: 32_769)
+            return try handle.read(upToCount: 5) == Data("CD001".utf8)
+        } catch {
+            return false
+        }
     }
 }

@@ -5,6 +5,7 @@ final class VMDisplayViewController: UIViewController {
     private let gpu: MetalGPUBackend
     private let virtioGPU: VirtIOGPU
     private let engine: VMEngine
+    private let diskImage: URL
     private let status = UILabel()
     private var gamepad: TouchGamepadView?
     private let vrSettings = VRSettings.shared
@@ -13,7 +14,8 @@ final class VMDisplayViewController: UIViewController {
     private let functionKeyBar = UIStackView()
     private var keyboardObservers: [NSObjectProtocol] = []
 
-    init(configuration: VMConfiguration) {
+    init(configuration: VMConfiguration, diskImage: URL) {
+        self.diskImage = diskImage
         let size = RuntimeSettings.shared.renderResolution
         let backend = MetalGPUBackend(width: size.width, height: size.height, frameRate: RuntimeSettings.shared.frameRate.value)
         self.gpu = backend
@@ -58,7 +60,8 @@ final class VMDisplayViewController: UIViewController {
         registerKeyboardNotifications()
         refreshHardwareKeyboardState()
         virtioGPU.start()
-        engine.start()
+        engine.start(diskImage: diskImage)
+        status.text = QEMURuntimeStatus.diagnostic
     }
 
     private func applyCardboardLayout() {

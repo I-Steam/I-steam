@@ -1,14 +1,17 @@
 import UIKit
+import UniformTypeIdentifiers
 
 /// Full-page launch configuration. Saved settings are restored, but this screen remains
 /// a launch scaffold until a bootable QEMU runtime is bundled and connected.
-final class LaunchSetupViewController: UIViewController {
+final class LaunchSetupViewController: UIViewController, UIDocumentPickerDelegate {
     private let guestControl = UISegmentedControl(items: ["Ubuntu", "Windows 10"])
     private let runtimeControl = UISegmentedControl(items: ["Full VM", "EXE library"])
     private let vrSwitch = UISwitch()
     private let persistSwitch = UISwitch()
     private let slotField = UITextField()
     private let statusLabel = UILabel()
+    private let diskLabel = UILabel()
+    private var selectedDiskURL: URL?
     private var loadedConfiguration: VMConfiguration?
 
     override func viewDidLoad() {
@@ -77,6 +80,18 @@ final class LaunchSetupViewController: UIViewController {
         slotsButton.contentHorizontalAlignment = .leading
         slotsButton.addTarget(self, action: #selector(loadSlot), for: .touchUpInside)
         stack.addArrangedSubview(slotsButton)
+
+        diskLabel.text = "Guest image: not selected"
+        diskLabel.font = .preferredFont(forTextStyle: .footnote)
+        diskLabel.textColor = .secondaryLabel
+        diskLabel.numberOfLines = 0
+        stack.addArrangedSubview(diskLabel)
+
+        let chooseDiskButton = UIButton(type: .system)
+        chooseDiskButton.setTitle("Choose guest disk / ISO…", for: .normal)
+        chooseDiskButton.contentHorizontalAlignment = .leading
+        chooseDiskButton.addTarget(self, action: #selector(chooseGuestImage), for: .touchUpInside)
+        stack.addArrangedSubview(chooseDiskButton)
 
         statusLabel.numberOfLines = 0
         statusLabel.font = .preferredFont(forTextStyle: .footnote)
@@ -202,19 +217,32 @@ final class LaunchSetupViewController: UIViewController {
             return
         }
 
-        if config.bootWindows && UserDefaults.standard.string(forKey: "iSteam.customOSPath") == nil {
-            let alert = UIAlertController(
-                title: "Windows 10 installation media required",
-                message: "Import a legitimate full Windows 10 ISO first. A PE executable is not a Windows operating system. This build stores imported ISO/disk files but does not boot them yet; Launch opens a display scaffold only.",
-                preferredStyle: .alert
-            )
-            alert.addAction(UIAlertAction(title: "Continue to VM preview", style: .default) { [weak self] _ in
-                self?.navigationController?.pushViewController(VMDisplayViewController(configuration: config), animated: true)
-            })
-            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-            present(alert, animated: true)
+        guard let diskURL = selectedDiskURL else {
+            statusLabel.text = "Choose a guest disk image or bootable ISO before launching. The engine cannot start without an image."
+            chooseGuestImage()
             return
         }
-        navigationController?.pushViewController(VMDisplayViewController(configuration: config), animated: true)
+        navigationController?.pushViewController(
+            VMDisplayViewController(configuration: config, diskImage: diskURL),
+            animated: true
+        )
+    }
+
+    @objc private func chooseGuestImage() {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.item], asCopy: false)
+        picker.delegate = self
+        picker.allowsMultipleSelection = false
+        present(picker, animated: true)
+    }
+
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        guard let url = urls.first else { return }
+        selectedDiskURL = url
+        diskLabel.text = "Guest image: \(url.lastPathComponent)"
+        statusLabel.text = "Image selected. Tap Launch to start the VM. If the native QEMU runtime is not bundled, the engine will report that clearly."
+    }
+
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        statusLabel.text = "No guest image selected; the VM was not started."
     }
 }
