@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 /// Full-page launch configuration. Saved settings are restored, but this screen remains
 /// a launch scaffold until a bootable QEMU runtime is bundled and connected.
 final class LaunchSetupViewController: UIViewController, UIDocumentPickerDelegate {
-    private let guestControl = UISegmentedControl(items: ["Ubuntu", "Windows 10"])
+    private let guestControl = UISegmentedControl(items: ["Ubuntu", "SteamOS", "Windows 10"])
     private let runtimeControl = UISegmentedControl(items: ["Full VM", "EXE library"])
     private let vrSwitch = UISwitch()
     private let persistSwitch = UISwitch()
@@ -20,7 +20,8 @@ final class LaunchSetupViewController: UIViewController, UIDocumentPickerDelegat
         view.backgroundColor = .systemGroupedBackground
         navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Save Slot", style: .done, target: self, action: #selector(saveSlot))
         buildForm()
-        guestControl.selectedSegmentIndex = UserDefaults.standard.string(forKey: "iSteam.lastGuest") == "Windows 10" ? 1 : 0
+        let lastGuest = UserDefaults.standard.string(forKey: "iSteam.lastGuest") ?? "Ubuntu"
+        guestControl.selectedSegmentIndex = lastGuest == "Windows 10" ? 2 : (lastGuest == "SteamOS" ? 1 : 0)
         runtimeControl.selectedSegmentIndex = 0
         vrSwitch.isOn = VRSettings.shared.mode == .cardboard
         persistSwitch.isOn = UserDefaults.standard.bool(forKey: "iSteam.persistSessionData")
@@ -55,7 +56,7 @@ final class LaunchSetupViewController: UIViewController, UIDocumentPickerDelegat
         heading.font = .systemFont(ofSize: 30, weight: .bold)
         stack.addArrangedSubview(heading)
         let intro = UILabel()
-        intro.text = "Choose an operating system, launch target and save slot. Ubuntu is the default. Windows 10 requires user-provided installation media. OS booting and EXE execution are not implemented in this build."
+        intro.text = "Choose Ubuntu, SteamOS Gaming Mode, or Windows 10. SteamOS mode applies a game-focused Linux VM profile (8 GB RAM, 4 CPUs, 1280×800 at 60 FPS); it is not Valve’s Steam Deck OS image. Supply a compatible bootable Linux/SteamOS image. Guest boot still requires the bundled QEMU runtime and suitable UEFI firmware."
         intro.font = .preferredFont(forTextStyle: .subheadline)
         intro.textColor = .secondaryLabel
         intro.numberOfLines = 0
@@ -142,14 +143,23 @@ final class LaunchSetupViewController: UIViewController, UIDocumentPickerDelegat
     }
 
     private func makeConfiguration() -> VMConfiguration {
-        let isWindows = guestControl.selectedSegmentIndex == 1
-        var config = loadedConfiguration.flatMap { $0.bootWindows == isWindows ? $0 : nil }
-            ?? (isWindows ? VMConfiguration.defaultWindows : VMConfiguration.defaultLinux)
-        config.name = isWindows ? "Windows 10" : "Ubuntu"
+        let selectedGuest = guestControl.selectedSegmentIndex
+        let isWindows = selectedGuest == 2
+        let isSteamOS = selectedGuest == 1
+        let expectedName = isWindows ? "Windows 10" : (isSteamOS ? "SteamOS Gaming Mode" : "Ubuntu")
+        var config = loadedConfiguration.flatMap { $0.name == expectedName ? $0 : nil }
+            ?? (isWindows ? VMConfiguration.defaultWindows : (isSteamOS ? VMConfiguration.defaultSteamOS : VMConfiguration.defaultLinux))
+        config.name = expectedName
         config.bootWindows = isWindows
-        config.displayWidth = RuntimeSettings.shared.renderResolution.width
-        config.displayHeight = RuntimeSettings.shared.renderResolution.height
-        config.displayFPS = RuntimeSettings.shared.frameRate.value
+        config.displayWidth = isSteamOS ? 1280 : RuntimeSettings.shared.renderResolution.width
+        config.displayHeight = isSteamOS ? 800 : RuntimeSettings.shared.renderResolution.height
+        config.displayFPS = isSteamOS ? 60 : RuntimeSettings.shared.frameRate.value
+        if isSteamOS {
+            config.memoryMB = max(config.memoryMB, 8192)
+            config.cpuCount = max(config.cpuCount, 4)
+            config.accelerator = .jit
+            config.gpu = .virtioGPU
+        }
         return config
     }
 
@@ -178,7 +188,7 @@ final class LaunchSetupViewController: UIViewController, UIDocumentPickerDelegat
             alert.addAction(UIAlertAction(title: name, style: .default) { [weak self] _ in
                 guard let self, let config = VMSaveSlotStore.shared.configuration(named: name) else { return }
                 self.loadedConfiguration = config
-                self.guestControl.selectedSegmentIndex = config.bootWindows ? 1 : 0
+                self.guestControl.selectedSegmentIndex = config.bootWindows ? 2 : (config.name == "SteamOS Gaming Mode" ? 1 : 0)
                 self.slotField.text = name
                 self.statusLabel.text = "Loaded \(name): \(config.memoryMB) MB RAM, \(config.cpuCount) CPUs, \(config.displayWidth) × \(config.displayHeight) at \(config.displayFPS) FPS. Current display preferences override resolution and FPS on launch."
             })
@@ -195,8 +205,8 @@ final class LaunchSetupViewController: UIViewController, UIDocumentPickerDelegat
         let config = makeConfiguration()
         VRSettings.shared.mode = vrSwitch.isOn ? .cardboard : .flat
         UserDefaults.standard.set(persistSwitch.isOn, forKey: "iSteam.persistSessionData")
-        UserDefaults.standard.set(guestControl.selectedSegmentIndex == 1 ? "Windows 10" : "Ubuntu", forKey: "iSteam.lastGuest")
-        UserDefaults.standard.set(config.bootWindows ? "Windows VM" : "Linux VM", forKey: "iSteam.lastVMMode")
+        UserDefaults.standard.set(config.bootWindows ? "Windows 10" : (config.name == "SteamOS Gaming Mode" ? "SteamOS" : "Ubuntu"), forKey: "iSteam.lastGuest")
+        UserDefaults.standard.set(config.bootWindows ? "Windows VM" : (config.name == "SteamOS Gaming Mode" ? "SteamOS Gaming Mode" : "Linux VM"), forKey: "iSteam.lastVMMode")
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "iSteam.lastLaunchDate")
 
         if persistSwitch.isOn {
@@ -239,7 +249,7 @@ final class LaunchSetupViewController: UIViewController, UIDocumentPickerDelegat
         guard let url = urls.first else { return }
         selectedDiskURL = url
         diskLabel.text = "Guest image: \(url.lastPathComponent)"
-        statusLabel.text = "Image selected. Tap Launch to start the VM. If the native QEMU runtime is not bundled, the engine will report that clearly."
+        statusLabel.text = "Image selected. Tap Launch to start the VM. SteamOS Gaming Mode needs a compatible bootable image, suitable UEFI firmware, and the bundled QEMU runtime; selecting this mode does not install or provide SteamOS."
     }
 
     func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {

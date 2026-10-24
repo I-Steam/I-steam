@@ -27,3 +27,10 @@ RuntimeComponentManifest is intentionally an integrity checker for local files, 
 ## Acceptance criteria
 
 A runtime feature is complete only when the required target-specific binaries and licenses are present, CI builds the app, automated tests cover the lifecycle, and a target device boots a guest and validates display/input/storage. Until then, UI must show the feature as unavailable or partial.
+
+
+## SteamOS Gaming Mode (new native profile)
+
+The Launch Setup screen now offers **SteamOS Gaming Mode** on iOS and the tvOS prototype. It selects a Linux guest profile with 8 GB configured RAM, four virtual CPUs, 1280×800/60 FPS targets, and USB keyboard/tablet input. The selection is remembered and can be saved in a VM configuration slot.
+
+This is a DroidDeck-inspired *profile/mode*, not Valve's SteamOS distribution and not a promise of Steam Big Picture booting. The user must provide a compatible guest image; SteamOS-like distributions commonly require UEFI and graphics features that are not yet guaranteed by i-Steam. Until the QEMU runtime, UEFI firmware and display/input path pass on-device boot tests, readiness remains partial.
