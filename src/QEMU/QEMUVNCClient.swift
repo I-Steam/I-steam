@@ -131,12 +131,12 @@ final class QEMUVNCClient {
     }
 
     private func send(_ data: Data, to connection: NWConnection) async throws {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             connection.send(content: data, completion: .contentProcessed { error in
                 if let error {
                     continuation.resume(throwing: ClientError.connection(error.localizedDescription))
                 } else {
-                    continuation.resume()
+                    continuation.resume(returning: ())
                 }
             })
         }

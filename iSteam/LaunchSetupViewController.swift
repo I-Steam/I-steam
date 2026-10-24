@@ -209,13 +209,6 @@ final class LaunchSetupViewController: UIViewController, UIDocumentPickerDelegat
         UserDefaults.standard.set(config.bootWindows ? "Windows VM" : (config.name == "SteamOS Gaming Mode" ? "SteamOS Gaming Mode" : "Linux VM"), forKey: "iSteam.lastVMMode")
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "iSteam.lastLaunchDate")
 
-        if persistSwitch.isOn {
-            do {
-                try VMSaveSlotStore.shared.saveSessionMetadata(configuration: config)
-            } catch {
-                statusLabel.text = "Could not save session: \(error.localizedDescription)"
-            }
-        }
         let name = (slotField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         if !name.isEmpty {
             do { try VMSaveSlotStore.shared.saveConfiguration(config, name: name) }
@@ -231,6 +224,13 @@ final class LaunchSetupViewController: UIViewController, UIDocumentPickerDelegat
             statusLabel.text = "Choose a guest disk image or bootable ISO before launching. The engine cannot start without an image."
             chooseGuestImage()
             return
+        }
+        if persistSwitch.isOn {
+            do {
+                try VMSaveSlotStore.shared.saveSessionMetadata(configuration: config, diskImageURL: diskURL)
+            } catch {
+                statusLabel.text = "Could not save session: \(error.localizedDescription)"
+            }
         }
         navigationController?.pushViewController(
             VMDisplayViewController(configuration: config, diskImage: diskURL),

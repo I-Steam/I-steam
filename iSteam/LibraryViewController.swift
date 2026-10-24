@@ -152,13 +152,21 @@ final class LibraryViewController: UIViewController, UIDocumentPickerDelegate {
     @objc private func openSettings() { navigationController?.pushViewController(SettingsViewController(), animated: true) }
 
     private func continueLastSession() {
-        guard let config = VMSaveSlotStore.shared.lastSessionConfiguration() else {
-            let alert = UIAlertController(title: "No saved session", message: "Launch a session with Keep session data enabled to save its configuration for next time.", preferredStyle: .alert)
+        guard let session = VMSaveSlotStore.shared.lastSession() else {
+            let alert = UIAlertController(
+                title: "Saved disk unavailable",
+                message: "The last session has no valid disk-image bookmark. Open Launch Setup and choose the guest disk again.",
+                preferredStyle: .alert
+            )
             alert.addAction(UIAlertAction(title: "OK", style: .default))
             alert.addAction(UIAlertAction(title: "Set up a session", style: .default) { [weak self] _ in self?.showLaunchFlow() })
-            present(alert, animated: true); return
+            present(alert, animated: true)
+            return
         }
-        navigationController?.pushViewController(VMDisplayViewController(configuration: config), animated: true)
+        navigationController?.pushViewController(
+            VMDisplayViewController(configuration: session.configuration, diskImage: session.diskImageURL),
+            animated: true
+        )
     }
     private func showLaunchFlow() { navigationController?.pushViewController(LaunchSetupViewController(), animated: true) }
     private func openSteamStore() {
