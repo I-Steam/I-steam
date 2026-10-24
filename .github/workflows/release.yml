@@ -18,6 +18,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: isteam-release
@@ -41,6 +42,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Download latest verified iOS QEMU runtime artifact
+        if: matrix.platform == 'iOS'
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: build-qemu-runtime.yml
+          branch: main
+          name: iSteam-qemu-runtime-ios-arm64
+          path: build/qemu-runtime
+          if_no_artifact_found: warn
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/cache@v4
         with:
@@ -70,6 +83,14 @@ jobs:
           APP="build/iSteam.xcarchive/Products/Applications/iSteam.app"
           test -d "$APP"
           /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist" | grep -Fx "$EXPECTED_BUNDLE"
+          if [ -d build/qemu-runtime/Frameworks ] && [ -d build/qemu-runtime/QEMU ]; then
+            echo "Embedding verified UTM QEMU runtime and dependencies."
+            mkdir -p "$APP/Frameworks" "$APP/QEMU"
+            cp -R build/qemu-runtime/Frameworks/. "$APP/Frameworks/"
+            cp -R build/qemu-runtime/QEMU/. "$APP/QEMU/"
+          else
+            echo "::warning::No verified QEMU runtime artifact is available; this IPA will report the guest runtime as unavailable."
+          fi
           mkdir -p build/Payload
           cp -R "$APP" build/Payload/iSteam.app
           ditto -c -k --sequesterRsrc --keepParent build/Payload build/iSteam-ios.ipa
