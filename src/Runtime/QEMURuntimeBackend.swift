@@ -118,7 +118,7 @@ final class QEMURuntimeBackend {
     func refreshState() -> State {
         let nativeRunning = isteam_qemu_is_running()
         let nativeErrorPointer = isteam_qemu_last_error()
-        let nativeError = nativeErrorPointer.map { String(cString: $0) } ?? ""
+        let nativeError = String(cString: nativeErrorPointer)
 
         lock.lock()
         defer { lock.unlock() }
