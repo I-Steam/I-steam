@@ -11,15 +11,14 @@ mkdir -p "$OUT/QEMU"
 : > "$OUT/runtime-file-inventory.txt"
 find "$APP" -type f \( -name 'QEMU' -o -name 'libqemu-system-x86_64.dylib' -o -name 'qemu-system-x86_64' \) -print | tee "$OUT/runtime-file-inventory.txt"
 
-# The i-Steam bridge loads QEMU in-process. An executable or a library without
-# the exact lifecycle exports is not a usable runtime, even if it is ARM64.
 candidate=""
 while IFS= read -r file; do
   [ -n "$file" ] || continue
   if file "$file" | grep -q 'Mach-O'; then
-    if nm -gU "$file" 2>/dev/null | grep -qE ' _?qemu_init$' &&
-       nm -gU "$file" 2>/dev/null | grep -qE ' _?qemu_main_loop$' &&
-       nm -gU "$file" 2>/dev/null | grep -qE ' _?qemu_cleanup$'; then
+    exports="$(nm -gU "$file" 2>/dev/null || true)"
+    if printf '%s\n' "$exports" | grep -qE ' _?qemu_init$' &&
+       printf '%s\n' "$exports" | grep -qE ' _?qemu_main_loop$' &&
+       printf '%s\n' "$exports" | grep -qE ' _?qemu_cleanup$'; then
       candidate="$file"
       break
     fi
@@ -40,11 +39,8 @@ esac
 
 cp "$candidate" "$OUT/QEMU/libqemu-system-x86_64.dylib"
 chmod 755 "$OUT/QEMU/libqemu-system-x86_64.dylib"
-nm -gU "$candidate" 2>/dev/null | grep -E ' _?qemu_(init|main_loop|cleanup)$| _?qemu_system_shutdown_request$' > "$OUT/exports.txt" || true
+printf '%s\n' "$exports" | grep -E ' _?qemu_(init|main_loop|cleanup)$| _?qemu_system_shutdown_request$' > "$OUT/exports.txt" || true
 
-# QEMU's -L directory must contain firmware/data, not just a library. Locate
-# a data directory from the built app or dependency sysroot and preserve its
-# relative layout under QEMU/.
 data_dir=""
 for root in "$APP" "$(dirname "$ARCHIVE")"; do
   [ -d "$root" ] || continue
@@ -70,4 +66,4 @@ Important: this artifact still must be embedded and code-signed in i-Steam, and 
 EOF
 
 test -s "$OUT/QEMU/libqemu-system-x86_64.dylib"
-test -s "$OUT/QEMU/share/"*
+find "$OUT/QEMU/share" -type f -size +0c -print -quit | grep -q .
