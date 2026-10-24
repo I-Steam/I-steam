@@ -39,21 +39,35 @@ final class QEMUVNCClient {
         self.connection = connection
         readerTask = Task { [weak self] in
             guard let self else { return }
-            do {
-                try await self.waitUntilReady(connection)
-                try await self.performHandshake(connection)
+            var lastError: Error = ClientError.connection("QEMU VNC server did not start.")
+            for attempt in 0..<40 {
+                if Task.isCancelled { return }
+                let candidate = NWConnection(host: "127.0.0.1", port: endpointPort, using: .tcp)
                 self.lock.lock()
-                self.isConnected = true
+                self.connection = candidate
                 self.lock.unlock()
-                self.onStatus?("Guest display connected • local VNC")
-                try await self.readServerMessages(connection)
-            } catch {
-                self.onStatus?("Guest display unavailable: \(error.localizedDescription)")
+                do {
+                    try await self.waitUntilReady(candidate)
+                    try await self.performHandshake(candidate)
+                    self.lock.lock()
+                    self.isConnected = true
+                    self.lock.unlock()
+                    self.onStatus?("Guest display connected • local VNC")
+                    try await self.readServerMessages(candidate)
+                    break
+                } catch {
+                    lastError = error
+                    candidate.cancel()
+                    if Task.isCancelled { return }
+                    if attempt < 39 {
+                        try? await Task.sleep(nanoseconds: 500_000_000)
+                    }
+                }
             }
             self.lock.lock()
             self.isConnected = false
             self.lock.unlock()
-            connection.cancel()
+            self.onStatus?("Guest display unavailable: \(lastError.localizedDescription)")
         }
     }
 
@@ -262,10 +276,10 @@ final class QEMUVNCClient {
     }
 
     func setMovement(x: Float, y: Float) {
-        let desired: Set<String> = [
+        let desired = Set([
             abs(x) > 0.25 ? (x < 0 ? "A" : "D") : "",
             abs(y) > 0.25 ? (y < 0 ? "W" : "S") : ""
-        ].filter { !$0.isEmpty }
+        ].filter { !$0.isEmpty })
         lock.lock()
         let previous = pressedKeys
         let next = Set(desired.compactMap { Self.keysym(for: $0) })

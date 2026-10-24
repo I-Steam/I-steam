@@ -5,6 +5,7 @@ final class VMDisplayViewController: UIViewController {
     private let gpu: MetalGPUBackend
     private let virtioGPU: VirtIOGPU
     private let engine: VMEngine
+    private let vncClient = QEMUVNCClient()
     private let diskImage: URL
     private let status = UILabel()
     private var gamepad: TouchGamepadView?
@@ -60,8 +61,20 @@ final class VMDisplayViewController: UIViewController {
         registerKeyboardNotifications()
         refreshHardwareKeyboardState()
         virtioGPU.start()
+        vncClient.onFrame = { [weak self] data, width, height in
+            self?.virtioGPU.submit(.updateFramebuffer(data, width: width, height: height))
+        }
+        vncClient.onStatus = { [weak self] message in
+            DispatchQueue.main.async {
+                self?.status.text = message
+                if message.contains("unavailable") {
+                    EmulationLog.shared.write(message)
+                }
+            }
+        }
+        status.text = "Starting QEMU • waiting for guest display"
         engine.start(diskImage: diskImage)
-        status.text = QEMURuntimeStatus.diagnostic
+        vncClient.start()
     }
 
     private func applyCardboardLayout() {
@@ -133,9 +146,7 @@ final class VMDisplayViewController: UIViewController {
     }
 
     private func emitKeyboardKey(_ key: String) {
-        // The UI emits normalized key names; guest injection needs a connected
-        // runtime input backend, which is not implemented in this scaffold yet.
-        EmulationLog.shared.write("Keyboard input: \(key)")
+        vncClient.tapKey(key)
     }
 
     private func registerKeyboardNotifications() {
@@ -161,13 +172,12 @@ final class VMDisplayViewController: UIViewController {
     private func addTouchGamepad() {
         let pad = TouchGamepadView()
         pad.translatesAutoresizingMaskIntoConstraints = false
-        pad.onMove = { point in EmulationLog.shared.write(String(format: "Touch stick x=%.2f y=%.2f", point.x, point.y)) }
+        pad.onMove = { [weak self] point in self?.vncClient.setMovement(x: Float(point.x), y: Float(point.y)) }
         pad.onLook = { [weak self] delta in
             guard VRSettings.shared.pointerLockEnabled else { return }
-            self?.view.isMultipleTouchEnabled = true
-            EmulationLog.shared.write(String(format: "Pointer-look delta %.1f, %.1f", delta.x, delta.y))
+            self?.vncClient.movePointer(dx: Float(delta.x), dy: Float(delta.y))
         }
-        pad.onButton = { key, down in EmulationLog.shared.write("Touch gamepad " + key + ": " + (down ? "down" : "up")) }
+        pad.onButton = { [weak self] key, down in self?.vncClient.sendButton(key, down: down) }
         view.addSubview(pad)
         NSLayoutConstraint.activate([
             pad.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -180,12 +190,12 @@ final class VMDisplayViewController: UIViewController {
 
     private func configureControllerInput() {
         let input = ControllerInputManager.shared
-        input.onMove = { x, y in EmulationLog.shared.write(String(format: "Controller move %.2f, %.2f", x, y)) }
-        input.onLook = { x, y in
+        input.onMove = { [weak self] x, y in self?.vncClient.setMovement(x: x, y: y) }
+        input.onLook = { [weak self] x, y in
             guard VRSettings.shared.pointerLockEnabled else { return }
-            EmulationLog.shared.write(String(format: "Controller look %.2f, %.2f", x, y))
+            self?.vncClient.movePointer(dx: x, dy: y)
         }
-        input.onButton = { key, down in EmulationLog.shared.write("Controller " + key + ": " + (down ? "down" : "up")) }
+        input.onButton = { [weak self] key, down in self?.vncClient.sendButton(key, down: down) }
         input.start()
     }
 
@@ -209,6 +219,7 @@ final class VMDisplayViewController: UIViewController {
         keyboardObservers.removeAll()
         MotionInputManager.shared.stop()
         ControllerInputManager.shared.stop()
+        vncClient.stop()
         engine.stop()
         virtioGPU.stop()
     }
