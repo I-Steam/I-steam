@@ -1,8 +1,6 @@
 import Foundation
 
-/// Builds arguments and starts an optional in-process QEMU runtime.
-/// commandPreview remains diagnostic only; iOS cannot execute this string as a
-/// shell command. Actual execution uses QEMUNativeRuntime and a bundled library.
+/// Starts the in-process QEMU runtime. The command preview is diagnostic only.
 final class QEMUBackend {
     private let configuration: VMConfiguration
     private let builder: QEMUCommandBuilder
@@ -22,12 +20,10 @@ final class QEMUBackend {
         try runtime.start(configuration: configuration, diskImage: diskImage, firmware: firmware)
     }
 
-    func stop() {
-        runtime.stop()
-    }
+    func stop() { runtime.stop() }
 
     var isRunning: Bool { runtime.isRunning }
-
+    var isActive: Bool { runtime.isActive }
     var lastError: String? { runtime.lastError }
 
     private static func quote(_ value: String) -> String {

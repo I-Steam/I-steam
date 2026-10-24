@@ -18,7 +18,6 @@ final class QEMUNativeRuntime {
 
     func start(configuration: VMConfiguration, diskImage: URL, firmware: URL? = nil) throws {
         guard !started else { return }
-
         try configuration.validateForStart()
         guard configuration.architecture == .x86_64 else {
             throw RuntimeError.runtimeUnavailable(
@@ -53,9 +52,8 @@ final class QEMUNativeRuntime {
             }
         }
 
-        var args = QEMUCommandBuilder(configuration: configuration)
-            .arguments(diskImage: diskImage, firmware: firmware)
-        args += ["-L", dataDirectory.path]
+        let args = QEMUCommandBuilder(configuration: configuration)
+            .arguments(diskImage: diskImage, firmware: firmware) + ["-L", dataDirectory.path]
         let arguments = ["qemu-system-\(configuration.architecture.rawValue)"] + args
         let strings: [UnsafeMutablePointer<CChar>?] = arguments.map { strdup($0) }
         defer { strings.forEach { if let value = $0 { free(value) } } }
@@ -90,9 +88,7 @@ final class QEMUNativeRuntime {
 
         scopedURLs = newlyScoped
         started = true
-        EmulationLog.shared.write(
-            "QEMU runtime start requested with disk \(diskImage.lastPathComponent)"
-        )
+        EmulationLog.shared.write("QEMU launch requested with disk \(diskImage.lastPathComponent)")
     }
 
     func stop() {
@@ -108,12 +104,15 @@ final class QEMUNativeRuntime {
             scopedURLs.removeAll()
             return
         }
-        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + .milliseconds(250)) { [weak self] in
-            self?.releaseScopesWhenStopped()
+        // Capture strongly until the native thread exits, even if VMEngine drops
+        // its backend after a startup timeout.
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + .milliseconds(250)) {
+            self.releaseScopesWhenStopped()
         }
     }
 
     var isRunning: Bool { isteam_qemu_is_running() }
+    var isActive: Bool { isteam_qemu_is_active() }
 
     var lastError: String? {
         let message = String(cString: isteam_qemu_last_error())

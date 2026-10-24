@@ -14,7 +14,6 @@
 #include <string.h>
 
 extern char **environ;
-
 #define ISTEAM_QEMU_SHUTDOWN_CAUSE_HOST_UI 4
 
 typedef int (*qemu_init_fn)(int, const char *[], const char *[]);
@@ -28,6 +27,8 @@ static pthread_t g_thread;
 static bool g_thread_created = false;
 static bool g_running = false;
 static bool g_stop_requested = false;
+/* UTM documents that QEMU cannot safely be relaunched in the same iOS process. */
+static bool g_has_started = false;
 static char g_error[512] = {0};
 static int g_argc = 0;
 static char **g_argv = NULL;
@@ -52,7 +53,6 @@ static void release_arguments(void) {
 
 static void *qemu_thread_main(void *unused) {
     (void)unused;
-
     int init_result = g_qemu_init(g_argc, (const char **)g_argv,
                                   (const char **)environ);
     if (init_result != 0) {
@@ -65,11 +65,7 @@ static void *qemu_thread_main(void *unused) {
         bool stop_after_init = g_stop_requested;
         qemu_shutdown_request_fn shutdown_fn = g_qemu_shutdown;
         pthread_mutex_unlock(&g_lock);
-
-        // A stop requested during qemu_init is deferred until QEMU is initialized.
-        if (stop_after_init && shutdown_fn) {
-            shutdown_fn(ISTEAM_QEMU_SHUTDOWN_CAUSE_HOST_UI);
-        }
+        if (stop_after_init && shutdown_fn) shutdown_fn(ISTEAM_QEMU_SHUTDOWN_CAUSE_HOST_UI);
         g_qemu_main_loop();
         if (g_qemu_cleanup) g_qemu_cleanup();
     }
@@ -99,6 +95,14 @@ bool isteam_qemu_start(int argc, const char * const *argv,
     }
 
     pthread_mutex_lock(&g_lock);
+    if (g_has_started) {
+        pthread_mutex_unlock(&g_lock);
+        if (error_buffer && error_capacity > 0) {
+            snprintf(error_buffer, (size_t)error_capacity,
+                     "UTM's iOS QEMU runtime cannot safely restart in the same app process. Force-quit and reopen i-Steam before starting another VM.");
+        }
+        return false;
+    }
     if (g_thread_created || g_running) {
         pthread_mutex_unlock(&g_lock);
         if (error_buffer && error_capacity > 0) snprintf(error_buffer, (size_t)error_capacity, "A QEMU session is already active");
@@ -168,6 +172,7 @@ bool isteam_qemu_start(int argc, const char * const *argv,
         if (error_buffer && error_capacity > 0) snprintf(error_buffer, (size_t)error_capacity, "Could not create QEMU worker thread");
         return false;
     }
+    g_has_started = true;
     pthread_detach(g_thread);
     pthread_mutex_unlock(&g_lock);
     return true;
@@ -178,9 +183,7 @@ void isteam_qemu_request_stop(void) {
     bool active = g_thread_created || g_running;
     bool can_request_now = g_running;
     qemu_shutdown_request_fn shutdown_fn = g_qemu_shutdown;
-    if (active && !can_request_now) {
-        g_stop_requested = true;
-    }
+    if (active && !can_request_now) g_stop_requested = true;
     pthread_mutex_unlock(&g_lock);
 
     if (active && can_request_now && shutdown_fn) {
@@ -204,6 +207,4 @@ bool isteam_qemu_is_active(void) {
     return value;
 }
 
-const char *isteam_qemu_last_error(void) {
-    return g_error;
-}
+const char *isteam_qemu_last_error(void) { return g_error; }
