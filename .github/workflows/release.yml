@@ -49,7 +49,7 @@ jobs:
         uses: dawidd6/action-download-artifact@v6
         with:
           workflow: build-qemu-runtime.yml
-          branch: main
+          branch: ${{ github.ref_name }}
           name: iSteam-qemu-runtime-ios-arm64
           path: build/qemu-runtime
           if_no_artifact_found: warn
