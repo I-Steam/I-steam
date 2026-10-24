@@ -26,7 +26,9 @@ final class QEMUBackend {
         runtime.stop()
     }
 
-    var isRunning: Bool { runtime.isRunning }\n\n    var lastError: String? { runtime.lastError }
+    var isRunning: Bool { runtime.isRunning }
+
+    var lastError: String? { runtime.lastError }
 
     private static func quote(_ value: String) -> String {
         if value.rangeOfCharacter(from: .whitespacesAndNewlines) == nil { return value }

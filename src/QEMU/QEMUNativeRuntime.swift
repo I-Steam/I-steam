@@ -36,9 +36,6 @@ final class QEMUNativeRuntime {
             dataDirectory = data
         }
 
-        // A disk/firmware selected from Files may be outside the app container.
-        // Keep access active until QEMU has stopped because QEMU opens these
-        // files asynchronously and may continue reading them for the whole run.
         var newlyScoped: [URL] = []
         for url in [diskImage, firmware].compactMap({ $0 }) {
             let granted = url.startAccessingSecurityScopedResource()
@@ -101,9 +98,6 @@ final class QEMUNativeRuntime {
     func stop() {
         guard started else { return }
         isteam_qemu_request_stop()
-        // The C bridge's stop request is asynchronous. Do not release the
-        // security scopes here; QEMU may still be unwinding its main loop.
-        // Polling is handled by VMEngine, which observes isRunning becoming false.
         started = false
         releaseScopesWhenStopped()
     }
@@ -119,5 +113,10 @@ final class QEMUNativeRuntime {
         scopedURLs.removeAll()
     }
 
-    var isRunning: Bool { isteam_qemu_is_running() }\n\n    var lastError: String? {\n        let message = String(cString: isteam_qemu_last_error())\n        return message.isEmpty ? nil : message\n    }
+    var isRunning: Bool { isteam_qemu_is_running() }
+
+    var lastError: String? {
+        let message = String(cString: isteam_qemu_last_error())
+        return message.isEmpty ? nil : message
+    }
 }

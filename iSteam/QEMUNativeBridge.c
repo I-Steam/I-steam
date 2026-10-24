@@ -17,11 +17,9 @@ extern char **environ;
 
 #define ISTEAM_QEMU_SHUTDOWN_CAUSE_HOST_UI 4
 
-// Signatures match UTM Services/UTMQemuSystem.m for its QEMU build.
 typedef int (*qemu_init_fn)(int, const char *[], const char *[]);
 typedef void (*qemu_main_loop_fn)(void);
 typedef void (*qemu_cleanup_fn)(void);
-// QEMU's ShutdownCause enum is passed as an int; HOST_UI is value 4.
 typedef void (*qemu_shutdown_request_fn)(int);
 
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -54,8 +52,6 @@ static void release_arguments(void) {
 static void *qemu_thread_main(void *unused) {
     (void)unused;
 
-    // UTM's current launcher treats qemu_init as an int-returning function and
-    // qemu_main_loop as void. Do not mark the VM running if initialization fails.
     int init_result = g_qemu_init(g_argc, (const char **)g_argv,
                                   (const char **)environ);
     if (init_result != 0) {
@@ -70,8 +66,6 @@ static void *qemu_thread_main(void *unused) {
         if (g_qemu_cleanup) g_qemu_cleanup();
     }
 
-    // Keep a local handle so a new session cannot overwrite the pointer we
-    // need to close. QEMU is fully unwound before the library is unloaded.
     pthread_mutex_lock(&g_lock);
     g_running = false;
     g_thread_created = false;
@@ -91,14 +85,14 @@ static void *qemu_thread_main(void *unused) {
 bool isteam_qemu_start(int argc, const char * const *argv,
                        const char *library_path, char *error_buffer, int error_capacity) {
     if (argc < 1 || !argv || !library_path || !library_path[0]) {
-        if (error_buffer && error_capacity > 0) snprintf(error_buffer, error_capacity, "Invalid QEMU launch arguments");
+        if (error_buffer && error_capacity > 0) snprintf(error_buffer, (size_t)error_capacity, "Invalid QEMU launch arguments");
         return false;
     }
 
     pthread_mutex_lock(&g_lock);
     if (g_thread_created || g_running) {
         pthread_mutex_unlock(&g_lock);
-        if (error_buffer && error_capacity > 0) snprintf(error_buffer, error_capacity, "A QEMU session is already active");
+        if (error_buffer && error_capacity > 0) snprintf(error_buffer, (size_t)error_capacity, "A QEMU session is already active");
         return false;
     }
     g_error[0] = '\0';
@@ -107,7 +101,7 @@ bool isteam_qemu_start(int argc, const char * const *argv,
     void *library = dlopen(library_path, RTLD_NOW | RTLD_LOCAL);
     if (!library) {
         const char *reason = dlerror();
-        if (error_buffer && error_capacity > 0) snprintf(error_buffer, error_capacity, "Could not load bundled QEMU: %s", reason ? reason : "unknown loader error");
+        if (error_buffer && error_capacity > 0) snprintf(error_buffer, (size_t)error_capacity, "Could not load bundled QEMU: %s", reason ? reason : "unknown loader error");
         return false;
     }
 
@@ -117,14 +111,14 @@ bool isteam_qemu_start(int argc, const char * const *argv,
     qemu_shutdown_request_fn shutdown_fn = (qemu_shutdown_request_fn)dlsym(library, "qemu_system_shutdown_request");
     if (!init_fn || !loop_fn || !cleanup_fn) {
         dlclose(library);
-        if (error_buffer && error_capacity > 0) snprintf(error_buffer, error_capacity, "QEMU library lacks required lifecycle symbols (qemu_init, qemu_main_loop, qemu_cleanup)");
+        if (error_buffer && error_capacity > 0) snprintf(error_buffer, (size_t)error_capacity, "QEMU library lacks required lifecycle symbols (qemu_init, qemu_main_loop, qemu_cleanup)");
         return false;
     }
 
     char **copied_argv = calloc((size_t)argc + 1, sizeof(char *));
     if (!copied_argv) {
         dlclose(library);
-        if (error_buffer && error_capacity > 0) snprintf(error_buffer, error_capacity, "Out of memory preparing QEMU arguments");
+        if (error_buffer && error_capacity > 0) snprintf(error_buffer, (size_t)error_capacity, "Out of memory preparing QEMU arguments");
         return false;
     }
     for (int i = 0; i < argc; ++i) {
@@ -133,7 +127,7 @@ bool isteam_qemu_start(int argc, const char * const *argv,
             for (int j = 0; j < i; ++j) free(copied_argv[j]);
             free(copied_argv);
             dlclose(library);
-            if (error_buffer && error_capacity > 0) snprintf(error_buffer, error_capacity, "Out of memory copying QEMU arguments");
+            if (error_buffer && error_capacity > 0) snprintf(error_buffer, (size_t)error_capacity, "Out of memory copying QEMU arguments");
             return false;
         }
     }
@@ -161,7 +155,7 @@ bool isteam_qemu_start(int argc, const char * const *argv,
         for (int i = 0; i < argc; ++i) free(copied_argv[i]);
         free(copied_argv);
         dlclose(library);
-        if (error_buffer && error_capacity > 0) snprintf(error_buffer, error_capacity, "Could not create QEMU worker thread");
+        if (error_buffer && error_capacity > 0) snprintf(error_buffer, (size_t)error_capacity, "Could not create QEMU worker thread");
         return false;
     }
     pthread_detach(g_thread);
@@ -174,7 +168,12 @@ void isteam_qemu_request_stop(void) {
     bool active = g_thread_created || g_running;
     qemu_shutdown_request_fn shutdown_fn = g_qemu_shutdown;
     pthread_mutex_unlock(&g_lock);
-    if (active && shutdown_fn) shutdown_fn(ISTEAM_QEMU_SHUTDOWN_CAUSE_HOST_UI);\n    else if (active) set_error("This QEMU build does not export qemu_system_shutdown_request; graceful stop is unavailable.");
+
+    if (active && shutdown_fn) {
+        shutdown_fn(ISTEAM_QEMU_SHUTDOWN_CAUSE_HOST_UI);
+    } else if (active) {
+        set_error("This QEMU build does not export qemu_system_shutdown_request; graceful stop is unavailable.");
+    }
 }
 
 bool isteam_qemu_is_running(void) {
@@ -184,4 +183,6 @@ bool isteam_qemu_is_running(void) {
     return value;
 }
 
-const char *isteam_qemu_last_error(void) { return g_error; }
+const char *isteam_qemu_last_error(void) {
+    return g_error;
+}
