@@ -27,6 +27,7 @@ static void *g_library = NULL;
 static pthread_t g_thread;
 static bool g_thread_created = false;
 static bool g_running = false;
+static bool g_stop_requested = false;
 static char g_error[512] = {0};
 static int g_argc = 0;
 static char **g_argv = NULL;
@@ -61,7 +62,14 @@ static void *qemu_thread_main(void *unused) {
     } else {
         pthread_mutex_lock(&g_lock);
         g_running = true;
+        bool stop_after_init = g_stop_requested;
+        qemu_shutdown_request_fn shutdown_fn = g_qemu_shutdown;
         pthread_mutex_unlock(&g_lock);
+
+        // A stop requested during qemu_init is deferred until QEMU is initialized.
+        if (stop_after_init && shutdown_fn) {
+            shutdown_fn(ISTEAM_QEMU_SHUTDOWN_CAUSE_HOST_UI);
+        }
         g_qemu_main_loop();
         if (g_qemu_cleanup) g_qemu_cleanup();
     }
@@ -69,6 +77,7 @@ static void *qemu_thread_main(void *unused) {
     pthread_mutex_lock(&g_lock);
     g_running = false;
     g_thread_created = false;
+    g_stop_requested = false;
     release_arguments();
     void *finished_library = g_library;
     g_library = NULL;
@@ -96,6 +105,7 @@ bool isteam_qemu_start(int argc, const char * const *argv,
         return false;
     }
     g_error[0] = '\0';
+    g_stop_requested = false;
     pthread_mutex_unlock(&g_lock);
 
     void *library = dlopen(library_path, RTLD_NOW | RTLD_LOCAL);
@@ -166,12 +176,16 @@ bool isteam_qemu_start(int argc, const char * const *argv,
 void isteam_qemu_request_stop(void) {
     pthread_mutex_lock(&g_lock);
     bool active = g_thread_created || g_running;
+    bool can_request_now = g_running;
     qemu_shutdown_request_fn shutdown_fn = g_qemu_shutdown;
+    if (active && !can_request_now) {
+        g_stop_requested = true;
+    }
     pthread_mutex_unlock(&g_lock);
 
-    if (active && shutdown_fn) {
+    if (active && can_request_now && shutdown_fn) {
         shutdown_fn(ISTEAM_QEMU_SHUTDOWN_CAUSE_HOST_UI);
-    } else if (active) {
+    } else if (active && can_request_now) {
         set_error("This QEMU build does not export qemu_system_shutdown_request; graceful stop is unavailable.");
     }
 }
@@ -179,6 +193,13 @@ void isteam_qemu_request_stop(void) {
 bool isteam_qemu_is_running(void) {
     pthread_mutex_lock(&g_lock);
     bool value = g_running;
+    pthread_mutex_unlock(&g_lock);
+    return value;
+}
+
+bool isteam_qemu_is_active(void) {
+    pthread_mutex_lock(&g_lock);
+    bool value = g_thread_created || g_running;
     pthread_mutex_unlock(&g_lock);
     return value;
 }

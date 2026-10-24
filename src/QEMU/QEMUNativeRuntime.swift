@@ -103,14 +103,14 @@ final class QEMUNativeRuntime {
     }
 
     private func releaseScopesWhenStopped() {
-        guard !isteam_qemu_is_running() else {
-            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + .milliseconds(250)) { [weak self] in
-                self?.releaseScopesWhenStopped()
-            }
+        guard isteam_qemu_is_active() else {
+            scopedURLs.forEach { $0.stopAccessingSecurityScopedResource() }
+            scopedURLs.removeAll()
             return
         }
-        scopedURLs.forEach { $0.stopAccessingSecurityScopedResource() }
-        scopedURLs.removeAll()
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + .milliseconds(250)) { [weak self] in
+            self?.releaseScopesWhenStopped()
+        }
     }
 
     var isRunning: Bool { isteam_qemu_is_running() }
