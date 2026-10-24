@@ -31,7 +31,8 @@ struct QEMUCommandBuilder {
             "-m", "\(configuration.memoryMB)", "-smp", "\(configuration.cpuCount)",
             "-cpu", "max",
             "-accel", configuration.accelerator == .jit ? "tcg,tb-size=512,split-wx=on" : "tcg",
-            // The current display backend is QEMU VNC, not a host OpenGL renderer.\n            // Use the portable 2D device so GL-only models cannot prevent VM startup.\n            "-device", VMConfiguration.GPUModel.virtioGPU.rawValue,
+            // VNC is the current display backend, so use a portable 2D device.
+            "-device", VMConfiguration.GPUModel.virtioGPU.rawValue,
             "-rtc", "base=utc,clock=host"
         ]
         let bootFromISO = diskImage.map(Self.isISO9660) ?? false

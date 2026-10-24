@@ -43,7 +43,7 @@ jobs:
       - name: Install UTM build dependencies
         run: |
           set -euo pipefail
-          brew install bison pkg-config gettext glib-utils libgpg-error nasm meson cmake llvm spirv-llvm-translator libxcb libxrandr
+          brew install bison pkg-config gettext glib glib-utils libgpg-error nasm meson cmake llvm spirv-llvm-translator libxcb libxrandr
           python3 -m pip install --break-system-packages six pyparsing pyyaml setuptools distlib mako
           echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
           echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
@@ -53,7 +53,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: UTM/sysroot-iOS-arm64
-          key: utm-ios-arm64-sysroot-v1-${{ hashFiles('UTM/scripts/build_dependencies.sh', 'UTM/scripts/fixup.sh', 'UTM/patches/**') }}
+          key: utm-ios-arm64-sysroot-v2-${{ hashFiles('UTM/scripts/build_dependencies.sh', 'UTM/scripts/fixup.sh', 'UTM/patches/**') }}
 
       - name: Build UTM dependencies for physical iOS arm64
         shell: bash
@@ -77,30 +77,16 @@ jobs:
           ./scripts/build_utm.sh -k iphoneos -s iOS -a arm64 -o UTMBuild
           test -d UTMBuild/UTM.xcarchive
 
-      - name: Collect runtime evidence
+      - name: Package and verify in-process QEMU runtime
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p build/qemu-runtime
-          cp -R UTM/sysroot-iOS-arm64 build/qemu-runtime/sysroot-iOS-arm64
-          ditto -c -k --sequesterRsrc --keepParent UTM/UTMBuild/UTM.xcarchive build/qemu-runtime/UTM-iOS-arm64.xcarchive.zip
-          APP="UTM/UTMBuild/UTM.xcarchive/Products/Applications/UTM.app"
-          if [ -d "$APP" ]; then
-            find "$APP" -maxdepth 5 \( -name 'QEMU.framework' -o -name 'libqemu*.dylib' -o -iname '*qemu*' \) -print > build/qemu-runtime/runtime-file-inventory.txt
-          else
-            echo "UTM.app not found at expected archive path." >&2
-            exit 1
-          fi
-          cat > build/qemu-runtime/BUILD-INFO.txt <<EOF
-          Source: utmapp/UTM at the main branch tip checked out by this workflow
-          Target: physical iOS arm64 (not simulator)
-          Dependency build: scripts/build_dependencies.sh -p ios -a arm64
-          App build: scripts/build_utm.sh -k iphoneos -s iOS -a arm64
-          Note: this artifact is an upstream UTM build for inspection. It has not been adapted, linked, or tested as an i-Steam runtime.
-          EOF
-          test -s build/qemu-runtime/runtime-file-inventory.txt
+          bash scripts/package-utm-qemu-runtime.sh UTM/UTMBuild/UTM.xcarchive build/qemu-runtime
+          cp UTM/UTMBuild/UTM.xcarchive/Info.plist build/qemu-runtime/UTM-archive-Info.plist
+          echo "UTM revision: $(git -C UTM rev-parse HEAD)" >> build/qemu-runtime/BUILD-INFO.txt
+          cat build/qemu-runtime/BUILD-INFO.txt
 
-      - name: Upload UTM runtime build artifacts
+      - name: Upload verified QEMU runtime artifact
         uses: actions/upload-artifact@v4
         with:
           name: iSteam-qemu-runtime-ios-arm64

@@ -1,28 +1,21 @@
 # Building the iOS QEMU runtime
 
-The repository's i-Steam app code currently has the in-process QEMU bridge and a VNC display client, but it does not contain a compiled device-arm64 QEMU runtime. Without that runtime, i-Steam cannot boot a guest OS.
+i-Steam uses an in-process QEMU lifecycle bridge. A usable runtime must be a device-arm64 Mach-O library that exports `qemu_init`, `qemu_main_loop`, and `qemu_cleanup`, and it must ship the matching QEMU data files. Merely building the UTM app or downloading its archive is not enough.
 
-## Build workflow
+## Build
 
-Run the GitHub Actions workflow **Build UTM iOS QEMU runtime (manual)** from the Actions tab. It checks out UTM with submodules, builds its dependency sysroot for physical iOS arm64, builds the upstream iOS archive, and uploads an artifact named `iSteam-qemu-runtime-ios-arm64`.
+1. Open GitHub Actions in the `I-Steam/I-steam` mirror and run **Build UTM iOS QEMU runtime (manual)**.
+2. Leave **Rebuild UTM dependencies** off for a cached build; turn it on only when the upstream dependency inputs changed or the cached sysroot is invalid.
+3. Download the `iSteam-qemu-runtime-ios-arm64` artifact from a successful run.
 
-The build is deliberately manual: dependency compilation is resource-intensive and should not run for every nightly release. The artifact includes the upstream archive, dependency sysroot, a runtime-file inventory, and build information.
+The workflow builds upstream UTM for physical iOS arm64, then runs `scripts/package-utm-qemu-runtime.sh`. That script rejects candidates that do not export the lifecycle ABI or are not arm64, and rejects archives with no discoverable QEMU BIOS/data directory. It packages the library and data under `QEMU/`.
 
-## Important integration work still required
+## Current limitation
 
-This workflow is a reproducible upstream build and discovery step, **not an automatic i-Steam runtime installer**. Before copying anything into i-Steam:
+This is a validated runtime artifact, not yet an automatic IPA integration. It must still be embedded at the paths expected by `QEMURuntimeStatus`, signed as part of the app, and exercised on a physical iPad. The QEMU runtime cannot be considered finished until the workflow succeeds and a guest OS boots on-device. Do not use an upstream UTM executable or a library with different lifecycle exports as a substitute.
 
-1. Inspect the artifact inventory and select the exact QEMU library and its dependent libraries.
-2. Confirm it exports the exact lifecycle ABI expected by `iSteam/QEMUNativeBridge.c`: `qemu_init`, `qemu_main_loop`, and `qemu_cleanup`; verify shutdown export separately.
-3. Confirm the library is built for physical iOS arm64 and that its dependencies, install names, rpaths, and data files are packaged correctly.
-4. Adapt and package the matching QEMU data directory at `iSteam.app/QEMU` and the library in `iSteam.app/Frameworks` or the supported bundle path.
-5. Ensure all embedded executable code is signed consistently with the app. Then add a release-workflow smoke check that inspects the IPA for the library, data files, architectures, and required symbols.
-6. Boot a redistributable test image on a physical iPad and verify display, keyboard, pointer, controller, storage, networking, and shutdown.
-
-UTM's source changes over time; the workflow records the checked-out upstream revision in the GitHub run logs. Review the upstream license and preserve all required notices before redistributing runtime binaries.
-
-## Upstream instructions
+## Upstream references
 
 - [UTM iOS development guide](https://github.com/utmapp/UTM/blob/main/Documentation/iOSDevelopment.md)
-- [UTM dependency build script](https://github.com/utmapp/UTM/blob/main/scripts/build_dependencies.sh)
-- [UTM app build script](https://github.com/utmapp/UTM/blob/main/scripts/build_utm.sh)
+- [UTM QEMU bootstrap lifecycle](https://github.com/utmapp/UTM/blob/main/QEMULauncher/Bootstrap.c)
+- [UTM architecture notes](https://github.com/utmapp/UTM/blob/main/Documentation/Architecture.md)
