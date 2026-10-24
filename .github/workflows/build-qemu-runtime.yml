@@ -48,12 +48,14 @@ jobs:
           echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
           echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
 
-      - name: Cache UTM dependency sysroot
+      - name: Cache UTM dependency build and sysroot
         if: ${{ !inputs.rebuild_dependencies }}
         uses: actions/cache@v4
         with:
-          path: UTM/sysroot-iOS-arm64
-          key: utm-ios-arm64-sysroot-v2-${{ hashFiles('UTM/scripts/build_dependencies.sh', 'UTM/scripts/fixup.sh', 'UTM/patches/**') }}
+          path: |
+            UTM/build-iOS-arm64
+            UTM/sysroot-iOS-arm64
+          key: utm-ios-arm64-deps-v3-${{ hashFiles('UTM/scripts/build_dependencies.sh', 'UTM/scripts/fixup.sh', 'UTM/patches/**') }}
 
       - name: Build UTM dependencies for physical iOS arm64
         shell: bash
@@ -62,12 +64,13 @@ jobs:
         run: |
           set -euo pipefail
           cd UTM
-          if [ "${{ inputs.rebuild_dependencies }}" = "true" ] || [ ! -f sysroot-iOS-arm64/BUILD_SUCCESS ]; then
+          if [ "${{ inputs.rebuild_dependencies }}" = "true" ] || [ ! -f build-iOS-arm64/BUILD_SUCCESS ]; then
             ./scripts/build_dependencies.sh -p ios -a arm64
           else
-            echo "Using the cached iOS arm64 sysroot."
+            echo "Using the cached iOS arm64 dependency build."
           fi
-          test -f sysroot-iOS-arm64/BUILD_SUCCESS
+          test -f build-iOS-arm64/BUILD_SUCCESS
+          test -d sysroot-iOS-arm64
 
       - name: Build UTM iOS archive
         shell: bash
@@ -75,14 +78,14 @@ jobs:
           set -euo pipefail
           cd UTM
           ./scripts/build_utm.sh -k iphoneos -s iOS -a arm64 -o UTMBuild
-          test -d UTMBuild/UTM.xcarchive
+          test -d UTMBuild.xcarchive/Products/Applications/UTM.app
 
       - name: Package and verify in-process QEMU runtime
         shell: bash
         run: |
           set -euo pipefail
-          bash scripts/package-utm-qemu-runtime.sh UTM/UTMBuild/UTM.xcarchive build/qemu-runtime
-          cp UTM/UTMBuild/UTM.xcarchive/Info.plist build/qemu-runtime/UTM-archive-Info.plist
+          bash scripts/package-utm-qemu-runtime.sh UTM/UTMBuild.xcarchive build/qemu-runtime
+          cp UTM/UTMBuild.xcarchive/Info.plist build/qemu-runtime/UTM-archive-Info.plist
           echo "UTM revision: $(git -C UTM rev-parse HEAD)" >> build/qemu-runtime/BUILD-INFO.txt
           cat build/qemu-runtime/BUILD-INFO.txt
 
