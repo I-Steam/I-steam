@@ -155,7 +155,7 @@ final class LaunchSetupViewController: UIViewController, UIDocumentPickerDelegat
         config.displayHeight = isSteamOS ? 800 : RuntimeSettings.shared.renderResolution.height
         config.displayFPS = isSteamOS ? 60 : RuntimeSettings.shared.frameRate.value
         if isSteamOS {
-            config.memoryMB = min(max(config.memoryMB, 4096), 4096)
+            config.memoryMB = 4096
             config.cpuCount = max(config.cpuCount, 4)
             config.accelerator = .jit
             config.gpu = .virtioGPU
