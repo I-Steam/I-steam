@@ -21,7 +21,7 @@ permissions:
 
 concurrency:
   group: qemu-runtime-ios-arm64
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build-utm-runtime:
