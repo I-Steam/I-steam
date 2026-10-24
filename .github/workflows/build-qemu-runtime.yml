@@ -43,7 +43,7 @@ jobs:
       - name: Install UTM build dependencies
         run: |
           set -euo pipefail
-          brew install bison pkg-config gettext glib glib-utils libgpg-error nasm meson cmake llvm spirv-llvm-translator libxcb libxrandr
+          brew install bison pkg-config gettext glib libgpg-error nasm meson cmake llvm spirv-llvm-translator libxcb libxrandr
           python3 -m pip install --break-system-packages six pyparsing pyyaml setuptools distlib mako
           echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
           echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
