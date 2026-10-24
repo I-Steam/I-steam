@@ -43,6 +43,6 @@ jobs:
             -scheme "${{ matrix.scheme }}" \
             -configuration Debug \
             -sdk "${{ matrix.sdk }}" \
-            -destination 'generic/platform=${{ matrix.destination }}' \
+            -destination '${{ matrix.destination }}' \
             CODE_SIGNING_ALLOWED=NO \
             build
