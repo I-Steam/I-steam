@@ -5,10 +5,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef void (*qemu_init_fn)(int, char **);
+extern char **environ;
+
+#define ISTEAM_QEMU_SHUTDOWN_CAUSE_HOST_UI 4
+
+// Match the three-argument embedding entry point used by current QEMU/UTM builds.
+typedef void (*qemu_init_fn)(int, char **, char **);
 typedef int (*qemu_main_loop_fn)(void);
 typedef void (*qemu_cleanup_fn)(void);
-typedef void (*qemu_shutdown_request_fn)(void);
+// QEMU's ShutdownCause enum is passed as an int; HOST_UI is value 4.
+typedef void (*qemu_shutdown_request_fn)(int);
 
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 static void *g_library = NULL;
@@ -39,7 +45,7 @@ static void release_arguments(void) {
 
 static void *qemu_thread_main(void *unused) {
     (void)unused;
-    g_qemu_init(g_argc, g_argv);
+    g_qemu_init(g_argc, g_argv, environ);
     pthread_mutex_lock(&g_lock);
     g_running = true;
     pthread_mutex_unlock(&g_lock);
@@ -157,7 +163,7 @@ void isteam_qemu_request_stop(void) {
     bool active = g_thread_created || g_running;
     qemu_shutdown_request_fn shutdown_fn = g_qemu_shutdown;
     pthread_mutex_unlock(&g_lock);
-    if (active && shutdown_fn) shutdown_fn();
+    if (active && shutdown_fn) shutdown_fn(ISTEAM_QEMU_SHUTDOWN_CAUSE_HOST_UI);
 }
 
 bool isteam_qemu_is_running(void) {
