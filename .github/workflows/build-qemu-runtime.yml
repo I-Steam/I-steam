@@ -1,6 +1,13 @@
 name: Build UTM iOS QEMU runtime (manual)
 
 on:
+  push:
+    branches:
+      - main
+      - fix/qemu-disk-launch-flow
+    paths:
+      - .github/workflows/build-qemu-runtime.yml
+      - scripts/package-utm-qemu-runtime.sh
   workflow_dispatch:
     inputs:
       rebuild_dependencies:
