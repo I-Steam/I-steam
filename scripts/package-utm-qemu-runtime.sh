@@ -17,6 +17,7 @@ fi
 find "$APP" -type f \( -name '*.dylib' -o -name 'QEMU' -o -name 'qemu-*softmmu*' \) -print | tee "$OUT/runtime-file-inventory.txt"
 
 candidate=""
+exports=""
 while IFS= read -r file; do
   [ -n "$file" ] || continue
   if file "$file" | grep -q 'Mach-O'; then
@@ -50,11 +51,17 @@ case "$candidate" in
       mkdir -p "$(dirname "$OUT/Frameworks/$relative")"
       cp "$candidate" "$OUT/Frameworks/$relative"
     }
+    runtime_relative="Frameworks/$relative"
     ;;
   *)
-    cp "$candidate" "$OUT/Frameworks/$(basename "$candidate")"
+    runtime_relative="Frameworks/$(basename "$candidate")"
+    cp "$candidate" "$OUT/$runtime_relative"
     ;;
 esac
+
+# The app resolves the runtime through this manifest rather than assuming
+# that every UTM revision names its loadable library the same way.
+printf '%s\n' "$runtime_relative" > "$OUT/QEMU/runtime-library-path.txt"
 printf '%s\n' "$exports" | grep -E ' _?qemu_(init|main_loop|cleanup)$| _?qemu_system_shutdown_request$' > "$OUT/exports.txt" || true
 
 data_dir=""
@@ -66,7 +73,9 @@ if [ -z "$data_dir" ]; then
   exit 4
 fi
 cp -R "$data_dir"/. "$OUT/QEMU/"
-# Preserve UEFI firmware files even if UTM stores them outside the BIOS data folder.
+# Preserve the generated path manifest if the source data directory happened
+# to contain a file with the same name.
+printf '%s\n' "$runtime_relative" > "$OUT/QEMU/runtime-library-path.txt"
 while IFS= read -r firmware_file; do
   [ -n "$firmware_file" ] || continue
   cp "$firmware_file" "$OUT/QEMU/$(basename "$firmware_file")"
@@ -76,10 +85,11 @@ cat > "$OUT/BUILD-INFO.txt" <<EOF
 Source: utmapp/UTM at the revision checked out by the workflow
 Target: physical iOS arm64
 Library source: $candidate
+Packaged library path: $runtime_relative
 Architectures: $ARCHS
 Lifecycle exports: verified by nm before packaging
 Data source: $data_dir
-Package layout: Frameworks/ (UTM dependencies), QEMU/ (QEMU data files)
+Package layout: Frameworks/ (UTM dependencies), QEMU/ (QEMU data files and runtime manifest)
 Important: embed and code-sign nested code in i-Steam and boot-test on a physical device before claiming runtime support.
 EOF
 
