@@ -93,7 +93,21 @@ jobs:
             *) echo "Unexpected QEMU runtime path: $RUNTIME_REL" >&2; exit 1 ;;
           esac
           test -s "$RUNTIME_DIR/$RUNTIME_REL" || { echo "Manifest points to a missing QEMU library: $RUNTIME_REL" >&2; exit 1; }
-          grep -Eq ' _?qemu_init
+          grep -Eq ' _?qemu_init$' "$RUNTIME_DIR/exports.txt" || { echo "QEMU init export is missing." >&2; exit 1; }
+          grep -Eq ' _?qemu_main_loop$' "$RUNTIME_DIR/exports.txt" || { echo "QEMU main-loop export is missing." >&2; exit 1; }
+          grep -Eq ' _?qemu_cleanup$' "$RUNTIME_DIR/exports.txt" || { echo "QEMU cleanup export is missing." >&2; exit 1; }
+
+          # The IPA must contain the runtime, not just validate an artifact
+          # that is left behind in the runner workspace.
+          mkdir -p "$APP/Frameworks" "$APP/QEMU"
+          cp -R "$RUNTIME_DIR/Frameworks/." "$APP/Frameworks/"
+          cp -R "$RUNTIME_DIR/QEMU/." "$APP/QEMU/"
+          EMBEDDED_LIBRARY="$APP/$RUNTIME_REL"
+          test -s "$EMBEDDED_LIBRARY" || { echo "Embedded QEMU library is missing: $EMBEDDED_LIBRARY" >&2; exit 1; }
+          test -s "$APP/QEMU/runtime-library-path.txt" || { echo "Embedded QEMU library manifest is missing." >&2; exit 1; }
+          test -n "$(find "$APP/QEMU" -type f -size +0c -print -quit)" || { echo "No QEMU data files were embedded." >&2; exit 1; }
+
+          mkdir -p build/Payload
           mkdir -p build/Payload
           cp -R "$APP" build/Payload/iSteam.app
           ditto -c -k --sequesterRsrc --keepParent build/Payload build/iSteam-ios.ipa
