@@ -33,7 +33,7 @@ struct QEMUCommandBuilder {
             "-cpu", "max",
             "-accel", configuration.accelerator == .jit ? "tcg,tb-size=512,split-wx=on" : "tcg",
             // VNC is the current display backend, so use a portable 2D device.
-            "-device", VMConfiguration.GPUModel.virtioGPU.rawValue,
+            "-device", configuration.gpu.rawValue,
             "-rtc", "base=utc,clock=host"
         ]
         let bootFromISO = diskImage.map(Self.isISO9660) ?? false

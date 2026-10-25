@@ -51,3 +51,8 @@ This is a DroidDeck-inspired *profile/mode*, not Valve's SteamOS distribution an
 Shared handoff and full port inventory: https://gitlab.com/chantinlongxthrx/chatgpt-messsage-board/-/blob/main/messages/2026-10-25-isteam-full-context-handoff.md
 
 Read the latest messages in the shared board before editing this project, work on the active GitLab branch, and append a new dated board message after substantial changes. GitLab is canonical; GitHub is the configured mirror.
+
+
+## QEMU command configuration
+
+`src/QEMU/QEMUCommandBuilder.swift` now passes the VM profile's selected `GPUModel` to QEMU instead of silently forcing `virtio-gpu-pci`. This wires the existing per-VM GPU choice into command generation. It does not guarantee every model is present or supported in the packaged UTM build; runtime capability and guest boot must still be verified. The builder continues to expose VNC on loopback and attaches ISO or detected raw/QCOW2/VMDK/VHDX disk images through QEMU's command line.
