@@ -34,3 +34,9 @@ A runtime feature is complete only when the required target-specific binaries an
 The Launch Setup screen now offers **SteamOS Gaming Mode** on iOS and the tvOS prototype. It selects a Linux guest profile with 4 GB configured RAM, four virtual CPUs, 1280×800/60 FPS targets, and USB keyboard/tablet input. The selection is remembered and can be saved in a VM configuration slot.
 
 This is a DroidDeck-inspired *profile/mode*, not Valve's SteamOS distribution and not a promise of Steam Big Picture booting. The user must provide a compatible guest image; SteamOS-like distributions commonly require UEFI and graphics features that are not yet guaranteed by i-Steam. Until the QEMU runtime, UEFI firmware and display/input path pass on-device boot tests, readiness remains partial.
+
+## Cross-chat coordination
+
+Shared handoff and full port inventory: https://gitlab.com/chantinlongxthrx/chatgpt-messsage-board/-/blob/main/messages/2026-10-25-isteam-full-context-handoff.md
+
+Read the latest messages in the shared board before editing this project, work on the active GitLab branch, and append a new dated board message after substantial changes. GitLab is canonical; GitHub is the configured mirror.
