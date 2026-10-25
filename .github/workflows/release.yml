@@ -43,16 +43,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download latest verified iOS QEMU runtime artifact
+      - name: Download required iOS QEMU runtime artifact
         if: matrix.platform == 'iOS'
-        continue-on-error: true
         uses: dawidd6/action-download-artifact@v6
         with:
           workflow: build-qemu-runtime.yml
           branch: ${{ github.ref_name }}
           name: iSteam-qemu-runtime-ios-arm64
           path: build/qemu-runtime
-          if_no_artifact_found: warn
+          if_no_artifact_found: fail
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/cache@v4
@@ -83,14 +82,770 @@ jobs:
           APP="build/iSteam.xcarchive/Products/Applications/iSteam.app"
           test -d "$APP"
           /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist" | grep -Fx "$EXPECTED_BUNDLE"
-          if [ -d build/qemu-runtime/Frameworks ] && [ -d build/qemu-runtime/QEMU ]; then
-            echo "Embedding verified UTM QEMU runtime and dependencies."
-            mkdir -p "$APP/Frameworks" "$APP/QEMU"
-            cp -R build/qemu-runtime/Frameworks/. "$APP/Frameworks/"
-            cp -R build/qemu-runtime/QEMU/. "$APP/QEMU/"
+          RUNTIME_DIR="build/qemu-runtime"
+          test -d "$RUNTIME_DIR/Frameworks" || { echo "Required QEMU Frameworks directory is missing." >&2; exit 1; }
+          test -d "$RUNTIME_DIR/QEMU" || { echo "Required QEMU data directory is missing." >&2; exit 1; }
+          test -s "$RUNTIME_DIR/QEMU/runtime-library-path.txt" || { echo "Runtime library manifest is missing." >&2; exit 1; }
+          test -s "$RUNTIME_DIR/exports.txt" || { echo "QEMU export manifest is missing." >&2; exit 1; }
+          RUNTIME_REL="$(head -n 1 "$RUNTIME_DIR/QEMU/runtime-library-path.txt")"
+          case "$RUNTIME_REL" in
+            Frameworks/*) ;;
+            *) echo "Unexpected QEMU runtime path: $RUNTIME_REL" >&2; exit 1 ;;
+          esac
+          test -s "$RUNTIME_DIR/$RUNTIME_REL" || { echo "Manifest points to a missing QEMU library: $RUNTIME_REL" >&2; exit 1; }
+          grep -Eq ' _?qemu_init
+          mkdir -p build/Payload
+          cp -R "$APP" build/Payload/iSteam.app
+          ditto -c -k --sequesterRsrc --keepParent build/Payload build/iSteam-ios.ipa
+          unzip -t build/iSteam-ios.ipa >/dev/null
+          bash scripts/validate-apple-package.sh build/iSteam-ios.ipa iSteam.app "$EXPECTED_BUNDLE"
+          shasum -a 256 build/iSteam-ios.ipa > build/iSteam-ios.ipa.sha256
+
+      - name: Build and package tvOS IPA
+        if: matrix.platform == 'tvOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="0.1.$(printf '%03d' "$GITHUB_RUN_NUMBER")"
+          if [ "$RELEASE_CHANNEL" = "main" ]; then
+            EXPECTED_BUNDLE="com.xthrx.isteam.tvos"
           else
-            echo "::warning::No verified QEMU runtime artifact is available; this IPA will report the guest runtime as unavailable."
+            EXPECTED_BUNDLE="com.xthrx.isteam.tvos.nightly"
           fi
+          xcodebuild -project iSteam.xcodeproj -scheme iSteamTV -configuration Release -sdk appletvos -destination 'generic/platform=tvOS' -derivedDataPath "$PWD/build/tvDerivedData" MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" PRODUCT_BUNDLE_IDENTIFIER="$EXPECTED_BUNDLE" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 build
+          APP="build/tvDerivedData/Build/Products/Release-appletvos/iSteamTV.app"
+          test -d "$APP"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist" | grep -Fx "$EXPECTED_BUNDLE"
+          mkdir -p build/tvPayload/Payload
+          cp -R "$APP" build/tvPayload/Payload/iSteamTV.app
+          ditto -c -k --sequesterRsrc --keepParent build/tvPayload/Payload build/iSteam-tvOS.ipa
+          unzip -t build/iSteam-tvOS.ipa >/dev/null
+          bash scripts/validate-apple-package.sh build/iSteam-tvOS.ipa iSteamTV.app "$EXPECTED_BUNDLE"
+          shasum -a 256 build/iSteam-tvOS.ipa > build/iSteam-tvOS.ipa.sha256
+
+      - name: Build and package visionOS app
+        if: matrix.platform == 'visionOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="0.1.$(printf '%03d' "$GITHUB_RUN_NUMBER")"
+          xcodebuild -project iSteam.xcodeproj -scheme iSteamVision -configuration Release -sdk xros -destination 'generic/platform=visionOS' -derivedDataPath "$PWD/build/visionDerivedData" MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 build
+          APP="build/visionDerivedData/Build/Products/Release-xros/iSteamVision.app"
+          test -d "$APP"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist" | grep -Fx "com.xthrx.isteam.visionos"
+          mkdir -p build/visionPayload/Payload
+          cp -R "$APP" build/visionPayload/Payload/iSteamVision.app
+          ditto -c -k --sequesterRsrc --keepParent build/visionPayload/Payload build/iSteam-visionOS.ipa
+          unzip -t build/iSteam-visionOS.ipa >/dev/null
+          bash scripts/validate-apple-package.sh build/iSteam-visionOS.ipa iSteamVision.app com.xthrx.isteam.visionos
+          shasum -a 256 build/iSteam-visionOS.ipa > build/iSteam-visionOS.ipa.sha256
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: iSteam-${{ matrix.platform }}-${{ matrix.channel }}
+          path: |
+            build/iSteam-${{ matrix.platform == 'iOS' && 'ios' || matrix.platform == 'tvOS' && 'tvOS' || 'visionOS' }}.ipa
+            build/iSteam-${{ matrix.platform == 'iOS' && 'ios' || matrix.platform == 'tvOS' && 'tvOS' || 'visionOS' }}.ipa.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish combined ${{ matrix.channel }} release
+    needs: build
+    runs-on: macos-15
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: ${{ fromJSON(format('["{0}"]', github.event_name == 'workflow_dispatch' && inputs.channel == 'Main' && 'main' || 'nightly')) }}
+    env:
+      RELEASE_CHANNEL: ${{ matrix.channel }}
+      VERSION: 0.1.${{ format('{0}', github.run_number) }}
+      PAGES_TOKEN: ${{ secrets.PAGES_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download iOS build
+        uses: actions/download-artifact@v4
+        with:
+          name: iSteam-iOS-${{ matrix.channel }}
+          path: build
+
+      - name: Download tvOS build
+        uses: actions/download-artifact@v4
+        with:
+          name: iSteam-tvOS-${{ matrix.channel }}
+          path: build
+
+      - name: Download visionOS build
+        uses: actions/download-artifact@v4
+        with:
+          name: iSteam-visionOS-${{ matrix.channel }}
+          path: build
+
+      - name: Verify combined release assets
+        run: |
+          set -euo pipefail
+          for asset in iSteam-ios iSteam-tvOS iSteam-visionOS; do
+            test -s "build/$asset.ipa"
+            test -s "build/$asset.ipa.sha256"
+            unzip -t "build/$asset.ipa" >/dev/null
+            shasum -a 256 -c "build/$asset.ipa.sha256"
+          done
+
+      - name: Set release metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="0.1.$(printf '%03d' "$GITHUB_RUN_NUMBER")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$RELEASE_CHANNEL" >> "$GITHUB_OUTPUT"
+          if [ "$RELEASE_CHANNEL" = "main" ]; then
+            echo "title=$VERSION Main (iOS + tvOS)" >> "$GITHUB_OUTPUT"
+          else
+            echo "title=$VERSION Nightly (iOS + tvOS)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish combined release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.title }}
+          prerelease: ${{ env.RELEASE_CHANNEL == 'nightly' }}
+          make_latest: ${{ env.RELEASE_CHANNEL == 'main' && 'true' || 'false' }}
+          overwrite_files: true
+          files: |
+            build/iSteam-ios.ipa
+            build/iSteam-ios.ipa.sha256
+            build/iSteam-tvOS.ipa
+            build/iSteam-tvOS.ipa.sha256
+            build/iSteam-visionOS.ipa
+            build/iSteam-visionOS.ipa.sha256
+          body: |
+            i-Steam ${{ matrix.channel }} build ${{ steps.meta.outputs.version }}.
+
+            Includes unsigned prototype builds:
+            - **iOS:** `iSteam-ios.ipa`
+            - **tvOS:** `iSteam-tvOS.ipa`
+            - **visionOS:** `iSteam-visionOS.ipa`
+
+            These are unsigned prototype builds. Sign them with a compatible signer before installing.
+
+      - name: Checkout AltStore website
+        if: (matrix.channel == 'nightly' || github.event_name == 'workflow_dispatch') && env.PAGES_TOKEN != ''
+        uses: actions/checkout@v4
+        with:
+          repository: I-Steam/I-steam.github.io
+          ref: main
+          token: ${{ secrets.PAGES_TOKEN }}
+          path: website
+
+      - name: Update legacy AltStore source and publish iOS IPA
+        if: (matrix.channel == 'nightly' || github.event_name == 'workflow_dispatch') && env.PAGES_TOKEN != ''
+        env:
+          PAGES_TOKEN: ${{ secrets.PAGES_TOKEN }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          CHANNEL: ${{ matrix.channel }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PAGES_TOKEN" || { echo "PAGES_TOKEN must have Contents write access to I-Steam/I-steam.github.io"; exit 1; }
+          python3 - <<'PY'
+          import datetime, hashlib, json, os, shutil
+          from pathlib import Path
+
+          website = Path("website")
+          downloads = website / "downloads"
+          downloads.mkdir(parents=True, exist_ok=True)
+          channel = os.environ["CHANNEL"]
+          build_number = os.environ["BUILD_NUMBER"]
+          current_version = os.environ["VERSION"]
+          channels = [
+              (channel, "ios", Path("build/iSteam-ios.ipa"), current_version),
+              (channel, "tvos", Path("build/iSteam-tvOS.ipa"), current_version),
+          ]
+
+          manifest_path = website / "AltSource.json"
+          manifest = json.loads(manifest_path.read_text())
+          for item_channel, platform, ipa_path, version in channels:
+              if not ipa_path.is_file():
+                  raise SystemExit(f"Missing {platform} IPA for {item_channel}: {ipa_path}")
+              data = ipa_path.read_bytes()
+              digest = hashlib.sha256(data).hexdigest()
+              now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+              nightly = item_channel == "nightly"
+              tvos = platform == "tvos"
+              if tvos:
+                  bundle_id = "com.xthrx.isteam.tvos.nightly" if nightly else "com.xthrx.isteam.tvos"
+                  app_name = "i-Steam tvOS Nightly" if nightly else "i-Steam tvOS Main"
+                  stable_name = "iSteam-tvOS-nightly.ipa" if nightly else "iSteam-tvOS-main.ipa"
+              else:
+                  bundle_id = "com.xthrx.isteam.nightly" if nightly else "com.xthrx.isteam"
+                  app_name = "i-Steam Nightly" if nightly else "i-Steam Release"
+                  stable_name = "iSteam-nightly.ipa" if nightly else "iSteam-release.ipa"
+              versioned_name = f"iSteam-{platform}-{item_channel}-{version}.ipa"
+              shutil.copy2(ipa_path, downloads / versioned_name)
+              shutil.copy2(ipa_path, downloads / stable_name)
+              (downloads / (stable_name + ".sha256")).write_text(f"{digest}  {stable_name}\\n")
+              platform_label = "tvOS / Apple TV" if tvos else "iOS"
+              entry = {
+                  "version": version,
+                  "buildVersion": str(build_number),
+                  "date": now,
+                  "size": len(data),
+                  "sha256": digest,
+                  "downloadURL": f"https://i-steam.github.io/downloads/{versioned_name}",
+                  "localizedDescription": f"{item_channel.upper()} {platform_label} build {version}. SHA-256: {digest}. Unsigned prototype; use a compatible signing method before installing.",
+                  "minOSVersion": "16.0"
+              }
+              found = False
+              for app in manifest.get("apps", []):
+                  if app.get("name") == app_name:
+                      app["bundleIdentifier"] = bundle_id
+                      versions = app.setdefault("versions", [])
+                      versions = [v for v in versions if not (v.get("version") == version and str(v.get("buildVersion", "")) == str(build_number))]
+                      app["versions"] = ([entry] + versions)[:10]
+                      found = True
+              if not found:
+                  raise SystemExit(f"Could not find AltStore app entry: {app_name}")
+
+          manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+          alt_path = website / "alt" / "source.json"
+          if alt_path.exists():
+              alt = json.loads(alt_path.read_text())
+              stable_apps = {
+                  "i-steam release": ("com.xthrx.isteam", "https://i-steam.github.io/downloads/iSteam-release.ipa"),
+                  "i-steam nightly": ("com.xthrx.isteam.nightly", "https://i-steam.github.io/downloads/iSteam-nightly.ipa"),
+                  "i-steam tvos main": ("com.xthrx.isteam.tvos", "https://i-steam.github.io/downloads/iSteam-tvOS-main.ipa"),
+                  "i-steam tvos nightly": ("com.xthrx.isteam.tvos.nightly", "https://i-steam.github.io/downloads/iSteam-tvOS-nightly.ipa"),
+              }
+              for app in alt.get("apps", []):
+                  config = stable_apps.get(app.get("name", "").lower())
+                  if config:
+                      app["bundleIdentifier"], app["downloadURL"] = config
+              alt_path.write_text(json.dumps(alt, indent=2) + "\n")
+          PY
+          git -C website config user.name "i-Steam Release Bot"
+          git -C website config user.email "release-bot@users.noreply.github.com"
+          git -C website add AltSource.json alt/source.json downloads
+          if git -C website diff --cached --quiet; then
+            echo "AltStore source already up to date."
+          else
+            git -C website commit -m "Publish iOS ${{ matrix.channel }} build ${{ steps.meta.outputs.version }}"
+            git -C website push origin HEAD:main
+          fi
+
+ "$RUNTIME_DIR/exports.txt"
+          grep -Eq ' _?qemu_main_loop
+          mkdir -p build/Payload
+          cp -R "$APP" build/Payload/iSteam.app
+          ditto -c -k --sequesterRsrc --keepParent build/Payload build/iSteam-ios.ipa
+          unzip -t build/iSteam-ios.ipa >/dev/null
+          bash scripts/validate-apple-package.sh build/iSteam-ios.ipa iSteam.app "$EXPECTED_BUNDLE"
+          shasum -a 256 build/iSteam-ios.ipa > build/iSteam-ios.ipa.sha256
+
+      - name: Build and package tvOS IPA
+        if: matrix.platform == 'tvOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="0.1.$(printf '%03d' "$GITHUB_RUN_NUMBER")"
+          if [ "$RELEASE_CHANNEL" = "main" ]; then
+            EXPECTED_BUNDLE="com.xthrx.isteam.tvos"
+          else
+            EXPECTED_BUNDLE="com.xthrx.isteam.tvos.nightly"
+          fi
+          xcodebuild -project iSteam.xcodeproj -scheme iSteamTV -configuration Release -sdk appletvos -destination 'generic/platform=tvOS' -derivedDataPath "$PWD/build/tvDerivedData" MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" PRODUCT_BUNDLE_IDENTIFIER="$EXPECTED_BUNDLE" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 build
+          APP="build/tvDerivedData/Build/Products/Release-appletvos/iSteamTV.app"
+          test -d "$APP"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist" | grep -Fx "$EXPECTED_BUNDLE"
+          mkdir -p build/tvPayload/Payload
+          cp -R "$APP" build/tvPayload/Payload/iSteamTV.app
+          ditto -c -k --sequesterRsrc --keepParent build/tvPayload/Payload build/iSteam-tvOS.ipa
+          unzip -t build/iSteam-tvOS.ipa >/dev/null
+          bash scripts/validate-apple-package.sh build/iSteam-tvOS.ipa iSteamTV.app "$EXPECTED_BUNDLE"
+          shasum -a 256 build/iSteam-tvOS.ipa > build/iSteam-tvOS.ipa.sha256
+
+      - name: Build and package visionOS app
+        if: matrix.platform == 'visionOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="0.1.$(printf '%03d' "$GITHUB_RUN_NUMBER")"
+          xcodebuild -project iSteam.xcodeproj -scheme iSteamVision -configuration Release -sdk xros -destination 'generic/platform=visionOS' -derivedDataPath "$PWD/build/visionDerivedData" MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 build
+          APP="build/visionDerivedData/Build/Products/Release-xros/iSteamVision.app"
+          test -d "$APP"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist" | grep -Fx "com.xthrx.isteam.visionos"
+          mkdir -p build/visionPayload/Payload
+          cp -R "$APP" build/visionPayload/Payload/iSteamVision.app
+          ditto -c -k --sequesterRsrc --keepParent build/visionPayload/Payload build/iSteam-visionOS.ipa
+          unzip -t build/iSteam-visionOS.ipa >/dev/null
+          bash scripts/validate-apple-package.sh build/iSteam-visionOS.ipa iSteamVision.app com.xthrx.isteam.visionos
+          shasum -a 256 build/iSteam-visionOS.ipa > build/iSteam-visionOS.ipa.sha256
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: iSteam-${{ matrix.platform }}-${{ matrix.channel }}
+          path: |
+            build/iSteam-${{ matrix.platform == 'iOS' && 'ios' || matrix.platform == 'tvOS' && 'tvOS' || 'visionOS' }}.ipa
+            build/iSteam-${{ matrix.platform == 'iOS' && 'ios' || matrix.platform == 'tvOS' && 'tvOS' || 'visionOS' }}.ipa.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish combined ${{ matrix.channel }} release
+    needs: build
+    runs-on: macos-15
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: ${{ fromJSON(format('["{0}"]', github.event_name == 'workflow_dispatch' && inputs.channel == 'Main' && 'main' || 'nightly')) }}
+    env:
+      RELEASE_CHANNEL: ${{ matrix.channel }}
+      VERSION: 0.1.${{ format('{0}', github.run_number) }}
+      PAGES_TOKEN: ${{ secrets.PAGES_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download iOS build
+        uses: actions/download-artifact@v4
+        with:
+          name: iSteam-iOS-${{ matrix.channel }}
+          path: build
+
+      - name: Download tvOS build
+        uses: actions/download-artifact@v4
+        with:
+          name: iSteam-tvOS-${{ matrix.channel }}
+          path: build
+
+      - name: Download visionOS build
+        uses: actions/download-artifact@v4
+        with:
+          name: iSteam-visionOS-${{ matrix.channel }}
+          path: build
+
+      - name: Verify combined release assets
+        run: |
+          set -euo pipefail
+          for asset in iSteam-ios iSteam-tvOS iSteam-visionOS; do
+            test -s "build/$asset.ipa"
+            test -s "build/$asset.ipa.sha256"
+            unzip -t "build/$asset.ipa" >/dev/null
+            shasum -a 256 -c "build/$asset.ipa.sha256"
+          done
+
+      - name: Set release metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="0.1.$(printf '%03d' "$GITHUB_RUN_NUMBER")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$RELEASE_CHANNEL" >> "$GITHUB_OUTPUT"
+          if [ "$RELEASE_CHANNEL" = "main" ]; then
+            echo "title=$VERSION Main (iOS + tvOS)" >> "$GITHUB_OUTPUT"
+          else
+            echo "title=$VERSION Nightly (iOS + tvOS)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish combined release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.title }}
+          prerelease: ${{ env.RELEASE_CHANNEL == 'nightly' }}
+          make_latest: ${{ env.RELEASE_CHANNEL == 'main' && 'true' || 'false' }}
+          overwrite_files: true
+          files: |
+            build/iSteam-ios.ipa
+            build/iSteam-ios.ipa.sha256
+            build/iSteam-tvOS.ipa
+            build/iSteam-tvOS.ipa.sha256
+            build/iSteam-visionOS.ipa
+            build/iSteam-visionOS.ipa.sha256
+          body: |
+            i-Steam ${{ matrix.channel }} build ${{ steps.meta.outputs.version }}.
+
+            Includes unsigned prototype builds:
+            - **iOS:** `iSteam-ios.ipa`
+            - **tvOS:** `iSteam-tvOS.ipa`
+            - **visionOS:** `iSteam-visionOS.ipa`
+
+            These are unsigned prototype builds. Sign them with a compatible signer before installing.
+
+      - name: Checkout AltStore website
+        if: (matrix.channel == 'nightly' || github.event_name == 'workflow_dispatch') && env.PAGES_TOKEN != ''
+        uses: actions/checkout@v4
+        with:
+          repository: I-Steam/I-steam.github.io
+          ref: main
+          token: ${{ secrets.PAGES_TOKEN }}
+          path: website
+
+      - name: Update legacy AltStore source and publish iOS IPA
+        if: (matrix.channel == 'nightly' || github.event_name == 'workflow_dispatch') && env.PAGES_TOKEN != ''
+        env:
+          PAGES_TOKEN: ${{ secrets.PAGES_TOKEN }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          CHANNEL: ${{ matrix.channel }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PAGES_TOKEN" || { echo "PAGES_TOKEN must have Contents write access to I-Steam/I-steam.github.io"; exit 1; }
+          python3 - <<'PY'
+          import datetime, hashlib, json, os, shutil
+          from pathlib import Path
+
+          website = Path("website")
+          downloads = website / "downloads"
+          downloads.mkdir(parents=True, exist_ok=True)
+          channel = os.environ["CHANNEL"]
+          build_number = os.environ["BUILD_NUMBER"]
+          current_version = os.environ["VERSION"]
+          channels = [
+              (channel, "ios", Path("build/iSteam-ios.ipa"), current_version),
+              (channel, "tvos", Path("build/iSteam-tvOS.ipa"), current_version),
+          ]
+
+          manifest_path = website / "AltSource.json"
+          manifest = json.loads(manifest_path.read_text())
+          for item_channel, platform, ipa_path, version in channels:
+              if not ipa_path.is_file():
+                  raise SystemExit(f"Missing {platform} IPA for {item_channel}: {ipa_path}")
+              data = ipa_path.read_bytes()
+              digest = hashlib.sha256(data).hexdigest()
+              now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+              nightly = item_channel == "nightly"
+              tvos = platform == "tvos"
+              if tvos:
+                  bundle_id = "com.xthrx.isteam.tvos.nightly" if nightly else "com.xthrx.isteam.tvos"
+                  app_name = "i-Steam tvOS Nightly" if nightly else "i-Steam tvOS Main"
+                  stable_name = "iSteam-tvOS-nightly.ipa" if nightly else "iSteam-tvOS-main.ipa"
+              else:
+                  bundle_id = "com.xthrx.isteam.nightly" if nightly else "com.xthrx.isteam"
+                  app_name = "i-Steam Nightly" if nightly else "i-Steam Release"
+                  stable_name = "iSteam-nightly.ipa" if nightly else "iSteam-release.ipa"
+              versioned_name = f"iSteam-{platform}-{item_channel}-{version}.ipa"
+              shutil.copy2(ipa_path, downloads / versioned_name)
+              shutil.copy2(ipa_path, downloads / stable_name)
+              (downloads / (stable_name + ".sha256")).write_text(f"{digest}  {stable_name}\\n")
+              platform_label = "tvOS / Apple TV" if tvos else "iOS"
+              entry = {
+                  "version": version,
+                  "buildVersion": str(build_number),
+                  "date": now,
+                  "size": len(data),
+                  "sha256": digest,
+                  "downloadURL": f"https://i-steam.github.io/downloads/{versioned_name}",
+                  "localizedDescription": f"{item_channel.upper()} {platform_label} build {version}. SHA-256: {digest}. Unsigned prototype; use a compatible signing method before installing.",
+                  "minOSVersion": "16.0"
+              }
+              found = False
+              for app in manifest.get("apps", []):
+                  if app.get("name") == app_name:
+                      app["bundleIdentifier"] = bundle_id
+                      versions = app.setdefault("versions", [])
+                      versions = [v for v in versions if not (v.get("version") == version and str(v.get("buildVersion", "")) == str(build_number))]
+                      app["versions"] = ([entry] + versions)[:10]
+                      found = True
+              if not found:
+                  raise SystemExit(f"Could not find AltStore app entry: {app_name}")
+
+          manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+          alt_path = website / "alt" / "source.json"
+          if alt_path.exists():
+              alt = json.loads(alt_path.read_text())
+              stable_apps = {
+                  "i-steam release": ("com.xthrx.isteam", "https://i-steam.github.io/downloads/iSteam-release.ipa"),
+                  "i-steam nightly": ("com.xthrx.isteam.nightly", "https://i-steam.github.io/downloads/iSteam-nightly.ipa"),
+                  "i-steam tvos main": ("com.xthrx.isteam.tvos", "https://i-steam.github.io/downloads/iSteam-tvOS-main.ipa"),
+                  "i-steam tvos nightly": ("com.xthrx.isteam.tvos.nightly", "https://i-steam.github.io/downloads/iSteam-tvOS-nightly.ipa"),
+              }
+              for app in alt.get("apps", []):
+                  config = stable_apps.get(app.get("name", "").lower())
+                  if config:
+                      app["bundleIdentifier"], app["downloadURL"] = config
+              alt_path.write_text(json.dumps(alt, indent=2) + "\n")
+          PY
+          git -C website config user.name "i-Steam Release Bot"
+          git -C website config user.email "release-bot@users.noreply.github.com"
+          git -C website add AltSource.json alt/source.json downloads
+          if git -C website diff --cached --quiet; then
+            echo "AltStore source already up to date."
+          else
+            git -C website commit -m "Publish iOS ${{ matrix.channel }} build ${{ steps.meta.outputs.version }}"
+            git -C website push origin HEAD:main
+          fi
+
+ "$RUNTIME_DIR/exports.txt"
+          grep -Eq ' _?qemu_cleanup
+          mkdir -p build/Payload
+          cp -R "$APP" build/Payload/iSteam.app
+          ditto -c -k --sequesterRsrc --keepParent build/Payload build/iSteam-ios.ipa
+          unzip -t build/iSteam-ios.ipa >/dev/null
+          bash scripts/validate-apple-package.sh build/iSteam-ios.ipa iSteam.app "$EXPECTED_BUNDLE"
+          shasum -a 256 build/iSteam-ios.ipa > build/iSteam-ios.ipa.sha256
+
+      - name: Build and package tvOS IPA
+        if: matrix.platform == 'tvOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="0.1.$(printf '%03d' "$GITHUB_RUN_NUMBER")"
+          if [ "$RELEASE_CHANNEL" = "main" ]; then
+            EXPECTED_BUNDLE="com.xthrx.isteam.tvos"
+          else
+            EXPECTED_BUNDLE="com.xthrx.isteam.tvos.nightly"
+          fi
+          xcodebuild -project iSteam.xcodeproj -scheme iSteamTV -configuration Release -sdk appletvos -destination 'generic/platform=tvOS' -derivedDataPath "$PWD/build/tvDerivedData" MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" PRODUCT_BUNDLE_IDENTIFIER="$EXPECTED_BUNDLE" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 build
+          APP="build/tvDerivedData/Build/Products/Release-appletvos/iSteamTV.app"
+          test -d "$APP"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist" | grep -Fx "$EXPECTED_BUNDLE"
+          mkdir -p build/tvPayload/Payload
+          cp -R "$APP" build/tvPayload/Payload/iSteamTV.app
+          ditto -c -k --sequesterRsrc --keepParent build/tvPayload/Payload build/iSteam-tvOS.ipa
+          unzip -t build/iSteam-tvOS.ipa >/dev/null
+          bash scripts/validate-apple-package.sh build/iSteam-tvOS.ipa iSteamTV.app "$EXPECTED_BUNDLE"
+          shasum -a 256 build/iSteam-tvOS.ipa > build/iSteam-tvOS.ipa.sha256
+
+      - name: Build and package visionOS app
+        if: matrix.platform == 'visionOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="0.1.$(printf '%03d' "$GITHUB_RUN_NUMBER")"
+          xcodebuild -project iSteam.xcodeproj -scheme iSteamVision -configuration Release -sdk xros -destination 'generic/platform=visionOS' -derivedDataPath "$PWD/build/visionDerivedData" MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" ARCHS=arm64 build
+          APP="build/visionDerivedData/Build/Products/Release-xros/iSteamVision.app"
+          test -d "$APP"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist" | grep -Fx "com.xthrx.isteam.visionos"
+          mkdir -p build/visionPayload/Payload
+          cp -R "$APP" build/visionPayload/Payload/iSteamVision.app
+          ditto -c -k --sequesterRsrc --keepParent build/visionPayload/Payload build/iSteam-visionOS.ipa
+          unzip -t build/iSteam-visionOS.ipa >/dev/null
+          bash scripts/validate-apple-package.sh build/iSteam-visionOS.ipa iSteamVision.app com.xthrx.isteam.visionos
+          shasum -a 256 build/iSteam-visionOS.ipa > build/iSteam-visionOS.ipa.sha256
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: iSteam-${{ matrix.platform }}-${{ matrix.channel }}
+          path: |
+            build/iSteam-${{ matrix.platform == 'iOS' && 'ios' || matrix.platform == 'tvOS' && 'tvOS' || 'visionOS' }}.ipa
+            build/iSteam-${{ matrix.platform == 'iOS' && 'ios' || matrix.platform == 'tvOS' && 'tvOS' || 'visionOS' }}.ipa.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish combined ${{ matrix.channel }} release
+    needs: build
+    runs-on: macos-15
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: ${{ fromJSON(format('["{0}"]', github.event_name == 'workflow_dispatch' && inputs.channel == 'Main' && 'main' || 'nightly')) }}
+    env:
+      RELEASE_CHANNEL: ${{ matrix.channel }}
+      VERSION: 0.1.${{ format('{0}', github.run_number) }}
+      PAGES_TOKEN: ${{ secrets.PAGES_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download iOS build
+        uses: actions/download-artifact@v4
+        with:
+          name: iSteam-iOS-${{ matrix.channel }}
+          path: build
+
+      - name: Download tvOS build
+        uses: actions/download-artifact@v4
+        with:
+          name: iSteam-tvOS-${{ matrix.channel }}
+          path: build
+
+      - name: Download visionOS build
+        uses: actions/download-artifact@v4
+        with:
+          name: iSteam-visionOS-${{ matrix.channel }}
+          path: build
+
+      - name: Verify combined release assets
+        run: |
+          set -euo pipefail
+          for asset in iSteam-ios iSteam-tvOS iSteam-visionOS; do
+            test -s "build/$asset.ipa"
+            test -s "build/$asset.ipa.sha256"
+            unzip -t "build/$asset.ipa" >/dev/null
+            shasum -a 256 -c "build/$asset.ipa.sha256"
+          done
+
+      - name: Set release metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="0.1.$(printf '%03d' "$GITHUB_RUN_NUMBER")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$RELEASE_CHANNEL" >> "$GITHUB_OUTPUT"
+          if [ "$RELEASE_CHANNEL" = "main" ]; then
+            echo "title=$VERSION Main (iOS + tvOS)" >> "$GITHUB_OUTPUT"
+          else
+            echo "title=$VERSION Nightly (iOS + tvOS)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish combined release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.title }}
+          prerelease: ${{ env.RELEASE_CHANNEL == 'nightly' }}
+          make_latest: ${{ env.RELEASE_CHANNEL == 'main' && 'true' || 'false' }}
+          overwrite_files: true
+          files: |
+            build/iSteam-ios.ipa
+            build/iSteam-ios.ipa.sha256
+            build/iSteam-tvOS.ipa
+            build/iSteam-tvOS.ipa.sha256
+            build/iSteam-visionOS.ipa
+            build/iSteam-visionOS.ipa.sha256
+          body: |
+            i-Steam ${{ matrix.channel }} build ${{ steps.meta.outputs.version }}.
+
+            Includes unsigned prototype builds:
+            - **iOS:** `iSteam-ios.ipa`
+            - **tvOS:** `iSteam-tvOS.ipa`
+            - **visionOS:** `iSteam-visionOS.ipa`
+
+            These are unsigned prototype builds. Sign them with a compatible signer before installing.
+
+      - name: Checkout AltStore website
+        if: (matrix.channel == 'nightly' || github.event_name == 'workflow_dispatch') && env.PAGES_TOKEN != ''
+        uses: actions/checkout@v4
+        with:
+          repository: I-Steam/I-steam.github.io
+          ref: main
+          token: ${{ secrets.PAGES_TOKEN }}
+          path: website
+
+      - name: Update legacy AltStore source and publish iOS IPA
+        if: (matrix.channel == 'nightly' || github.event_name == 'workflow_dispatch') && env.PAGES_TOKEN != ''
+        env:
+          PAGES_TOKEN: ${{ secrets.PAGES_TOKEN }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          CHANNEL: ${{ matrix.channel }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PAGES_TOKEN" || { echo "PAGES_TOKEN must have Contents write access to I-Steam/I-steam.github.io"; exit 1; }
+          python3 - <<'PY'
+          import datetime, hashlib, json, os, shutil
+          from pathlib import Path
+
+          website = Path("website")
+          downloads = website / "downloads"
+          downloads.mkdir(parents=True, exist_ok=True)
+          channel = os.environ["CHANNEL"]
+          build_number = os.environ["BUILD_NUMBER"]
+          current_version = os.environ["VERSION"]
+          channels = [
+              (channel, "ios", Path("build/iSteam-ios.ipa"), current_version),
+              (channel, "tvos", Path("build/iSteam-tvOS.ipa"), current_version),
+          ]
+
+          manifest_path = website / "AltSource.json"
+          manifest = json.loads(manifest_path.read_text())
+          for item_channel, platform, ipa_path, version in channels:
+              if not ipa_path.is_file():
+                  raise SystemExit(f"Missing {platform} IPA for {item_channel}: {ipa_path}")
+              data = ipa_path.read_bytes()
+              digest = hashlib.sha256(data).hexdigest()
+              now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+              nightly = item_channel == "nightly"
+              tvos = platform == "tvos"
+              if tvos:
+                  bundle_id = "com.xthrx.isteam.tvos.nightly" if nightly else "com.xthrx.isteam.tvos"
+                  app_name = "i-Steam tvOS Nightly" if nightly else "i-Steam tvOS Main"
+                  stable_name = "iSteam-tvOS-nightly.ipa" if nightly else "iSteam-tvOS-main.ipa"
+              else:
+                  bundle_id = "com.xthrx.isteam.nightly" if nightly else "com.xthrx.isteam"
+                  app_name = "i-Steam Nightly" if nightly else "i-Steam Release"
+                  stable_name = "iSteam-nightly.ipa" if nightly else "iSteam-release.ipa"
+              versioned_name = f"iSteam-{platform}-{item_channel}-{version}.ipa"
+              shutil.copy2(ipa_path, downloads / versioned_name)
+              shutil.copy2(ipa_path, downloads / stable_name)
+              (downloads / (stable_name + ".sha256")).write_text(f"{digest}  {stable_name}\\n")
+              platform_label = "tvOS / Apple TV" if tvos else "iOS"
+              entry = {
+                  "version": version,
+                  "buildVersion": str(build_number),
+                  "date": now,
+                  "size": len(data),
+                  "sha256": digest,
+                  "downloadURL": f"https://i-steam.github.io/downloads/{versioned_name}",
+                  "localizedDescription": f"{item_channel.upper()} {platform_label} build {version}. SHA-256: {digest}. Unsigned prototype; use a compatible signing method before installing.",
+                  "minOSVersion": "16.0"
+              }
+              found = False
+              for app in manifest.get("apps", []):
+                  if app.get("name") == app_name:
+                      app["bundleIdentifier"] = bundle_id
+                      versions = app.setdefault("versions", [])
+                      versions = [v for v in versions if not (v.get("version") == version and str(v.get("buildVersion", "")) == str(build_number))]
+                      app["versions"] = ([entry] + versions)[:10]
+                      found = True
+              if not found:
+                  raise SystemExit(f"Could not find AltStore app entry: {app_name}")
+
+          manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+          alt_path = website / "alt" / "source.json"
+          if alt_path.exists():
+              alt = json.loads(alt_path.read_text())
+              stable_apps = {
+                  "i-steam release": ("com.xthrx.isteam", "https://i-steam.github.io/downloads/iSteam-release.ipa"),
+                  "i-steam nightly": ("com.xthrx.isteam.nightly", "https://i-steam.github.io/downloads/iSteam-nightly.ipa"),
+                  "i-steam tvos main": ("com.xthrx.isteam.tvos", "https://i-steam.github.io/downloads/iSteam-tvOS-main.ipa"),
+                  "i-steam tvos nightly": ("com.xthrx.isteam.tvos.nightly", "https://i-steam.github.io/downloads/iSteam-tvOS-nightly.ipa"),
+              }
+              for app in alt.get("apps", []):
+                  config = stable_apps.get(app.get("name", "").lower())
+                  if config:
+                      app["bundleIdentifier"], app["downloadURL"] = config
+              alt_path.write_text(json.dumps(alt, indent=2) + "\n")
+          PY
+          git -C website config user.name "i-Steam Release Bot"
+          git -C website config user.email "release-bot@users.noreply.github.com"
+          git -C website add AltSource.json alt/source.json downloads
+          if git -C website diff --cached --quiet; then
+            echo "AltStore source already up to date."
+          else
+            git -C website commit -m "Publish iOS ${{ matrix.channel }} build ${{ steps.meta.outputs.version }}"
+            git -C website push origin HEAD:main
+          fi
+
+ "$RUNTIME_DIR/exports.txt"
+          find "$RUNTIME_DIR/Frameworks" -type f -size +0c -print -quit | grep -q .
+          find "$RUNTIME_DIR/QEMU" -type f -size +0c -print -quit | grep -q .
+          echo "Embedding required UTM QEMU runtime and dependencies: $RUNTIME_REL"
+          mkdir -p "$APP/Frameworks" "$APP/QEMU"
+          cp -R "$RUNTIME_DIR/Frameworks/." "$APP/Frameworks/"
+          cp -R "$RUNTIME_DIR/QEMU/." "$APP/QEMU/"
+          test -s "$APP/$RUNTIME_REL"
+          test -s "$APP/QEMU/runtime-library-path.txt"
+          test -s "$APP/QEMU/exports.txt" || cp "$RUNTIME_DIR/exports.txt" "$APP/QEMU/exports.txt"
           mkdir -p build/Payload
           cp -R "$APP" build/Payload/iSteam.app
           ditto -c -k --sequesterRsrc --keepParent build/Payload build/iSteam-ios.ipa
