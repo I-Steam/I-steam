@@ -100,7 +100,7 @@ jobs:
           if cross_override not in source:
               if cross_marker not in source:
                   raise SystemExit("Could not locate Meson cross-file feature overrides in UTM/scripts/build_dependencies.sh")
-              source = source.replace(cross_marker, cross_marker + '\\n    ' + cross_override, 1)
+              source = source.replace(cross_marker, cross_marker + '\n    ' + cross_override, 1)
           needle = 'if [ -z "$DEBUG" ]; then\n    QEMU_DEBUG_FLAGS="--disable-debug-info"'
           replacement = 'QEMU_PLATFORM_BUILD_FLAGS="$QEMU_PLATFORM_BUILD_FLAGS --target-list=x86_64-softmmu --extra-ldflags=-Wl,-force_load,$IOS_COMPILER_RT"\n\n' + needle
           if needle not in source:
