@@ -93,14 +93,14 @@ jobs:
           from pathlib import Path
           path = Path("scripts/build_dependencies.sh")
           source = path.read_text()
-          cross_marker = 'echo "has_function_pipe2 = false" >> "$cross"'
-          if cross_marker not in source:
-              raise SystemExit("Could not locate Meson cross-file feature overrides")
-          source = source.replace(
-              cross_marker,
-              cross_marker + '\n    echo "has_function_posix_memalign = true" >> "$cross"',
-              1,
-          )
+          # UTM's current script writes Meson feature overrides in generate_meson_cross().
+          # Match current upstream syntax (unquoted $cross); fail clearly if upstream changes.
+          cross_marker = 'echo "has_function_dup3 = false" >> $cross'
+          cross_override = 'echo "has_function_posix_memalign = true" >> $cross'
+          if cross_override not in source:
+              if cross_marker not in source:
+                  raise SystemExit("Could not locate Meson cross-file feature overrides in UTM/scripts/build_dependencies.sh")
+              source = source.replace(cross_marker, cross_marker + '\\n    ' + cross_override, 1)
           needle = 'if [ -z "$DEBUG" ]; then\n    QEMU_DEBUG_FLAGS="--disable-debug-info"'
           replacement = 'QEMU_PLATFORM_BUILD_FLAGS="$QEMU_PLATFORM_BUILD_FLAGS --target-list=x86_64-softmmu --extra-ldflags=-Wl,-force_load,$IOS_COMPILER_RT"\n\n' + needle
           if needle not in source:
