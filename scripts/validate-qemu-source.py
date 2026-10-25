@@ -27,7 +27,14 @@ required = {
         'dlsym(library, "qemu_cleanup")',
     ],
     "iSteam/LaunchSetupViewController.swift": [
-        '"SteamOS Gaming Mode"', 'VMConfiguration.defaultSteamOS',
+        '"SteamOS Gaming Mode"', "VMConfiguration.defaultSteamOS",
+    ],
+    "src/Display/TouchGamepadView.swift": [
+        'iSteam.touchGamepad.layout.v3',
+        "control.center.x / bounds.width",
+        "control.center.y / bounds.height",
+        "if bounds.size != lastBoundsSize",
+        "installEditGesturesIfNeeded()",
     ],
 }
 failed = False
@@ -46,4 +53,4 @@ if r"\n" in builder:
 
 if failed:
     raise SystemExit(1)
-print("QEMU bridge and SteamOS mode source checks passed.")
+print("QEMU bridge, SteamOS mode, and adaptive gamepad source checks passed.")
