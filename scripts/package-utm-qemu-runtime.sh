@@ -93,5 +93,37 @@ Package layout: Frameworks/ (UTM dependencies), QEMU/ (QEMU data files and runti
 Important: embed and code-sign nested code in i-Steam and boot-test on a physical device before claiming runtime support.
 EOF
 
+# Capture the actual Mach-O linkage and runtime search paths from the archive.
+# This report is a debugging artifact: it helps distinguish a missing symbol
+# from a missing @rpath dependency when the IPA is launched on-device.
+REPORT="$OUT/dependency-report.txt"
+: > "$REPORT"
+while IFS= read -r -d '' binary; do
+  if file "$binary" | grep -q 'Mach-O'; then
+    {
+      printf '\n===== %s =====\n' "${binary#"$OUT/"}"
+      printf '%s\n' '-- architectures --'
+      lipo -archs "$binary" 2>&1 || true
+      printf '%s\n' '-- linked libraries --'
+      otool -L "$binary" 2>&1 || true
+      printf '%s\n' '-- LC_RPATH entries --'
+      otool -l "$binary" 2>/dev/null | awk '/cmd LC_RPATH/{getline; getline; print}' || true
+    } >> "$REPORT"
+  fi
+done < <(find "$OUT/Frameworks" -type f -print0)
+while IFS= read -r -d '' binary; do
+  if file "$binary" | grep -q 'Mach-O'; then
+    {
+      printf '\n===== %s =====\n' "${binary#"$OUT/"}"
+      printf '%s\n' '-- architectures --'
+      lipo -archs "$binary" 2>&1 || true
+      printf '%s\n' '-- linked libraries --'
+      otool -L "$binary" 2>&1 || true
+      printf '%s\n' '-- LC_RPATH entries --'
+      otool -l "$binary" 2>/dev/null | awk '/cmd LC_RPATH/{getline; getline; print}' || true
+    } >> "$REPORT"
+  fi
+done < <(find "$OUT/QEMU" -type f -print0)
+test -s "$REPORT"
 find "$OUT/Frameworks" -type f -size +0c -print -quit | grep -q .
 find "$OUT/QEMU" -type f -size +0c -print -quit | grep -q .
