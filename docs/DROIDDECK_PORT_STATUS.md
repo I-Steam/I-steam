@@ -20,6 +20,13 @@ This status tracks code that is native to i-Steam, not a promise that Android bi
 - **SteamVR / vendor glasses / 6DoF:** require separate Apple-platform tracking, rendering and device integration.
 - **Raw USB block devices:** iOS document-provider access does not expose arbitrary physical disks to a guest as block devices.
 
+## QEMU runtime packaging status (2026-10-25)
+
+The iOS release workflow now validates the runtime manifest and required QEMU lifecycle exports, copies the runtime's `Frameworks/` dependencies and `QEMU/` data into the app bundle, and checks that the declared library and data files exist before IPA creation. The release workflow YAML and source-level integration checks passed in GitLab pipeline #326:
+https://gitlab.com/chantinlongxthrx/I-steam/-/pipelines/2986607027
+
+This is **packaging-path validation only**. It does not prove the separate UTM runtime build produced a usable device-arm64 QEMU library, that all dynamic dependencies can be loaded on iOS, that an IPA was successfully produced, or that a guest OS boots on hardware. Keep the emulator status partial until those checks and a physical-iPad boot test pass.
+
 ## Runtime component manifest
 
 RuntimeComponentManifest is intentionally an integrity checker for local files, not a binary downloader or installer. Distribution must still use a trusted release channel, record each component's license, and package code that is validly signed for the target platform. SHA-256 verifies bytes, not publisher identity.
