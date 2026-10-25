@@ -44,16 +44,30 @@ validate_build_configuration:
 
 sync_to_github:
   stage: sync
+  # Only main may update GitHub main. Feature branches must never overwrite it.
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
   resource_group: github-main-sync
   image: alpine:latest
   interruptible: false
   before_script:
     - apk add --no-cache git
   script:
-    - git config user.name "i-Steam Sync"
-    - git config user.email "sync@i-steam.local"
-    - git remote set-url origin "https://oauth2:${GITHUB_SYNC_TOKEN}@github.com/I-Steam/I-steam.git"
-    - git push --force origin HEAD:refs/heads/main
+    - |
+      set -eu
+      if [ -z "${GITHUB_SYNC_TOKEN:-}" ]; then
+        echo "GITHUB_SYNC_TOKEN is missing. Add a valid GitHub token as a masked GitLab CI/CD variable."
+        exit 1
+      fi
+      git config user.name "i-Steam Sync"
+      git config user.email "sync@i-steam.local"
+      git remote add github "https://x-access-token:${GITHUB_SYNC_TOKEN}@github.com/I-Steam/I-steam.git"
+      if ! git ls-remote github HEAD >/dev/null 2>&1; then
+        echo "GitHub authentication failed. Replace GITHUB_SYNC_TOKEN with a valid token that can write to I-Steam/I-steam."
+        exit 1
+      fi
+      # Never force-push: a divergent GitHub main must fail safely for manual reconciliation.
+      git push github HEAD:refs/heads/main
 
 dispatch_manual_build:
   stage: dispatch
