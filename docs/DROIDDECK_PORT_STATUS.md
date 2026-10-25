@@ -22,6 +22,10 @@ This status tracks code that is native to i-Steam, not a promise that Android bi
 
 ## QEMU runtime packaging status (2026-10-25)
 
+Latest native runtime build evidence: GitHub Actions run [#8 failed](https://github.com/I-Steam/I-steam/actions/runs/40201652021) in the QEMU dependency build at `util/memalign.c:65` because QEMU's generated configuration selected no aligned allocator. No runtime artifact was produced. The build workflow is being corrected to override Meson's `has_function_posix_memalign` cross-file property instead of trying to force a generated config macro with C compiler flags. Re-run and inspect the native build before claiming this blocker is cleared.
+
+
+
 The iOS release workflow now validates the runtime manifest and required QEMU lifecycle exports, copies the runtime's `Frameworks/` dependencies and `QEMU/` data into the app bundle, and checks that the declared library and data files exist before IPA creation. The release workflow YAML and source-level integration checks passed in GitLab pipeline #326:
 https://gitlab.com/chantinlongxthrx/I-steam/-/pipelines/2986607027
 
