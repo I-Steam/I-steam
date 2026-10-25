@@ -12,7 +12,7 @@ required = {
     ],
     "src/QEMU/QEMUCommandBuilder.swift": [
         '"-vnc", "127.0.0.1:0"',
-        '"-device", VMConfiguration.GPUModel.virtioGPU.rawValue',
+        '"-device", configuration.gpu.rawValue',
         'configuration.name == "SteamOS Gaming Mode"',
     ],
     "src/Display/VMDisplayViewController.swift": [
