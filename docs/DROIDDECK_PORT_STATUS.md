@@ -22,7 +22,7 @@ This status tracks code that is native to i-Steam, not a promise that Android bi
 
 ## QEMU runtime packaging status (2026-10-25)
 
-Latest native runtime build evidence: GitHub Actions run [#8 failed](https://github.com/I-Steam/I-steam/actions/runs/40201652021) in the QEMU dependency build at `util/memalign.c:65` because QEMU's generated configuration selected no aligned allocator. No runtime artifact was produced. The build workflow is being corrected to override Meson's `has_function_posix_memalign` cross-file property instead of trying to force a generated config macro with C compiler flags. Re-run and inspect the native build before claiming this blocker is cleared.
+The previous native runtime build failed at `util/memalign.c:65` because QEMU's generated configuration selected no aligned allocator. A later run ([#40239296591](https://github.com/I-Steam/I-steam/actions/runs/40239296591)) failed earlier because the workflow's Meson cross-file patch marker no longer matched current UTM source. The workflow now anchors on UTM's `has_function_dup3` cross-file line and adds `has_function_posix_memalign = true` idempotently. The rebuilt runtime job [#40240044522](https://github.com/I-Steam/I-steam/actions/runs/40240044522) is in progress; no artifact has been confirmed. Inspect its final result before claiming the aligned allocator or runtime blocker is fixed.
 
 
 
