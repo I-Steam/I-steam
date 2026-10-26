@@ -111,8 +111,33 @@ jobs:
           replacement = 'QEMU_PLATFORM_BUILD_FLAGS="$QEMU_PLATFORM_BUILD_FLAGS --target-list=x86_64-softmmu --extra-ldflags=-Wl,-force_load,$IOS_COMPILER_RT"\n\n' + needle
           if needle not in source:
               raise SystemExit("Could not locate QEMU build flag insertion point")
-          path.write_text(source.replace(needle, replacement, 1))
-          print("Installed Meson posix_memalign override and iOS compiler-rt linker flag.")
+          source = source.replace(needle, replacement, 1)
+          # QEMU's own configure generates config-meson.cross independently of
+          # UTM's meson-auto.cross. Patch QEMU's host feature probe itself: the
+          # same iOS SDK/compiler has already passed Autoconf's posix_memalign
+          # checks, but QEMU's generated cross-file incorrectly reports NO.
+          qemu_build = 'build $QEMU_DIR --cross-prefix="" $QEMU_PLATFORM_BUILD_FLAGS $QEMU_DEBUG_FLAGS'
+          qemu_patch = """python3 - "$QEMU_DIR/meson.build" <<'QEMU_MEMALIGN_PATCH'
+          from pathlib import Path
+          import sys
+          path = Path(sys.argv[1])
+          source = path.read_text()
+          old = "config_host_data.set('CONFIG_POSIX_MEMALIGN', cc.has_function('posix_memalign', prefix: '#include <stdlib.h>'))"
+          new = "config_host_data.set('CONFIG_POSIX_MEMALIGN', true)"
+          if new not in source:
+              if old not in source:
+                  raise SystemExit("Could not locate QEMU CONFIG_POSIX_MEMALIGN feature probe")
+              source = source.replace(old, new, 1)
+              path.write_text(source)
+          print("Forced QEMU CONFIG_POSIX_MEMALIGN for iOS after Autoconf confirmed the API exists.")
+          QEMU_MEMALIGN_PATCH
+          """
+          if qemu_patch.strip() not in source:
+              if qemu_build not in source:
+                  raise SystemExit("Could not locate QEMU build invocation for the iOS memalign patch")
+              source = source.replace(qemu_build, qemu_patch + "\n" + qemu_build, 1)
+          path.write_text(source)
+          print("Installed Meson override, QEMU POSIX_MEMALIGN patch, and iOS compiler-rt linker flag.")
           PY
           grep -F 'has_function_posix_memalign = true' scripts/build_dependencies.sh
           if [ "${{ inputs.rebuild_dependencies }}" = "true" ] || [ ! -f build-iOS-arm64/BUILD_SUCCESS ]; then

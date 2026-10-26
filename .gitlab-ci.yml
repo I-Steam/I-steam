@@ -63,6 +63,8 @@ validate_build_configuration:
           raise SystemExit('Release artifacts must not silently ignore missing files.')
       if "utm-ios-arm64-deps-v5-" not in qemu_workflow:
           raise SystemExit('QEMU dependency cache key must be bumped when build-workflow patch logic changes.')
+      if "config_host_data.set('CONFIG_POSIX_MEMALIGN', true)" not in qemu_workflow:
+          raise SystemExit('QEMU runtime workflow must patch QEMU POSIX_MEMALIGN detection after the failed cross-file probe.')
       if ".github/workflows/build-qemu-runtime.yml" not in qemu_workflow:
           raise SystemExit('QEMU dependency cache key must include the runtime workflow.')
       if "steps.utm-source.outputs.commit" not in qemu_workflow:
