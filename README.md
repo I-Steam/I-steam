@@ -165,3 +165,8 @@ Third-party projects retain their own licenses and copyrights. Review upstream l
 i-Steam is licensed under the **GNU General Public License v3.0 (GPL-3.0)**. See [LICENSE](LICENSE).
 
 i-Steam is not affiliated with, endorsed by, or sponsored by Valve Corporation. Steam is a trademark of Valve Corporation. No particular game or operating system is guaranteed to run. AI assistants, including ChatGPT and Claude, have been used as development aids; all changes are still being reviewed and tested by maintainers.
+
+
+## Repository synchronization
+
+GitLab is the canonical development repository; GitHub is its mirror. Feature branches and merge requests stay in GitLab, and only updates to GitLab `main` are pushed directly to GitHub `main`. The GitHub-to-GitLab recovery workflow is manual-only to prevent sync loops and repeated pull requests. See [`docs/GIT_SYNC.md`](docs/GIT_SYNC.md).

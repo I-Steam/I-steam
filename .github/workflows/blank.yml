@@ -1,34 +1,37 @@
-name: GitLab Sync
+name: Manual GitHub → GitLab Recovery Sync
 
+# GitLab is the canonical repository. Do not run this on GitHub pushes:
+# automatic bidirectional syncing can cause merge loops and merge commits.
+# Use workflow_dispatch only for an intentional one-off recovery operation.
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   sync:
-    name: GitHub → GitLab
+    name: Manually recover GitHub main into GitLab
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout GitHub repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Sync to GitLab
+      - name: Recover GitHub main into GitLab (manual only)
         env:
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
         run: |
-          set -e
-
+          set -euo pipefail
+          if [ -z "$GITLAB_TOKEN" ]; then
+            echo "GITLAB_TOKEN is required for an explicitly requested recovery sync." >&2
+            exit 1
+          fi
           git config user.name "Xthrx"
           git config user.email "Xthrx@users.noreply.github.com"
-
           git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@gitlab.com/chantinlongxthrx/i-steam.git"
           git fetch gitlab main
-
+          # Preserve GitLab's canonical history when histories diverge.
           git merge gitlab/main --allow-unrelated-histories -X ours --no-edit
-
           git push gitlab HEAD:main

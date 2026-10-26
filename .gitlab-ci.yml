@@ -34,7 +34,7 @@ validate_build_configuration:
                   mapping[key] = self.construct_object(value_node, deep=deep)
               return mapping
 
-      for name in ('.gitlab-ci.yml', '.github/workflows/release.yml', '.github/workflows/build-qemu-runtime.yml', 'project.yml'):
+      for name in ('.gitlab-ci.yml', '.github/workflows/blank.yml', '.github/workflows/release.yml', '.github/workflows/build-qemu-runtime.yml', 'project.yml'):
           text = pathlib.Path(name).read_text()
           try:
               if name == '.gitlab-ci.yml':
@@ -67,18 +67,28 @@ validate_build_configuration:
           raise SystemExit('QEMU dependency cache key must include the runtime workflow.')
       if "fix/**" not in qemu_workflow:
           raise SystemExit('QEMU runtime workflow must run on fix branches for validation.')
-      print('CI YAML (duplicate-key strict), release requirements, QEMU cache invalidation, and source guards passed.')
+      sync_job = pathlib.Path('.gitlab-ci.yml').read_text()
+      if "if: '$CI_COMMIT_BRANCH == \"main\"'" not in sync_job:
+          raise SystemExit('GitHub sync must run only for the canonical main branch.')
+      if 'git push github HEAD:refs/heads/main' not in sync_job:
+          raise SystemExit('GitHub sync must push directly to main.')
+      if 'git push github "HEAD:refs/heads/' + '${CI_COMMIT_BRANCH}"' in sync_job:
+          raise SystemExit('GitHub sync must not publish feature branches or create mirror PRs.')
+      reverse_sync = pathlib.Path('.github/workflows/blank.yml').read_text()
+      if '  push:' in reverse_sync:
+          raise SystemExit('Automatic GitHub-to-GitLab sync must stay disabled.')
+      print('CI YAML (duplicate-key strict), release requirements, QEMU cache invalidation, main-only sync, and source guards passed.')
       PY
     - python3 scripts/validate-qemu-source.py
 
 sync_to_github:
   stage: sync
-  # Serialize pushes to the same GitHub branch, but allow independent branches to sync.
-  resource_group: github-sync-$CI_COMMIT_BRANCH
+  # GitLab is canonical. Mirror main only; feature branches stay in GitLab and do not create GitHub PRs.
+  resource_group: github-sync-main
   image: alpine:latest
   interruptible: false
   rules:
-    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_BRANCH == "main"'
   before_script:
     - apk add --no-cache git
   script:
@@ -95,9 +105,10 @@ sync_to_github:
         echo "GitHub authentication failed. Check GITHUB_SYNC_TOKEN and its Contents: Read and write permission."
         exit 1
       fi
-      # Mirror only to the same-named branch; never force a feature branch over main.
-      git push github "HEAD:refs/heads/${CI_COMMIT_BRANCH}"
-      echo "Synced GitLab branch ${CI_COMMIT_BRANCH} to the same-named GitHub branch."
+      # Push only canonical main directly. Never publish GitLab feature branches to GitHub.
+      test "${CI_COMMIT_BRANCH}" = "main"
+      git push github HEAD:refs/heads/main
+      echo "Synced GitLab main directly to GitHub main (no pull request)."
 
 dispatch_manual_build:
   stage: dispatch
