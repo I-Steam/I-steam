@@ -11,6 +11,12 @@ i-Steam's native bridge expects an in-process, device-arm64 QEMU library exporti
 
 The workflow uses UTM's iOS build command, whose `-o UTMBuild` output is `UTMBuild.xcarchive`. It caches both UTM's `build-iOS-arm64` success marker and `sysroot-iOS-arm64`.
 
+## Latest failure follow-up (2026-10-26)
+
+The subsequent run [40325684693](https://github.com/I-Steam/I-steam/actions/runs/40325684693) passed the earlier `posix_memalign` compile stage but failed while linking QEMU's `libqemu-x86_64-softmmu.dylib` with undefined symbol `__isPlatformVersionAtLeast` from `tcg/region.c`. The workflow found Apple's `libclang_rt.ios.a`, but passing it via `--extra-ldflags` only affected configure-time flags; the actual Meson target link command did not contain the archive. The updated workflow now patches QEMU's `meson.build` before configuration and adds the runtime archive using `add_project_link_arguments`, which applies to the generated C target link commands. It removes the ineffective force-load flag from QEMU's configure arguments. The workflow change invalidates the dependency cache automatically through `hashFiles`.
+
+This is a diagnosis-driven fix, not yet a verified successful build. Confirm that the next log's actual `libqemu-x86_64-softmmu.dylib` link command includes `libclang_rt.ios.a`, that the link succeeds, and that the artifact `iSteam-qemu-runtime-ios-arm64` is uploaded before treating the release workflow as unblocked.
+ 
 ## Latest failure and fix (2026-10-26)
 
 The latest observed UTM runtime run, [40240044522](https://github.com/I-Steam/I-steam/actions/runs/40240044522), failed compiling QEMU 10.0.12 at `util/memalign.c:65` with `No function to allocate aligned memory available`. The dependent iOS release run, [40266823488](https://github.com/I-Steam/I-steam/actions/runs/40266823488), consequently failed while downloading the required runtime artifact; the IPA build step was skipped.
