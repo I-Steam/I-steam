@@ -11,6 +11,8 @@ on:
       - .github/workflows/release.yml
       - .github/workflows/build-qemu-runtime.yml
       - scripts/package-utm-qemu-runtime.sh
+      - .gitlab-ci.yml
+      - docs/**
   workflow_run:
     workflows: ["Build UTM iOS QEMU runtime (manual)"]
     types: [completed]
