@@ -21,6 +21,10 @@ The first post-cache-fix build still failed. Its log showed Autoconf detecting `
 
 The cache remains fingerprinted by the workflow/package script, so this patch triggers a fresh dependency build. This is a targeted source-build fix, not yet a verified successful runtime build. The next run must compile past `util/memalign.c`, finish dependency compilation, produce the UTM archive, and upload the verified artifact before the release can succeed.
 
+### Release/runtime ordering fix
+
+The 2026-10-26 push exposed a second workflow bug: the iOS release job started at the same time as the first runtime build and failed with `no matching workflow run found with any artifacts`. The release workflow now ignores pushes that change the runtime workflow or packaging script and listens for completion of **Build UTM iOS QEMU runtime (manual)** instead. Its build matrix runs for that event only when the runtime workflow concludes successfully. Normal app-source pushes can still start a release using the most recent completed runtime artifact; scheduled and manually dispatched releases remain available. This removes the known first-build race without allowing a missing runtime to be silently ignored.
+
 ## Important limitations
 
 The artifact build is not IPA integration. It must be copied into the app bundle at the path expected by `QEMURuntimeStatus`, all nested code must be correctly signed, and the bridge must be tested on a physical iPad. A build that fails to find a matching QEMU library or firmware is a real blocker, not a success to bypass. A guest boot must be verified before claiming the runtime is complete.

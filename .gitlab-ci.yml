@@ -61,6 +61,12 @@ validate_build_configuration:
           raise SystemExit(1)
       if 'if-no-files-found: ignore' in workflow:
           raise SystemExit('Release artifacts must not silently ignore missing files.')
+      if 'workflow_run:' not in workflow or 'Build UTM iOS QEMU runtime (manual)' not in workflow:
+          raise SystemExit('Release must wait for successful QEMU runtime workflow completion.')
+      if 'paths-ignore:' not in workflow or '.github/workflows/build-qemu-runtime.yml' not in workflow:
+          raise SystemExit('Release push trigger must avoid racing QEMU runtime workflow changes.')
+      if "github.event.workflow_run.conclusion == 'success'" not in workflow:
+          raise SystemExit('Release build must skip when the QEMU runtime workflow fails.')
       if "utm-ios-arm64-deps-v5-" not in qemu_workflow:
           raise SystemExit('QEMU dependency cache key must be bumped when build-workflow patch logic changes.')
       if "config_host_data.set('CONFIG_POSIX_MEMALIGN', true)" not in qemu_workflow:
