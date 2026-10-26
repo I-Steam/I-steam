@@ -21,8 +21,9 @@ permissions:
   actions: read
 
 concurrency:
-  group: isteam-release
-  cancel-in-progress: false
+  # Keep Main and Nightly independent; newer runs supersede older runs for the same ref/channel.
+  group: isteam-release-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.channel || 'Nightly' }}
+  cancel-in-progress: true
 
 jobs:
   build:
