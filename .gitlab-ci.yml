@@ -75,7 +75,6 @@ sync_to_github:
       git config user.name "i-Steam Sync"
       git config user.email "sync@i-steam.local"
       git remote add github "https://x-access-token:${GITHUB_SYNC_TOKEN}@github.com/I-Steam/I-steam.git"
-      # Check authentication without printing credentials.
       if ! git ls-remote github HEAD >/dev/null 2>&1; then
         echo "GitHub authentication failed. Check GITHUB_SYNC_TOKEN and its Contents: Read and write permission."
         exit 1
@@ -102,5 +101,5 @@ dispatch_manual_build:
         -H "Authorization: Bearer ${GITHUB_SYNC_TOKEN}" \
         -H "X-GitHub-Api-Version: 2022-11-28" \
         "https://api.github.com/repos/I-Steam/I-steam/actions/workflows/release.yml/dispatches" \
-        -d "{\\"ref\\":\\"main\\",\\"inputs\\":{\\"channel\\":\\"$CHANNEL\\"}}"
+        -d "{\"ref\":\"main\",\"inputs\":{\"channel\":\"$CHANNEL\"}}"
       echo "Dispatched combined iOS + tvOS + visionOS $CHANNEL release."
