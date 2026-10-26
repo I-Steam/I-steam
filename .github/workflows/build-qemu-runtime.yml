@@ -20,7 +20,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: qemu-runtime-ios-arm64
+  # Let different branches build independently; supersede only stale runs on this ref.
+  group: qemu-runtime-ios-arm64-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -32,6 +33,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Checkout UTM with submodules
+        id: utm-source
         uses: actions/checkout@v4
         with:
           repository: utmapp/UTM
@@ -80,7 +82,7 @@ jobs:
             UTM/sysroot-iOS-arm64
           # Include the workflow itself: Meson cross-file fixes change build configuration.
           # A workflow-only fix must not reuse a QEMU build tree configured without it.
-          key: utm-ios-arm64-deps-v4-${{ hashFiles('.github/workflows/build-qemu-runtime.yml', 'scripts/package-utm-qemu-runtime.sh', 'UTM/scripts/build_dependencies.sh', 'UTM/scripts/fixup.sh', 'UTM/patches/**') }}
+          key: utm-ios-arm64-deps-v5-${{ steps.utm-source.outputs.commit }}-${{ hashFiles('.github/workflows/build-qemu-runtime.yml', 'scripts/package-utm-qemu-runtime.sh') }}
 
       - name: Build UTM dependencies for physical iOS arm64
         shell: bash

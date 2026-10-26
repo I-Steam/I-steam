@@ -61,10 +61,14 @@ validate_build_configuration:
           raise SystemExit(1)
       if 'if-no-files-found: ignore' in workflow:
           raise SystemExit('Release artifacts must not silently ignore missing files.')
-      if "utm-ios-arm64-deps-v4-" not in qemu_workflow:
+      if "utm-ios-arm64-deps-v5-" not in qemu_workflow:
           raise SystemExit('QEMU dependency cache key must be bumped when build-workflow patch logic changes.')
       if ".github/workflows/build-qemu-runtime.yml" not in qemu_workflow:
           raise SystemExit('QEMU dependency cache key must include the runtime workflow.')
+      if "steps.utm-source.outputs.commit" not in qemu_workflow:
+          raise SystemExit('QEMU dependency cache key must include the checked-out upstream UTM commit.')
+      if "group: qemu-runtime-ios-arm64-${{ github.ref }}" not in qemu_workflow:
+          raise SystemExit('QEMU runtime concurrency must be isolated by Git ref.')
       if "fix/**" not in qemu_workflow:
           raise SystemExit('QEMU runtime workflow must run on fix branches for validation.')
       sync_job = pathlib.Path('.gitlab-ci.yml').read_text()
