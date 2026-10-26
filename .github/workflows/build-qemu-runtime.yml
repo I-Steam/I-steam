@@ -168,7 +168,7 @@ jobs:
             add_project_link_arguments(ios_compiler_rt, language: 'c')
           endif
           """
-              line_end = source.find("\\n", project_end)
+              line_end = source.find("\n", project_end)
               if line_end < 0:
                   line_end = project_end
               source = source[:line_end + 1] + link_block + source[line_end + 1:]
