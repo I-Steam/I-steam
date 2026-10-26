@@ -6,6 +6,9 @@ on:
   push:
     branches: [main]
     paths-ignore:
+      # Workflow-only changes must not start a release before their CI checks or
+      # any dependent runtime build has finished.
+      - .github/workflows/release.yml
       - .github/workflows/build-qemu-runtime.yml
       - scripts/package-utm-qemu-runtime.sh
   workflow_run:

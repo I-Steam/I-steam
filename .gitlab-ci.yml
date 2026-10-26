@@ -65,6 +65,8 @@ validate_build_configuration:
           raise SystemExit('Release must wait for successful QEMU runtime workflow completion.')
       if 'paths-ignore:' not in workflow or '.github/workflows/build-qemu-runtime.yml' not in workflow:
           raise SystemExit('Release push trigger must avoid racing QEMU runtime workflow changes.')
+      if '.github/workflows/release.yml' not in workflow:
+          raise SystemExit('Release workflow must not trigger itself on workflow-only changes.')
       if "github.event.workflow_run.conclusion == 'success'" not in workflow:
           raise SystemExit('Release build must skip when the QEMU runtime workflow fails.')
       if "utm-ios-arm64-deps-v5-" not in qemu_workflow:
