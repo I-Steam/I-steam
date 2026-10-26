@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - fix/qemu-disk-launch-flow
+      - 'fix/**'
     paths:
       - .github/workflows/build-qemu-runtime.yml
       - scripts/package-utm-qemu-runtime.sh
@@ -78,7 +78,9 @@ jobs:
           path: |
             UTM/build-iOS-arm64
             UTM/sysroot-iOS-arm64
-          key: utm-ios-arm64-deps-v3-${{ hashFiles('UTM/scripts/build_dependencies.sh', 'UTM/scripts/fixup.sh', 'UTM/patches/**') }}
+          # Include the workflow itself: Meson cross-file fixes change build configuration.
+          # A workflow-only fix must not reuse a QEMU build tree configured without it.
+          key: utm-ios-arm64-deps-v4-${{ hashFiles('.github/workflows/build-qemu-runtime.yml', 'scripts/package-utm-qemu-runtime.sh', 'UTM/scripts/build_dependencies.sh', 'UTM/scripts/fixup.sh', 'UTM/patches/**') }}
 
       - name: Build UTM dependencies for physical iOS arm64
         shell: bash
@@ -101,12 +103,16 @@ jobs:
               if cross_marker not in source:
                   raise SystemExit("Could not locate Meson cross-file feature overrides in UTM/scripts/build_dependencies.sh")
               source = source.replace(cross_marker, cross_marker + '\n    ' + cross_override, 1)
+          if cross_override not in source:
+              raise SystemExit("Meson cross-file posix_memalign override was not installed")
           needle = 'if [ -z "$DEBUG" ]; then\n    QEMU_DEBUG_FLAGS="--disable-debug-info"'
           replacement = 'QEMU_PLATFORM_BUILD_FLAGS="$QEMU_PLATFORM_BUILD_FLAGS --target-list=x86_64-softmmu --extra-ldflags=-Wl,-force_load,$IOS_COMPILER_RT"\n\n' + needle
           if needle not in source:
               raise SystemExit("Could not locate QEMU build flag insertion point")
           path.write_text(source.replace(needle, replacement, 1))
+          print("Installed Meson posix_memalign override and iOS compiler-rt linker flag.")
           PY
+          grep -F 'has_function_posix_memalign = true' scripts/build_dependencies.sh
           if [ "${{ inputs.rebuild_dependencies }}" = "true" ] || [ ! -f build-iOS-arm64/BUILD_SUCCESS ]; then
             ./scripts/build_dependencies.sh -p ios -a arm64
           else

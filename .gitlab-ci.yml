@@ -17,14 +17,36 @@ validate_build_configuration:
     - |
       python3 - <<'PY'
       import pathlib, sys, yaml
-      workflow = pathlib.Path('.github/workflows/release.yml').read_text()
-      project = pathlib.Path('project.yml').read_text()
-      for name, text in [('release workflow', workflow), ('XcodeGen project', project)]:
+
+      class UniqueKeyLoader(yaml.SafeLoader):
+          def construct_mapping(self, node, deep=False):
+              self.flatten_mapping(node)
+              mapping = {}
+              for key_node, value_node in node.value:
+                  key = self.construct_object(key_node, deep=deep)
+                  if key in mapping:
+                      raise yaml.constructor.ConstructorError(
+                          "while constructing a mapping",
+                          node.start_mark,
+                          f"duplicate key {key!r}",
+                          key_node.start_mark,
+                      )
+                  mapping[key] = self.construct_object(value_node, deep=deep)
+              return mapping
+
+      for name in ('.gitlab-ci.yml', '.github/workflows/release.yml', '.github/workflows/build-qemu-runtime.yml', 'project.yml'):
+          text = pathlib.Path(name).read_text()
           try:
-              yaml.safe_load(text)
+              if name == '.gitlab-ci.yml':
+                  list(yaml.load_all(text, Loader=UniqueKeyLoader))
+              else:
+                  yaml.load(text, Loader=UniqueKeyLoader)
           except yaml.YAMLError as error:
               print(f'{name} YAML parse failed: {error}', file=sys.stderr)
               raise SystemExit(1)
+
+      workflow = pathlib.Path('.github/workflows/release.yml').read_text()
+      qemu_workflow = pathlib.Path('.github/workflows/build-qemu-runtime.yml').read_text()
       required = [
           'platform: [iOS, tvOS, visionOS]',
           'name: iSteam-${{ matrix.platform }}-${{ matrix.channel }}',
@@ -39,7 +61,13 @@ validate_build_configuration:
           raise SystemExit(1)
       if 'if-no-files-found: ignore' in workflow:
           raise SystemExit('Release artifacts must not silently ignore missing files.')
-      print('Release workflow and XcodeGen YAML parse; platform/artifact/token checks passed.')
+      if "utm-ios-arm64-deps-v4-" not in qemu_workflow:
+          raise SystemExit('QEMU dependency cache key must be bumped when build-workflow patch logic changes.')
+      if ".github/workflows/build-qemu-runtime.yml" not in qemu_workflow:
+          raise SystemExit('QEMU dependency cache key must include the runtime workflow.')
+      if "fix/**" not in qemu_workflow:
+          raise SystemExit('QEMU runtime workflow must run on fix branches for validation.')
+      print('CI YAML (duplicate-key strict), release requirements, QEMU cache invalidation, and source guards passed.')
       PY
     - python3 scripts/validate-qemu-source.py
 
@@ -63,21 +91,13 @@ sync_to_github:
       git config user.name "i-Steam Sync"
       git config user.email "sync@i-steam.local"
       git remote add github "https://x-access-token:${GITHUB_SYNC_TOKEN}@github.com/I-Steam/I-steam.git"
-      # Check authentication without printing credentials. HEAD exists even when the target branch does not.
       if ! git ls-remote github HEAD >/dev/null 2>&1; then
         echo "GitHub authentication failed. Check GITHUB_SYNC_TOKEN and its Contents: Read and write permission."
         exit 1
       fi
-      # Mirror each GitLab branch to the same-named GitHub branch. Feature branches cannot overwrite GitHub main.
+      # Mirror only to the same-named branch; never force a feature branch over main.
       git push github "HEAD:refs/heads/${CI_COMMIT_BRANCH}"
       echo "Synced GitLab branch ${CI_COMMIT_BRANCH} to the same-named GitHub branch."
-  before_script:
-    - apk add --no-cache git
-  script:
-    - git config user.name "i-Steam Sync"
-    - git config user.email "sync@i-steam.local"
-    - git remote set-url origin "https://oauth2:${GITHUB_SYNC_TOKEN}@github.com/I-Steam/I-steam.git"
-    - git push --force origin HEAD:refs/heads/main
 
 dispatch_manual_build:
   stage: dispatch

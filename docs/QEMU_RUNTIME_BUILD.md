@@ -5,16 +5,19 @@ i-Steam's native bridge expects an in-process, device-arm64 QEMU library exporti
 ## Build
 
 1. Open GitHub Actions in the `I-Steam/I-steam` mirror and run **Build UTM iOS QEMU runtime (manual)**.
-2. Leave **Rebuild UTM dependencies** off to reuse the cached dependency build; enable it when upstream dependency inputs change or the cache is invalid.
-3. Download the `iSteam-qemu-runtime-ios-arm64` artifact from a successful run.
+2. Leave **Rebuild UTM dependencies** off for normal builds. The dependency cache is now versioned against the runtime workflow and packaging script as well as UTM's dependency inputs. A change to Meson cross-file patching therefore invalidates a potentially stale configured QEMU build tree.
+3. Enable **Rebuild UTM dependencies** if the cache is invalid or upstream dependency inputs change.
+4. Download the `iSteam-qemu-runtime-ios-arm64` artifact from a successful run.
 
-The workflow uses UTM's documented iOS build command, whose `-o UTMBuild` output is `UTMBuild.xcarchive`. It caches both UTM's `build-iOS-arm64` success marker and `sysroot-iOS-arm64`.
+The workflow uses UTM's iOS build command, whose `-o UTMBuild` output is `UTMBuild.xcarchive`. It caches both UTM's `build-iOS-arm64` success marker and `sysroot-iOS-arm64`.
 
-## Latest build failure and targeted fix (2026-10-25)
+## Latest failure and fix (2026-10-26)
 
-The most recent recorded GitHub Actions runtime build (#8) failed compiling QEMU 10.0.12 at `util/memalign.c:65` with `No function to allocate aligned memory available`. Adding `-DCONFIG_POSIX_MEMALIGN` as a compiler flag did not work because QEMU generates `config-host.h` from Meson's feature checks, which can override command-line defines.
+The latest observed UTM runtime run, [40240044522](https://github.com/I-Steam/I-steam/actions/runs/40240044522), failed compiling QEMU 10.0.12 at `util/memalign.c:65` with `No function to allocate aligned memory available`. The dependent iOS release run, [40266823488](https://github.com/I-Steam/I-steam/actions/runs/40266823488), consequently failed while downloading the required runtime artifact; the IPA build step was skipped.
 
-The workflow now patches UTM's generated Meson cross-file function override to set `has_function_posix_memalign = true`, so the generated QEMU host configuration should select `posix_memalign()` for the iOS target. The ineffective direct `CONFIG_POSIX_MEMALIGN` compiler define was removed. This is a targeted fix inferred from the observed compiler error and Meson/QEMU configuration behavior; it is **not yet verified** until a new runtime build gets past this source file.
+The workflow already patches UTM's Meson cross-file generator to add `has_function_posix_memalign = true`. However, its old cache key hashed UTM dependency inputs only, not the workflow that injects this patch. A cached QEMU build tree could therefore be restored with Meson configuration generated before the override. The repair bumps the cache namespace to `v4`, includes the runtime workflow and packaging script in `hashFiles`, adds a clear assertion that the patch is installed, and runs the runtime build workflow on `fix/**` branches so the change can be tested before merging.
+
+This is a root-cause hypothesis supported by the cache-key omission and the compile error, not yet a verified successful build. The next run must get past `util/memalign.c`, finish dependency compilation, produce the UTM archive, and upload the verified artifact before the release can succeed.
 
 ## Important limitations
 
