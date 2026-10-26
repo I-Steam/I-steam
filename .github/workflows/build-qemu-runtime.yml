@@ -1,0 +1,141 @@
+name: Build UTM iOS QEMU runtime (manual)
+
+on:
+  push:
+    branches:
+      - main
+      - fix/qemu-disk-launch-flow
+    paths:
+      - .github/workflows/build-qemu-runtime.yml
+      - scripts/package-utm-qemu-runtime.sh
+  workflow_dispatch:
+    inputs:
+      rebuild_dependencies:
+        description: Rebuild UTM dependencies instead of reusing the runner cache
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qemu-runtime-ios-arm64
+  cancel-in-progress: true
+
+jobs:
+  build-utm-runtime:
+    runs-on: macos-15
+    timeout-minutes: 350
+    steps:
+      - name: Checkout i-Steam
+        uses: actions/checkout@v4
+
+      - name: Checkout UTM with submodules
+        uses: actions/checkout@v4
+        with:
+          repository: utmapp/UTM
+          ref: main
+          path: UTM
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          xcode-select -p
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Install UTM build dependencies
+        run: |
+          set -euo pipefail
+          brew install bison pkg-config gettext glib libgpg-error nasm meson cmake llvm spirv-llvm-translator libxcb libxrandr
+          python3 -m pip install --break-system-packages six pyparsing pyyaml setuptools distlib mako
+          echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+
+          # UTM's QEMU link step uses platform-availability checks. Homebrew LLVM
+          # does not ship an iOS compiler-rt, so force-load Apple's iOS runtime
+          # from the active Xcode toolchain when the linker builds QEMU dylibs.
+          CLANG="$(xcrun --sdk iphoneos --find clang)"
+          RESOURCE_DIR="$("$CLANG" -print-resource-dir)"
+          RUNTIME="$RESOURCE_DIR/lib/darwin/libclang_rt.ios.a"
+          if [ ! -f "$RUNTIME" ]; then
+            RUNTIME="$(find "$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang" -path '*/lib/darwin/libclang_rt.ios.a' -print -quit)"
+          fi
+          if [ -z "$RUNTIME" ] || [ ! -f "$RUNTIME" ]; then
+            echo "Apple's libclang_rt.ios.a was not found in the selected Xcode toolchain." >&2
+            exit 1
+          fi
+          echo "IOS_COMPILER_RT=$RUNTIME" >> "$GITHUB_ENV"
+          echo "Using iOS compiler runtime: $RUNTIME"
+
+      - name: Cache UTM dependency build and sysroot
+        if: ${{ !inputs.rebuild_dependencies }}
+        uses: actions/cache@v4
+        with:
+          path: |
+            UTM/build-iOS-arm64
+            UTM/sysroot-iOS-arm64
+          key: utm-ios-arm64-deps-v3-${{ hashFiles('UTM/scripts/build_dependencies.sh', 'UTM/scripts/fixup.sh', 'UTM/patches/**') }}
+
+      - name: Build UTM dependencies for physical iOS arm64
+        shell: bash
+        env:
+          NCPU: "2"
+        run: |
+          set -euo pipefail
+          cd UTM
+          # Apply compiler-rt only to QEMU's link flags, not every third-party
+          # dependency; globally force-loading it bloats or breaks other builds.
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/build_dependencies.sh")
+          source = path.read_text()
+          # UTM's current script writes Meson feature overrides in generate_meson_cross().
+          # Match current upstream syntax (unquoted $cross); fail clearly if upstream changes.
+          cross_marker = 'echo "has_function_dup3 = false" >> $cross'
+          cross_override = 'echo "has_function_posix_memalign = true" >> $cross'
+          if cross_override not in source:
+              if cross_marker not in source:
+                  raise SystemExit("Could not locate Meson cross-file feature overrides in UTM/scripts/build_dependencies.sh")
+              source = source.replace(cross_marker, cross_marker + '\n    ' + cross_override, 1)
+          needle = 'if [ -z "$DEBUG" ]; then\n    QEMU_DEBUG_FLAGS="--disable-debug-info"'
+          replacement = 'QEMU_PLATFORM_BUILD_FLAGS="$QEMU_PLATFORM_BUILD_FLAGS --target-list=x86_64-softmmu --extra-ldflags=-Wl,-force_load,$IOS_COMPILER_RT"\n\n' + needle
+          if needle not in source:
+              raise SystemExit("Could not locate QEMU build flag insertion point")
+          path.write_text(source.replace(needle, replacement, 1))
+          PY
+          if [ "${{ inputs.rebuild_dependencies }}" = "true" ] || [ ! -f build-iOS-arm64/BUILD_SUCCESS ]; then
+            ./scripts/build_dependencies.sh -p ios -a arm64
+          else
+            echo "Using the cached iOS arm64 dependency build."
+          fi
+          test -f build-iOS-arm64/BUILD_SUCCESS
+          test -d sysroot-iOS-arm64
+
+      - name: Build UTM iOS archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd UTM
+          ./scripts/build_utm.sh -k iphoneos -s iOS -a arm64 -o UTMBuild
+          test -d UTMBuild.xcarchive/Products/Applications/UTM.app
+
+      - name: Package and verify in-process QEMU runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/package-utm-qemu-runtime.sh UTM/UTMBuild.xcarchive build/qemu-runtime
+          cp UTM/UTMBuild.xcarchive/Info.plist build/qemu-runtime/UTM-archive-Info.plist
+          echo "UTM revision: $(git -C UTM rev-parse HEAD)" >> build/qemu-runtime/BUILD-INFO.txt
+          cat build/qemu-runtime/BUILD-INFO.txt
+
+      - name: Upload verified QEMU runtime artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: iSteam-qemu-runtime-ios-arm64
+          path: build/qemu-runtime/
+          if-no-files-found: error
+          retention-days: 14

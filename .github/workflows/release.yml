@@ -18,6 +18,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: isteam-release
@@ -41,6 +42,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Download required iOS QEMU runtime artifact
+        if: matrix.platform == 'iOS'
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: build-qemu-runtime.yml
+          branch: ${{ github.ref_name }}
+          name: iSteam-qemu-runtime-ios-arm64
+          path: build/qemu-runtime
+          if_no_artifact_found: fail
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/cache@v4
         with:
@@ -70,6 +82,31 @@ jobs:
           APP="build/iSteam.xcarchive/Products/Applications/iSteam.app"
           test -d "$APP"
           /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist" | grep -Fx "$EXPECTED_BUNDLE"
+          RUNTIME_DIR="build/qemu-runtime"
+          test -d "$RUNTIME_DIR/Frameworks" || { echo "Required QEMU Frameworks directory is missing." >&2; exit 1; }
+          test -d "$RUNTIME_DIR/QEMU" || { echo "Required QEMU data directory is missing." >&2; exit 1; }
+          test -s "$RUNTIME_DIR/QEMU/runtime-library-path.txt" || { echo "Runtime library manifest is missing." >&2; exit 1; }
+          test -s "$RUNTIME_DIR/exports.txt" || { echo "QEMU export manifest is missing." >&2; exit 1; }
+          RUNTIME_REL="$(head -n 1 "$RUNTIME_DIR/QEMU/runtime-library-path.txt")"
+          case "$RUNTIME_REL" in
+            Frameworks/*) ;;
+            *) echo "Unexpected QEMU runtime path: $RUNTIME_REL" >&2; exit 1 ;;
+          esac
+          test -s "$RUNTIME_DIR/$RUNTIME_REL" || { echo "Manifest points to a missing QEMU library: $RUNTIME_REL" >&2; exit 1; }
+          grep -Eq ' _?qemu_init$' "$RUNTIME_DIR/exports.txt" || { echo "QEMU init export is missing." >&2; exit 1; }
+          grep -Eq ' _?qemu_main_loop$' "$RUNTIME_DIR/exports.txt" || { echo "QEMU main-loop export is missing." >&2; exit 1; }
+          grep -Eq ' _?qemu_cleanup$' "$RUNTIME_DIR/exports.txt" || { echo "QEMU cleanup export is missing." >&2; exit 1; }
+
+          # The IPA must contain the runtime, not just validate an artifact
+          # that is left behind in the runner workspace.
+          mkdir -p "$APP/Frameworks" "$APP/QEMU"
+          cp -R "$RUNTIME_DIR/Frameworks/." "$APP/Frameworks/"
+          cp -R "$RUNTIME_DIR/QEMU/." "$APP/QEMU/"
+          EMBEDDED_LIBRARY="$APP/$RUNTIME_REL"
+          test -s "$EMBEDDED_LIBRARY" || { echo "Embedded QEMU library is missing: $EMBEDDED_LIBRARY" >&2; exit 1; }
+          test -s "$APP/QEMU/runtime-library-path.txt" || { echo "Embedded QEMU library manifest is missing." >&2; exit 1; }
+          test -n "$(find "$APP/QEMU" -type f -size +0c -print -quit)" || { echo "No QEMU data files were embedded." >&2; exit 1; }
+
           mkdir -p build/Payload
           cp -R "$APP" build/Payload/iSteam.app
           ditto -c -k --sequesterRsrc --keepParent build/Payload build/iSteam-ios.ipa
@@ -315,4 +352,3 @@ jobs:
             git -C website commit -m "Publish iOS ${{ matrix.channel }} build ${{ steps.meta.outputs.version }}"
             git -C website push origin HEAD:main
           fi
-

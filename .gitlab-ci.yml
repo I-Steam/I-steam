@@ -41,12 +41,36 @@ validate_build_configuration:
           raise SystemExit('Release artifacts must not silently ignore missing files.')
       print('Release workflow and XcodeGen YAML parse; platform/artifact/token checks passed.')
       PY
+    - python3 scripts/validate-qemu-source.py
 
 sync_to_github:
   stage: sync
-  resource_group: github-main-sync
+  # Serialize pushes to the same GitHub branch, but allow independent branches to sync.
+  resource_group: github-sync-$CI_COMMIT_BRANCH
   image: alpine:latest
   interruptible: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH'
+  before_script:
+    - apk add --no-cache git
+  script:
+    - |
+      set -eu
+      if [ -z "${GITHUB_SYNC_TOKEN:-}" ]; then
+        echo "GITHUB_SYNC_TOKEN is missing or unavailable to this branch. Add a valid masked GitLab CI/CD variable with GitHub Contents: Read and write permission."
+        exit 1
+      fi
+      git config user.name "i-Steam Sync"
+      git config user.email "sync@i-steam.local"
+      git remote add github "https://x-access-token:${GITHUB_SYNC_TOKEN}@github.com/I-Steam/I-steam.git"
+      # Check authentication without printing credentials. HEAD exists even when the target branch does not.
+      if ! git ls-remote github HEAD >/dev/null 2>&1; then
+        echo "GitHub authentication failed. Check GITHUB_SYNC_TOKEN and its Contents: Read and write permission."
+        exit 1
+      fi
+      # Mirror each GitLab branch to the same-named GitHub branch. Feature branches cannot overwrite GitHub main.
+      git push github "HEAD:refs/heads/${CI_COMMIT_BRANCH}"
+      echo "Synced GitLab branch ${CI_COMMIT_BRANCH} to the same-named GitHub branch."
   before_script:
     - apk add --no-cache git
   script:

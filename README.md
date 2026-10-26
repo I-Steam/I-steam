@@ -74,7 +74,7 @@ See [the tvOS status and roadmap](docs/TVOS.md).
 
 ### Runtime and native helpers
 
-The repository contains exploratory components for guest memory, image/file inspection, storage, display, and host-device services. A complete full-system CPU/machine emulator, integrated QEMU runtime, Box64 execution environment, Wine/Proton, Windows API compatibility layer, functional guest networking/input path, and production-ready 3D GPU translation are not yet integrated. Android selection is a UI experiment. Compatibility with arbitrary games or anti-cheat systems is not promised.
+The repository contains exploratory components for guest memory, image/file inspection, storage, display, and host-device services. The QEMU/UTM runtime build is being developed in `.github/workflows/build-qemu-runtime.yml`; the previous runtime build failed on UTM's Meson cross-file patch. That marker has been corrected and the next device-arm64 runtime build is in progress; no verified runtime artifact is available yet. A working full-system emulator, Box64 execution environment, Wine/Proton, Windows API compatibility layer, functional guest networking/input path, and production-ready 3D GPU translation are not yet integrated. Android selection is a UI experiment. Compatibility with arbitrary games or anti-cheat systems is not promised.
 
 The Android DroidDeck source is not a direct iOS runtime: FEX/Proton, Turnip, Gamescope, Linux package managers, and Android-specific device access need separate Apple-platform implementations. See [DroidDeck feature-port inventory](docs/DROIDDECK_PORT_PLAN.md) and [DroidDeck port status](docs/DROIDDECK_PORT_STATUS.md).
 
@@ -138,6 +138,7 @@ Bug reports, documentation improvements, and focused pull requests are welcome. 
 - [tvOS status and roadmap](docs/TVOS.md)
 - [Host-device bridge](docs/HOST_DEVICE_BRIDGE.md)
 - [Runtime architecture and roadmap](docs/SHARPEMU_REUSE_NOTES.md)
+- [QEMU runtime build and failure diagnostics](docs/QEMU_RUNTIME_BUILD.md)
 - [DroidDeck feature-port plan](docs/DROIDDECK_PORT_PLAN.md)
 - [DroidDeck port status](docs/DROIDDECK_PORT_STATUS.md)
 - Portable library transfer, per-game profile defaults, and feature readiness services: `src/Steam/DroidDeckFeatureServices.swift`

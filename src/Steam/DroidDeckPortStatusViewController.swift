@@ -67,6 +67,7 @@ final class DroidDeckPortStatusViewController: UITableViewController {
         case .glassesPoseTracking: return "XR glasses / pose tracking"
         case .rawUSBBlockDevices: return "Raw USB block devices"
         case .fullSystemQEMU: return "Full-system QEMU"
+        case .steamOSGamingMode: return "SteamOS Gaming Mode"
         }
     }
 }

@@ -15,6 +15,7 @@ bool isteam_qemu_start(int argc, const char * _Nonnull const * _Nonnull argv,
                        char * _Nonnull error_buffer, int error_capacity);
 void isteam_qemu_request_stop(void);
 bool isteam_qemu_is_running(void);
+bool isteam_qemu_is_active(void);
 const char * _Nonnull isteam_qemu_last_error(void);
 
 #ifdef __cplusplus

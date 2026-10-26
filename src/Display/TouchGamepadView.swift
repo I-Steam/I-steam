@@ -1,7 +1,7 @@
 import UIKit
 
-/// A configurable Xbox-style touch layout. This emits logical control events;
-/// it does not claim to inject them into a guest until a runtime input bridge exists.
+/// A configurable Xbox-style touch layout. Emits logical control events; guest
+/// delivery still depends on a working runtime input bridge.
 final class TouchGamepadView: UIView {
     var onMove: ((CGPoint) -> Void)?
     var onLook: ((CGPoint) -> Void)?
@@ -9,10 +9,14 @@ final class TouchGamepadView: UIView {
 
     private let leftStick = StickControl()
     private let rightStick = StickControl()
-    private let controls = UIStackView()
     private var buttons: [UIButton] = []
-    private let layoutKey = "iSteam.touchGamepad.layout.v2"
+    // Store normalized coordinates so layouts survive rotation, Split View and
+    // Stage Manager window resizing instead of restoring controls off-screen.
+    private let layoutKey = "iSteam.touchGamepad.layout.v3"
     private var editMode = false
+    private var didApplyLayout = false
+    private var lastBoundsSize: CGSize = .zero
+    private var editButtonControl: UIButton!
 
     private let buttonDefinitions: [(String, String)] = [
         ("LB", "L1"), ("LT", "L2"), ("L3", "L3"),
@@ -49,6 +53,7 @@ final class TouchGamepadView: UIView {
             addSubview(button)
             buttons.append(button)
         }
+
         let edit = UIButton(type: .system)
         edit.setTitle("Move / Resize", for: .normal)
         edit.setTitleColor(.white, for: .normal)
@@ -58,44 +63,40 @@ final class TouchGamepadView: UIView {
         edit.addTarget(self, action: #selector(toggleEditMode), for: .touchUpInside)
         addSubview(edit)
         editButtonControl = edit
-        restoreLayout()
     }
-
-    private var editButtonControl: UIButton!
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        if !didApplyLayout {
-            didApplyLayout = true
-            applyDefaultLayout()
-            restoreLayout()
+        if bounds.size != lastBoundsSize {
+            lastBoundsSize = bounds.size
+            if !didApplyLayout {
+                didApplyLayout = true
+                applyDefaultLayout()
+            }
+            if !editMode { restoreLayout() }
         }
         editButtonControl.frame = CGRect(x: bounds.midX - 52, y: 12, width: 104, height: 30)
-        if !editMode { return }
+        if editMode { installEditGesturesIfNeeded() }
+    }
+
+    private func installEditGesturesIfNeeded() {
         for control in [leftStick as UIView, rightStick as UIView] + buttons {
             control.layer.borderColor = UIColor.systemYellow.cgColor
             control.layer.borderWidth = 2
             control.isUserInteractionEnabled = true
-            if let gesture = control.gestureRecognizers?.first(where: { $0 is UIPanGestureRecognizer }) {
-                _ = gesture
-            } else {
-                let pan = UIPanGestureRecognizer(target: self, action: #selector(dragControl(_:)))
-                control.addGestureRecognizer(pan)
+            if !(control.gestureRecognizers?.contains { $0 is UIPanGestureRecognizer } ?? false) {
+                control.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(dragControl(_:))))
             }
-            if let gesture = control.gestureRecognizers?.first(where: { $0 is UIPinchGestureRecognizer }) {
-                _ = gesture
-            } else {
-                let pinch = UIPinchGestureRecognizer(target: self, action: #selector(resizeControl(_:)))
-                control.addGestureRecognizer(pinch)
+            if !(control.gestureRecognizers?.contains { $0 is UIPinchGestureRecognizer } ?? false) {
+                control.addGestureRecognizer(UIPinchGestureRecognizer(target: self, action: #selector(resizeControl(_:))))
             }
         }
     }
 
-    private var didApplyLayout = false
-
     private func applyDefaultLayout() {
+        guard bounds.width > 0, bounds.height > 0 else { return }
         let diameter: CGFloat = 94
         leftStick.frame = CGRect(x: 28, y: bounds.height - 124, width: diameter, height: diameter)
         rightStick.frame = CGRect(x: bounds.width - 122, y: bounds.height - 124, width: diameter, height: diameter)
@@ -120,7 +121,9 @@ final class TouchGamepadView: UIView {
     @objc private func toggleEditMode() {
         editMode.toggle()
         editButtonControl.setTitle(editMode ? "Done Editing" : "Move / Resize", for: .normal)
-        if !editMode {
+        if editMode {
+            installEditGesturesIfNeeded()
+        } else {
             saveLayout()
             for control in [leftStick as UIView, rightStick as UIView] + buttons {
                 control.layer.borderColor = UIColor.white.withAlphaComponent(0.65).cgColor
@@ -138,7 +141,12 @@ final class TouchGamepadView: UIView {
     @objc private func dragControl(_ gesture: UIPanGestureRecognizer) {
         guard editMode, let control = gesture.view else { return }
         let delta = gesture.translation(in: self)
-        control.center = CGPoint(x: control.center.x + delta.x, y: control.center.y + delta.y)
+        let halfW = control.bounds.width / 2
+        let halfH = control.bounds.height / 2
+        control.center = CGPoint(
+            x: min(bounds.width - halfW, max(halfW, control.center.x + delta.x)),
+            y: min(bounds.height - halfH, max(halfH, control.center.y + delta.y))
+        )
         gesture.setTranslation(.zero, in: self)
         if gesture.state == .ended { saveLayout() }
     }
@@ -148,6 +156,10 @@ final class TouchGamepadView: UIView {
         let scale = min(1.8, max(0.65, gesture.scale))
         let newSize = min(150, max(40, control.bounds.width * scale))
         control.bounds.size = CGSize(width: newSize, height: newSize)
+        control.center = CGPoint(
+            x: min(bounds.width - newSize / 2, max(newSize / 2, control.center.x)),
+            y: min(bounds.height - newSize / 2, max(newSize / 2, control.center.y))
+        )
         if let button = control as? UIButton { button.layer.cornerRadius = newSize / 2 }
         gesture.scale = 1
         if gesture.state == .ended { saveLayout() }
@@ -164,22 +176,34 @@ final class TouchGamepadView: UIView {
     }
 
     private func saveLayout() {
-        var entries: [[String: CGFloat]] = []
-        for control in [leftStick as UIView, rightStick as UIView] + buttons {
-            entries.append(["x": control.center.x, "y": control.center.y, "w": control.bounds.width, "h": control.bounds.height])
+        guard bounds.width > 0, bounds.height > 0 else { return }
+        let controls = [leftStick as UIView, rightStick as UIView] + buttons
+        let entries: [[String: CGFloat]] = controls.map { control in
+            [
+                "x": control.center.x / bounds.width,
+                "y": control.center.y / bounds.height,
+                "w": control.bounds.width / bounds.width,
+                "h": control.bounds.height / bounds.height
+            ]
         }
         UserDefaults.standard.set(entries, forKey: layoutKey)
     }
 
     private func restoreLayout() {
-        guard let entries = UserDefaults.standard.array(forKey: layoutKey) as? [[String: CGFloat]],
+        guard bounds.width > 0, bounds.height > 0,
+              let entries = UserDefaults.standard.array(forKey: layoutKey) as? [[String: CGFloat]],
               entries.count == buttons.count + 2 else { return }
-        for (index, control) in ([leftStick as UIView, rightStick as UIView] + buttons).enumerated() {
+        let controls = [leftStick as UIView, rightStick as UIView] + buttons
+        for (index, control) in controls.enumerated() {
             let item = entries[index]
-            let width = item["w"] ?? control.bounds.width
-            let height = item["h"] ?? control.bounds.height
+            let maxSize = min(150, max(40, min(bounds.width, bounds.height) * 0.22))
+            let width = min(maxSize, max(40, (item["w"] ?? 0.08) * bounds.width))
+            let height = min(maxSize, max(40, (item["h"] ?? 0.08) * bounds.height))
             control.bounds.size = CGSize(width: width, height: height)
-            control.center = CGPoint(x: item["x"] ?? control.center.x, y: item["y"] ?? control.center.y)
+            control.center = CGPoint(
+                x: min(bounds.width - width / 2, max(width / 2, (item["x"] ?? 0.5) * bounds.width)),
+                y: min(bounds.height - height / 2, max(height / 2, (item["y"] ?? 0.5) * bounds.height))
+            )
             if let button = control as? UIButton { button.layer.cornerRadius = min(width, height) / 2 }
         }
     }
@@ -210,10 +234,10 @@ private final class StickControl: UIView {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard !touches.isEmpty else { return }
+        guard let touch = touches.first else { return }
         tracking = true
         touchOrigin = bounds.center
-        update(touches.first!.location(in: self))
+        update(touch.location(in: self))
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {

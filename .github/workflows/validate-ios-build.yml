@@ -1,0 +1,48 @@
+name: i-Steam platform compile validation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-compile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-platform-simulators:
+    runs-on: macos-15
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - scheme: iSteam
+            sdk: iphonesimulator
+            destination: generic/platform=iOS Simulator
+          - scheme: iSteamTV
+            sdk: appletvsimulator
+            destination: generic/platform=tvOS Simulator
+          - scheme: iSteamVision
+            sdk: xrsimulator
+            destination: generic/platform=visionOS Simulator
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate --spec project.yml
+      - name: Compile ${{ matrix.scheme }} for ${{ matrix.destination }}
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project iSteam.xcodeproj \
+            -scheme "${{ matrix.scheme }}" \
+            -configuration Debug \
+            -sdk "${{ matrix.sdk }}" \
+            -destination '${{ matrix.destination }}' \
+            CODE_SIGNING_ALLOWED=NO \
+            build

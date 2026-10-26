@@ -12,6 +12,8 @@ final class VMSaveSlotStore {
         let configuration: VMConfiguration
         let gameID: UUID?
         let savedAt: Date
+        // Optional so sessions written by earlier builds still decode.
+        let diskImageBookmark: Data?
     }
 
     private var directory: URL {
@@ -50,9 +52,34 @@ final class VMSaveSlotStore {
             .map { $0.deletingPathExtension().lastPathComponent }.sorted()
     }
 
-    func saveSessionMetadata(configuration: VMConfiguration, gameID: UUID? = nil) throws {
-        let session = Session(configuration: configuration, gameID: gameID, savedAt: Date())
+    func saveSessionMetadata(configuration: VMConfiguration, diskImageURL: URL, gameID: UUID? = nil) throws {
+        let bookmark = try diskImageURL.bookmarkData(
+            options: [],
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        )
+        let session = Session(
+            configuration: configuration,
+            gameID: gameID,
+            savedAt: Date(),
+            diskImageBookmark: bookmark
+        )
         try encoder.encode(session).write(to: directory.appendingPathComponent("last-session.json"), options: .atomic)
+    }
+
+    func lastSession() -> (configuration: VMConfiguration, diskImageURL: URL)? {
+        let url = directory.appendingPathComponent("last-session.json")
+        guard let data = try? Data(contentsOf: url),
+              let session = try? decoder.decode(Session.self, from: data),
+              let bookmark = session.diskImageBookmark else { return nil }
+        var stale = false
+        guard let diskURL = try? URL(
+            resolvingBookmarkData: bookmark,
+            options: [],
+            relativeTo: nil,
+            bookmarkDataIsStale: &stale
+        ), !stale else { return nil }
+        return (session.configuration, diskURL)
     }
 
     func lastSessionConfiguration() -> VMConfiguration? {

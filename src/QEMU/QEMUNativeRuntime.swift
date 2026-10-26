@@ -18,7 +18,6 @@ final class QEMUNativeRuntime {
 
     func start(configuration: VMConfiguration, diskImage: URL, firmware: URL? = nil) throws {
         guard !started else { return }
-
         try configuration.validateForStart()
         guard configuration.architecture == .x86_64 else {
             throw RuntimeError.runtimeUnavailable(
@@ -36,11 +35,22 @@ final class QEMUNativeRuntime {
             dataDirectory = data
         }
 
-        // A disk/firmware selected from Files may be outside the app container.
-        // Keep access active until QEMU has stopped because QEMU opens these
-        // files asynchronously and may continue reading them for the whole run.
+        let selectedFirmware: URL?
+        if let firmware {
+            selectedFirmware = firmware
+        } else if configuration.name == "SteamOS Gaming Mode" {
+            guard let uefi = Self.findUEFIFirmware(in: dataDirectory) else {
+                throw RuntimeError.runtimeUnavailable(
+                    "SteamOS Gaming Mode requires an x86_64 UEFI firmware file (OVMF_CODE.fd or edk2-x86_64-code.fd) in the bundled QEMU data directory."
+                )
+            }
+            selectedFirmware = uefi
+        } else {
+            selectedFirmware = nil
+        }
+
         var newlyScoped: [URL] = []
-        for url in [diskImage, firmware].compactMap({ $0 }) {
+        for url in [diskImage, selectedFirmware].compactMap({ $0 }) {
             let granted = url.startAccessingSecurityScopedResource()
             if granted { newlyScoped.append(url) }
             do {
@@ -56,9 +66,8 @@ final class QEMUNativeRuntime {
             }
         }
 
-        var args = QEMUCommandBuilder(configuration: configuration)
-            .arguments(diskImage: diskImage, firmware: firmware)
-        args += ["-L", dataDirectory.path]
+        let args = QEMUCommandBuilder(configuration: configuration)
+            .arguments(diskImage: diskImage, firmware: selectedFirmware) + ["-L", dataDirectory.path]
         let arguments = ["qemu-system-\(configuration.architecture.rawValue)"] + args
         let strings: [UnsafeMutablePointer<CChar>?] = arguments.map { strdup($0) }
         defer { strings.forEach { if let value = $0 { free(value) } } }
@@ -93,31 +102,48 @@ final class QEMUNativeRuntime {
 
         scopedURLs = newlyScoped
         started = true
-        EmulationLog.shared.write(
-            "QEMU runtime start requested with disk \(diskImage.lastPathComponent)"
-        )
+        EmulationLog.shared.write("QEMU launch requested with disk \(diskImage.lastPathComponent)")
+    }
+
+    private static func findUEFIFirmware(in directory: URL) -> URL? {
+        let names = ["OVMF_CODE.fd", "edk2-x86_64-code.fd", "edk2-x86_64-code.secboot.fd"]
+        for name in names {
+            let candidate = directory.appendingPathComponent(name)
+            if FileManager.default.fileExists(atPath: candidate.path) { return candidate }
+        }
+        if let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil) {
+            for case let url as URL in enumerator where names.contains(url.lastPathComponent) {
+                return url
+            }
+        }
+        return nil
     }
 
     func stop() {
         guard started else { return }
         isteam_qemu_request_stop()
-        // The C bridge's stop request is asynchronous. Do not release the
-        // security scopes here; QEMU may still be unwinding its main loop.
-        // Polling is handled by VMEngine, which observes isRunning becoming false.
         started = false
         releaseScopesWhenStopped()
     }
 
     private func releaseScopesWhenStopped() {
-        guard !isteam_qemu_is_running() else {
-            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + .milliseconds(250)) { [weak self] in
-                self?.releaseScopesWhenStopped()
-            }
+        guard isteam_qemu_is_active() else {
+            scopedURLs.forEach { $0.stopAccessingSecurityScopedResource() }
+            scopedURLs.removeAll()
             return
         }
-        scopedURLs.forEach { $0.stopAccessingSecurityScopedResource() }
-        scopedURLs.removeAll()
+        // Capture strongly until the native thread exits, even if VMEngine drops
+        // its backend after a startup timeout.
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + .milliseconds(250)) {
+            self.releaseScopesWhenStopped()
+        }
     }
 
     var isRunning: Bool { isteam_qemu_is_running() }
+    var isActive: Bool { isteam_qemu_is_active() }
+
+    var lastError: String? {
+        let message = String(cString: isteam_qemu_last_error())
+        return message.isEmpty ? nil : message
+    }
 }

@@ -157,6 +157,7 @@ enum DroidDeckPortFeature: String, CaseIterable {
     case glassesPoseTracking
     case rawUSBBlockDevices
     case fullSystemQEMU
+    case steamOSGamingMode
 
     enum Readiness: String {
         case implemented
@@ -174,6 +175,8 @@ enum DroidDeckPortFeature: String, CaseIterable {
              .turnipVulkan, .frameGeneration, .steamVR, .glassesPoseTracking,
              .rawUSBBlockDevices, .fullSystemQEMU:
             return .unavailable
+        case .steamOSGamingMode:
+            return .partial
         }
     }
 
@@ -215,6 +218,8 @@ enum DroidDeckPortFeature: String, CaseIterable {
             return "iOS Files access cannot expose a physical USB disk as a guest block device."
         case .fullSystemQEMU:
             return QEMURuntimeStatus.diagnostic
+        case .steamOSGamingMode:
+            return "A game-focused Linux VM profile is available; no SteamOS image is bundled, and boot still requires a working QEMU runtime plus compatible UEFI firmware."
         }
     }
 }

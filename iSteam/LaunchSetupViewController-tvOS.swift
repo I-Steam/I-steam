@@ -18,7 +18,7 @@ final class LaunchSetupViewController: UIViewController {
             stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 100),
             stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -100),
             stack.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-            stack.heightAnchor.constraint(equalToConstant: 360)
+            stack.heightAnchor.constraint(equalToConstant: 440)
         ])
         let heading = UILabel()
         heading.text = "Choose a guest OS"
@@ -29,10 +29,13 @@ final class LaunchSetupViewController: UIViewController {
         stack.addArrangedSubview(makeButton("Launch Linux / Ubuntu") { [weak self] in
             self?.launch(VMConfiguration.defaultLinux)
         })
+        stack.addArrangedSubview(makeButton("Launch SteamOS Gaming Mode") { [weak self] in
+            self?.launch(VMConfiguration.defaultSteamOS)
+        })
         stack.addArrangedSubview(makeButton("Launch Windows preview") { [weak self] in
             self?.launch(VMConfiguration.defaultWindows)
         })
-        status.text = "Prototype: this opens the VM display scaffold; booting a full guest OS is not yet integrated."
+        status.text = "SteamOS Gaming Mode is a Linux VM profile, not a bundled SteamOS image. Guest boot remains dependent on the QEMU runtime and UEFI firmware."
         status.textColor = .lightGray
         status.numberOfLines = 0
         status.textAlignment = .center
