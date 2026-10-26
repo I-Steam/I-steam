@@ -135,7 +135,7 @@ jobs:
           if qemu_patch.strip() not in source:
               if qemu_build not in source:
                   raise SystemExit("Could not locate QEMU build invocation for the iOS memalign patch")
-              source = source.replace(qemu_build, qemu_patch + "\\n" + qemu_build, 1)
+              source = source.replace(qemu_build, qemu_patch + "\n" + qemu_build, 1)
           path.write_text(source)
           print("Installed Meson override, QEMU POSIX_MEMALIGN patch, and iOS compiler-rt linker flag.")
           PY
