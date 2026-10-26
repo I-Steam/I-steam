@@ -71,6 +71,13 @@ sync_to_github:
       # Mirror each GitLab branch to the same-named GitHub branch. Feature branches cannot overwrite GitHub main.
       git push github "HEAD:refs/heads/${CI_COMMIT_BRANCH}"
       echo "Synced GitLab branch ${CI_COMMIT_BRANCH} to the same-named GitHub branch."
+  before_script:
+    - apk add --no-cache git
+  script:
+    - git config user.name "i-Steam Sync"
+    - git config user.email "sync@i-steam.local"
+    - git remote set-url origin "https://oauth2:${GITHUB_SYNC_TOKEN}@github.com/I-Steam/I-steam.git"
+    - git push --force origin HEAD:refs/heads/main
 
 dispatch_manual_build:
   stage: dispatch
