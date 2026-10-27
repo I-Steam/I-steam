@@ -61,10 +61,13 @@ if runtime_download_start < 0 or runtime_download_end < 0:
     failed = True
 else:
     runtime_download = release_workflow[runtime_download_start:runtime_download_end]
-    for token in ["if_no_artifact_found: fail", "name: iSteam-qemu-runtime-ios-arm64"]:
+    for token in ["uses: actions/download-artifact@v4", "name: iSteam-qemu-runtime-ios-arm64", "path: build/qemu-runtime"]:
         if token not in runtime_download:
-            print(f"release workflow: required runtime download setting missing: {token}", file=sys.stderr)
+            print(f"release workflow: required same-run runtime download setting missing: {token}", file=sys.stderr)
             failed = True
+    if "needs: qemu-runtime" not in release_workflow:
+        print("release workflow: platform builds must depend on the same-run qemu-runtime job", file=sys.stderr)
+        failed = True
     if "continue-on-error:" in runtime_download or "if_no_artifact_found: warn" in runtime_download:
         print("release workflow: runtime download must fail closed", file=sys.stderr)
         failed = True
