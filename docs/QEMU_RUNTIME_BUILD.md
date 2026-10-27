@@ -53,3 +53,12 @@ Commit [1a5311a8](https://gitlab.com/chantinlongxthrx/I-steam/-/commit/1a5311a80
 - **GitLab validation pipeline:** [#359](https://gitlab.com/chantinlongxthrx/I-steam/-/pipelines/2992191300) was running when this note was written.
 - **GitHub runtime build:** [run 40424165904](https://github.com/I-Steam/I-steam/actions/runs/40424165904) was running from the synced main commit when this update was recorded. Its dependency-install step was still in progress; the QEMU link fix has not yet been tested by this run.
 - **IPA/artifact/device:** no verified runtime artifact or IPA from this change yet; physical iPad boot, display/input, cleanup, and disk persistence remain untested.
+
+
+## Follow-up: workflow patcher syntax error (2026-10-27)
+
+Runtime run [40424165904](https://github.com/I-Steam/I-steam/actions/runs/40424165904) failed before dependency compilation. The workflow's outer Python patcher used a triple-double-quoted string for the embedded shell/Python patch, and that embedded patch itself contained `link_block = """`; Python ended the outer string early and raised `SyntaxError` at the Meson `check: true` argument. The workflow now uses a triple-single-quoted raw string for the embedded Meson `link_block`, avoiding delimiter collision with the outer triple-double-quoted `qemu_patch` string. This is a syntax-only repair; the compiler-rt link fix remains unverified until a new runtime run passes dependency compilation and QEMU linking.
+
+- **Failing run:** [40424165904](https://github.com/I-Steam/I-steam/actions/runs/40424165904)
+- **Failure:** Python `SyntaxError` in `Build UTM dependencies for physical iOS arm64`; QEMU compilation was not reached.
+- **Next validation:** confirm the patching script exits successfully, dependencies build, QEMU's actual link command includes `-Wl,-force_load,<libclang_rt.ios.a>`, and the runtime artifact is uploaded.

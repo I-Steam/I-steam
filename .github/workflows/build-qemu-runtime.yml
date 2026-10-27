@@ -162,13 +162,13 @@ jobs:
                           break
               if project_end is None:
                   raise SystemExit("Could not parse QEMU Meson project() declaration")
-              link_block = """
+              link_block = r'''
           # i-Steam iOS cross-build: force-load Apple's compiler runtime for platform checks.
           ios_compiler_rt = run_command('sh', '-c', 'printf "%s" "$IOS_COMPILER_RT"', check: true).stdout().strip()
           if ios_compiler_rt != ''
             add_project_link_arguments('-Wl,-force_load,' + ios_compiler_rt, language: 'c')
           endif
-          """
+          '''
               line_end = source.find("\n", project_end)
               if line_end < 0:
                   line_end = project_end
