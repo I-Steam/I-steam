@@ -41,3 +41,15 @@ The artifact build is not IPA integration. It must be copied into the app bundle
 - [UTM QEMU lifecycle](https://github.com/utmapp/UTM/blob/main/Services/UTMQemuSystem.m)
 - [UTM QEMU bootstrap](https://github.com/utmapp/UTM/blob/main/QEMULauncher/Bootstrap.c)
 - [UTM dependency build script](https://github.com/utmapp/UTM/blob/main/scripts/build_dependencies.sh)
+
+
+## Follow-up: force-load Apple compiler runtime (2026-10-27)
+
+The link failure in runtime run [40325684693](https://github.com/I-Steam/I-steam/actions/runs/40325684693) occurred after QEMU compiled past the `util/memalign.c` failure. The final link command for `libqemu-x86_64-softmmu.dylib` did not include Apple's `libclang_rt.ios.a`, leaving `__isPlatformVersionAtLeast` undefined in `tcg/region.c`.
+
+Commit [1a5311a8](https://gitlab.com/chantinlongxthrx/I-steam/-/commit/1a5311a807fbfa40e4e97f0962a54a6894f4b5e4) updates the QEMU Meson injection in `.github/workflows/build-qemu-runtime.yml` to add `-Wl,-force_load,<path-to-libclang_rt.ios.a>` directly to C target link arguments. This is intended to force the linker to load the archive member providing the missing platform-availability symbol, and it also updates the patch marker so repeated workflow runs do not insert duplicate Meson blocks. The existing workflow hash in the dependency cache key causes this workflow edit to use a fresh cache entry.
+
+- **GitLab commit:** [1a5311a8](https://gitlab.com/chantinlongxthrx/I-steam/-/commit/1a5311a807fbfa40e4e97f0962a54a6894f4b5e4)
+- **GitLab validation pipeline:** [#359](https://gitlab.com/chantinlongxthrx/I-steam/-/pipelines/2992191300) was running when this note was written.
+- **GitHub runtime build:** not yet verified for this commit. Confirm the actual Ninja/clang link command contains the force-load argument and that QEMU links before marking the fix successful.
+- **IPA/artifact/device:** no verified runtime artifact or IPA from this change yet; physical iPad boot, display/input, cleanup, and disk persistence remain untested.
