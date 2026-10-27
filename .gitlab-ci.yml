@@ -83,8 +83,8 @@ validate_build_configuration:
           raise SystemExit('QEMU dependency cache key must include the checked-out upstream UTM commit.')
       if "group: qemu-runtime-ios-arm64-${{ github.ref }}" not in qemu_workflow:
           raise SystemExit('QEMU runtime concurrency must be isolated by Git ref.')
-      if "fix/**" not in qemu_workflow:
-          raise SystemExit('QEMU runtime workflow must run on fix branches for validation.')
+      if 'workflow_dispatch:' not in qemu_workflow or 'workflow_call:' not in qemu_workflow:
+          raise SystemExit('QEMU runtime workflow must remain manually runnable and reusable by the release workflow.')
       sync_job = pathlib.Path('.gitlab-ci.yml').read_text()
       if "if: '$CI_COMMIT_BRANCH == \"main\"'" not in sync_job:
           raise SystemExit('GitHub sync must run only for the canonical main branch.')
