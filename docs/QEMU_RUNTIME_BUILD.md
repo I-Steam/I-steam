@@ -71,3 +71,14 @@ The release workflow intentionally ignores workflow-only/runtime-patcher pushes 
 The release workflow now has a `prepare-runtime` job for manual dispatches. It reuses a queued/in-progress main runtime run when one exists; otherwise it dispatches the QEMU workflow and waits for completion. It fails with the exact runtime run URL if the runtime build fails or completes without `iSteam-qemu-runtime-ios-arm64`. The iOS build downloads the artifact from that exact run ID. Automatic `workflow_run` releases likewise use the completed upstream runtime run ID, avoiding ambiguity about which artifact was selected. Push/scheduled releases continue using the latest successful main-branch runtime artifact.
 
 This workflow change is source-level only until GitLab validation and a GitHub Actions run prove the dispatch permission, wait loop, artifact lookup, and downstream IPA integration. A successful runtime artifact and physical iPad guest boot remain unverified.
+
+
+## Same-run runtime-before-app build pipeline (2026-10-27)
+
+The release workflow now invokes `.github/workflows/build-qemu-runtime.yml` as a reusable workflow job named `qemu-runtime`. GitHub Actions executes the reusable workflow within the caller's run, so its uploaded QEMU artifact is available to downstream app jobs under that same run ID. This removes cross-run artifact searching and branch/retention ambiguity.
+
+- The app matrix declares `needs: qemu-runtime`; iOS, tvOS, and visionOS builds do not start unless runtime compilation, packaging, verification, and artifact upload all succeed.
+- The iOS app downloads `iSteam-qemu-runtime-ios-arm64` with `actions/download-artifact@v4` from the current run. Existing checks still validate the manifest, QEMU library exports, embedded library, and data before producing the IPA.
+- `.github/workflows/build-qemu-runtime.yml` now supports `workflow_call` while retaining standalone push/manual triggers for diagnostics.
+- Fixed the embedded Python patcher's escaping: the nested `source.find("\\\\n", project_end)` expression must remain escaped inside the outer Python string rather than becoming a literal line break in the inner script.
+- This structural fix does not prove upstream UTM/QEMU compiles. The next Actions run must confirm dependency compilation, archive packaging, artifact upload, and IPA integration. Physical-device guest boot remains unverified.

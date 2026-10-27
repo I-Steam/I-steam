@@ -61,18 +61,14 @@ validate_build_configuration:
           raise SystemExit(1)
       if 'if-no-files-found: ignore' in workflow:
           raise SystemExit('Release artifacts must not silently ignore missing files.')
-      if 'workflow_run:' not in workflow or 'Build UTM iOS QEMU runtime (manual)' not in workflow:
-          raise SystemExit('Release must wait for successful QEMU runtime workflow completion.')
-      if 'paths-ignore:' not in workflow or '.github/workflows/build-qemu-runtime.yml' not in workflow:
-          raise SystemExit('Release push trigger must avoid racing QEMU runtime workflow changes.')
+      if 'qemu-runtime:' not in workflow or 'uses: ./.github/workflows/build-qemu-runtime.yml' not in workflow:
+          raise SystemExit('Release must call the QEMU runtime as a job in the same workflow run.')
+      if 'needs: qemu-runtime' not in workflow or 'uses: actions/download-artifact@v4' not in workflow:
+          raise SystemExit('App builds must wait for and download the same-run QEMU artifact.')
+      if 'workflow_call:' not in qemu_workflow:
+          raise SystemExit('QEMU runtime workflow must support reusable-workflow calls.')
       if '.github/workflows/release.yml' not in workflow:
           raise SystemExit('Release workflow must not trigger itself on workflow-only changes.')
-      if "github.event.workflow_run.conclusion == 'success'" not in workflow:
-          raise SystemExit('Release build must skip when the QEMU runtime workflow fails.')
-      if 'prepare-runtime:' not in workflow or 'gh workflow run build-qemu-runtime.yml --ref main' not in workflow:
-          raise SystemExit('Manual release must wait for a QEMU runtime build instead of immediately failing on a missing artifact.')
-      if 'needs.prepare-runtime.outputs.runtime_run_id' not in workflow or 'github.event.workflow_run.id' not in workflow:
-          raise SystemExit('Release artifact download must be pinned to the runtime run that was verified.')
       if "utm-ios-arm64-deps-v5-" not in qemu_workflow:
           raise SystemExit('QEMU dependency cache key must be bumped when build-workflow patch logic changes.')
       if "config_host_data.set('CONFIG_POSIX_MEMALIGN', true)" not in qemu_workflow:

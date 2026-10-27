@@ -15,6 +15,13 @@ on:
         type: boolean
         required: true
         default: false
+  workflow_call:
+    inputs:
+      rebuild_dependencies:
+        description: Rebuild UTM dependencies instead of reusing the runner cache
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -169,7 +176,7 @@ jobs:
             add_project_link_arguments('-Wl,-force_load,' + ios_compiler_rt, language: 'c')
           endif
           '''
-              line_end = source.find("\n", project_end)
+              line_end = source.find("\\n", project_end)
               if line_end < 0:
                   line_end = project_end
               source = source[:line_end + 1] + link_block + source[line_end + 1:]
