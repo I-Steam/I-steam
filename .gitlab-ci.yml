@@ -73,7 +73,7 @@ validate_build_configuration:
           raise SystemExit('QEMU dependency cache key must be bumped when build-workflow patch logic changes.')
       if "config_host_data.set('CONFIG_POSIX_MEMALIGN', true)" not in qemu_workflow:
           raise SystemExit('QEMU runtime workflow must patch QEMU POSIX_MEMALIGN detection after the failed cross-file probe.')
-      if "add_project_link_arguments(ios_compiler_rt, language: 'c')" not in qemu_workflow:
+      if "add_project_link_arguments('-Wl,-force_load,' + ios_compiler_rt, language: 'c')" not in qemu_workflow:
           raise SystemExit('QEMU Meson targets must explicitly link the iOS compiler-rt archive.')
       if '--extra-ldflags=-Wl,-force_load,$IOS_COMPILER_RT' in qemu_workflow:
           raise SystemExit('Do not rely on LDFLAGS/force_load for QEMU Meson targets; use explicit project link arguments.')
