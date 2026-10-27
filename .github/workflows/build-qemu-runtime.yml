@@ -1,13 +1,6 @@
 name: Build UTM iOS QEMU runtime (manual)
 
 on:
-  push:
-    branches:
-      - main
-      - 'fix/**'
-    paths:
-      - .github/workflows/build-qemu-runtime.yml
-      - scripts/package-utm-qemu-runtime.sh
   workflow_dispatch:
     inputs:
       rebuild_dependencies:
@@ -27,8 +20,8 @@ permissions:
   contents: read
 
 concurrency:
-  # Let different branches build independently; supersede only stale runs on this ref.
-  group: qemu-runtime-ios-arm64-${{ github.ref }}
+  # Separate diagnostic manual runs from calls inside the release workflow.
+  group: qemu-runtime-ios-arm64-${{ github.ref }}-${{ github.workflow }}
   cancel-in-progress: true
 
 jobs:
