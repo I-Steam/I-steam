@@ -32,15 +32,77 @@ on:
 
 permissions:
   contents: write
-  actions: read
+  actions: write
 
 concurrency:
   group: isteam-release
   cancel-in-progress: false
 
 jobs:
+  # A manual release must not race the runtime build. Reuse an active main build,
+  # or dispatch one and wait for its exact run/artifact before starting the matrix.
+  prepare-runtime:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    permissions:
+      contents: read
+      actions: write
+    outputs:
+      runtime_run_id: ${{ steps.runtime.outputs.run_id }}
+    steps:
+      - name: Ensure a successful QEMU runtime artifact exists
+        id: runtime
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPO="$GITHUB_REPOSITORY"
+          API="repos/$REPO/actions/workflows/build-qemu-runtime.yml/runs?branch=main&per_page=20"
+
+          # Prefer an already queued/running main runtime build so a manual
+          # release does not cancel or duplicate the build that is underway.
+          RUN_ID="$(gh api "$API" --jq '[.workflow_runs[] | select(.status == "queued" or .status == "in_progress")][0].id // empty')"
+          if [ -z "$RUN_ID" ]; then
+            STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            gh workflow run build-qemu-runtime.yml --ref main -f rebuild_dependencies=false
+            for _ in $(seq 1 60); do
+              RUN_ID="$(gh api "$API" --jq "[.workflow_runs[] | select(.event == \"workflow_dispatch\" and .created_at >= \"$STARTED_AT\")][0].id // empty")"
+              [ -n "$RUN_ID" ] && break
+              sleep 5
+            done
+          fi
+          if [ -z "$RUN_ID" ]; then
+            echo "Could not find the queued QEMU runtime workflow run." >&2
+            exit 1
+          fi
+          echo "Waiting for QEMU runtime run $RUN_ID"
+          echo "Runtime run: https://github.com/$REPO/actions/runs/$RUN_ID"
+          for _ in $(seq 1 700); do
+            STATUS="$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '.status')"
+            if [ "$STATUS" = "completed" ]; then
+              CONCLUSION="$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '.conclusion')"
+              if [ "$CONCLUSION" != "success" ]; then
+                echo "QEMU runtime run $RUN_ID ended with: $CONCLUSION" >&2
+                exit 1
+              fi
+              COUNT="$(gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts" --jq '[.artifacts[] | select(.name == "iSteam-qemu-runtime-ios-arm64" and .expired == false)] | length')"
+              if [ "$COUNT" -lt 1 ]; then
+                echo "Runtime run succeeded but did not upload iSteam-qemu-runtime-ios-arm64." >&2
+                exit 1
+              fi
+              echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "Timed out waiting for QEMU runtime run $RUN_ID." >&2
+          exit 1
+
   build:
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    needs: prepare-runtime
+    if: ${{ always() && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success') && (github.event_name != 'workflow_dispatch' || needs.prepare-runtime.result == 'success') }}
     name: Build ${{ matrix.platform }} (${{ matrix.channel }})
     runs-on: macos-15
     timeout-minutes: 45
@@ -64,6 +126,9 @@ jobs:
         with:
           workflow: build-qemu-runtime.yml
           branch: ${{ github.ref_name }}
+          # Pin workflow_run/manual releases to the exact runtime build that passed.
+          # Push/scheduled releases resolve the latest successful branch artifact.
+          run_id: ${{ github.event_name == 'workflow_dispatch' && needs.prepare-runtime.outputs.runtime_run_id || github.event_name == 'workflow_run' && github.event.workflow_run.id || '' }}
           name: iSteam-qemu-runtime-ios-arm64
           path: build/qemu-runtime
           if_no_artifact_found: fail

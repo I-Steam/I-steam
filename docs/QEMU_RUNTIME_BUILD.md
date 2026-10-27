@@ -62,3 +62,12 @@ Runtime run [40424165904](https://github.com/I-Steam/I-steam/actions/runs/404241
 - **Failing run:** [40424165904](https://github.com/I-Steam/I-steam/actions/runs/40424165904)
 - **Failure:** Python `SyntaxError` in `Build UTM dependencies for physical iOS arm64`; QEMU compilation was not reached.
 - **Next validation:** confirm the patching script exits successfully, dependencies build, QEMU's actual link command includes `-Wl,-force_load,<libclang_rt.ios.a>`, and the runtime artifact is uploaded.
+
+
+## Manual release and QEMU artifact ordering (2026-10-27)
+
+The release workflow intentionally ignores workflow-only/runtime-patcher pushes and uses `workflow_run` to publish after the QEMU runtime build succeeds. Previously, manually dispatching a release immediately searched for an artifact on `main`; if no successful runtime artifact existed yet, `dawidd6/action-download-artifact` failed with “no artifact found.” The runtime artifact is produced only by the final upload step after the UTM archive is built and validated.
+
+The release workflow now has a `prepare-runtime` job for manual dispatches. It reuses a queued/in-progress main runtime run when one exists; otherwise it dispatches the QEMU workflow and waits for completion. It fails with the exact runtime run URL if the runtime build fails or completes without `iSteam-qemu-runtime-ios-arm64`. The iOS build downloads the artifact from that exact run ID. Automatic `workflow_run` releases likewise use the completed upstream runtime run ID, avoiding ambiguity about which artifact was selected. Push/scheduled releases continue using the latest successful main-branch runtime artifact.
+
+This workflow change is source-level only until GitLab validation and a GitHub Actions run prove the dispatch permission, wait loop, artifact lookup, and downstream IPA integration. A successful runtime artifact and physical iPad guest boot remain unverified.
