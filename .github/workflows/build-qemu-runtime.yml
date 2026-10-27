@@ -129,9 +129,10 @@ jobs:
                   raise SystemExit("Could not locate QEMU CONFIG_POSIX_MEMALIGN feature probe")
               source = source.replace(old, new, 1)
           # QEMU's Meson targets do not inherit LDFLAGS reliably. Explicitly
-          # attach Apple's compiler-rt archive to C-linked QEMU targets so
-          # __isPlatformVersionAtLeast from tcg/region.c is resolved.
-          link_marker = "add_project_link_arguments(ios_compiler_rt, language: 'c')"
+          # force-load Apple's compiler-rt archive into C-linked QEMU targets so
+          # __isPlatformVersionAtLeast from tcg/region.c is resolved even when
+          # archive member ordering would otherwise leave it unreferenced.
+          link_marker = "add_project_link_arguments('-Wl,-force_load,' + ios_compiler_rt, language: 'c')"
           if link_marker not in source:
               project_start = source.find("project(")
               if project_start < 0:
@@ -162,10 +163,10 @@ jobs:
               if project_end is None:
                   raise SystemExit("Could not parse QEMU Meson project() declaration")
               link_block = """
-          # i-Steam iOS cross-build: explicitly link the Apple compiler runtime.
+          # i-Steam iOS cross-build: force-load Apple's compiler runtime for platform checks.
           ios_compiler_rt = run_command('sh', '-c', 'printf "%s" "$IOS_COMPILER_RT"', check: true).stdout().strip()
           if ios_compiler_rt != ''
-            add_project_link_arguments(ios_compiler_rt, language: 'c')
+            add_project_link_arguments('-Wl,-force_load,' + ios_compiler_rt, language: 'c')
           endif
           """
               line_end = source.find("\n", project_end)
