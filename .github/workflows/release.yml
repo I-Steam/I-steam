@@ -1,12 +1,10 @@
 name: i-Steam Build & Release
 
 on:
-  # The runtime is a job in this workflow and gates all app builds.
-    push:
+  # Build the runtime in this workflow before any platform app builds.
+  push:
     branches: [main]
     paths-ignore:
-      # Workflow-only changes must not start a release before their CI checks or
-      # any dependent runtime build has finished.
       - .github/workflows/release.yml
       - .gitlab-ci.yml
       - docs/**
