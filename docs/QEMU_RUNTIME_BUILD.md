@@ -51,5 +51,5 @@ Commit [1a5311a8](https://gitlab.com/chantinlongxthrx/I-steam/-/commit/1a5311a80
 
 - **GitLab commit:** [1a5311a8](https://gitlab.com/chantinlongxthrx/I-steam/-/commit/1a5311a807fbfa40e4e97f0962a54a6894f4b5e4)
 - **GitLab validation pipeline:** [#359](https://gitlab.com/chantinlongxthrx/I-steam/-/pipelines/2992191300) was running when this note was written.
-- **GitHub runtime build:** not yet verified for this commit. Confirm the actual Ninja/clang link command contains the force-load argument and that QEMU links before marking the fix successful.
+- **GitHub runtime build:** [run 40424165904](https://github.com/I-Steam/I-steam/actions/runs/40424165904) was running from the synced main commit when this update was recorded. Its dependency-install step was still in progress; the QEMU link fix has not yet been tested by this run.
 - **IPA/artifact/device:** no verified runtime artifact or IPA from this change yet; physical iPad boot, display/input, cleanup, and disk persistence remain untested.
