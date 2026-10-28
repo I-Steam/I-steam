@@ -82,7 +82,7 @@ jobs:
             UTM/sysroot-iOS-arm64
           # Include the workflow itself: Meson cross-file fixes change build configuration.
           # A workflow-only fix must not reuse a QEMU build tree configured without it.
-          key: utm-ios-arm64-deps-v6-${{ steps.utm-source.outputs.commit }}-${{ hashFiles('.github/workflows/build-qemu-runtime.yml', 'scripts/package-utm-qemu-runtime.sh') }}
+          key: utm-ios-arm64-deps-v7-${{ steps.utm-source.outputs.commit }}-${{ hashFiles('.github/workflows/build-qemu-runtime.yml', 'scripts/package-utm-qemu-runtime.sh') }}
 
       - name: Build UTM dependencies for physical iOS arm64
         shell: bash
@@ -117,6 +117,7 @@ jobs:
           # same iOS SDK/compiler has already passed Autoconf's posix_memalign
           # checks, but QEMU's generated cross-file incorrectly reports NO.
           qemu_build = 'build $QEMU_DIR --cross-prefix="" $QEMU_PLATFORM_BUILD_FLAGS $QEMU_DEBUG_FLAGS'
+          qemu_build_with_rt = qemu_build + ' --extra-ldflags=-Wl,-force_load,$IOS_COMPILER_RT'
           qemu_patch = """python3 - "$QEMU_DIR/meson.build" <<'QEMU_MEMALIGN_PATCH'
           from pathlib import Path
           import sys
@@ -177,10 +178,14 @@ jobs:
           print("Forced QEMU POSIX_MEMALIGN and added explicit Apple compiler-rt link arguments for iOS.")
           QEMU_MEMALIGN_PATCH
           """
-          if qemu_patch.strip() not in source:
+          if qemu_build_with_rt not in source:
               if qemu_build not in source:
-                  raise SystemExit("Could not locate QEMU build invocation for the iOS memalign patch")
-              source = source.replace(qemu_build, qemu_patch + "\n" + qemu_build, 1)
+                  raise SystemExit("Could not locate QEMU build invocation for the iOS compiler-rt link fix")
+              # Attach the flag to the actual configure invocation. The previous
+              # variable assignment was later overwritten by upstream UTM.
+              source = source.replace(qemu_build, qemu_patch + "\n" + qemu_build_with_rt, 1)
+          elif qemu_patch.strip() not in source:
+              raise SystemExit("QEMU compiler-rt invocation exists but its Meson patch is missing")
           path.write_text(source)
           print("Installed Meson override, QEMU POSIX_MEMALIGN patch, and iOS compiler-rt linker flag.")
           PY

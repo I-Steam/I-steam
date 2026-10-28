@@ -94,3 +94,14 @@ Fix: the patcher now adds `--extra-ldflags=-Wl,-force_load,$IOS_COMPILER_RT` dir
 - **Job:** [QEMU runtime job 122196367460](https://github.com/I-Steam/I-steam/actions/runs/40506308085/job/122196367460)
 - **Observed failing target:** `libqemu-x86_64-softmmu.dylib`
 - **Status:** source fix committed below; new runtime compile/link and artifact upload still require a successful Actions run. App jobs correctly remained skipped because runtime failed.
+
+
+## QEMU linker fix follow-up: attach flag at the actual invocation (2026-10-28)
+
+The combined run [40690618004](https://github.com/I-Steam/I-steam/actions/runs/40690618004) disproved the prior fix: the build script's patched QEMU_PLATFORM_BUILD_FLAGS contained the compiler-rt option in an earlier variable assignment, but the final clang link command for libqemu-x86_64-softmmu.dylib contained neither -force_load nor libclang_rt.ios.a. It failed with ___isPlatformVersionAtLeast unresolved. This shows upstream UTM later overwrites the variable, so setting it before the debug-flags block is ineffective.
+
+The patcher now adds --extra-ldflags=-Wl,-force_load,$IOS_COMPILER_RT directly to the exact QEMU configure invocation string (build $QEMU_DIR --cross-prefix=...). The CI guard checks this direct invocation patch, and the dependency cache prefix is bumped to v7 to avoid reusing the configured build tree. The Meson link argument remains as a secondary attempt, but success is not assumed until the actual final link command contains the flag and the runtime artifact uploads.
+
+- Failed run: https://github.com/I-Steam/I-steam/actions/runs/40690618004
+- Failed job: https://github.com/I-Steam/I-steam/actions/runs/40690618004/job/122824149247
+- Status: source fix committed; next runtime compile/link and artifact upload remain unverified.
