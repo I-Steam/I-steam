@@ -69,14 +69,14 @@ validate_build_configuration:
           raise SystemExit('QEMU runtime workflow must support reusable-workflow calls.')
       if '.github/workflows/release.yml' not in workflow:
           raise SystemExit('Release workflow must not trigger itself on workflow-only changes.')
-      if "utm-ios-arm64-deps-v5-" not in qemu_workflow:
+      if "utm-ios-arm64-deps-v6-" not in qemu_workflow:
           raise SystemExit('QEMU dependency cache key must be bumped when build-workflow patch logic changes.')
       if "config_host_data.set('CONFIG_POSIX_MEMALIGN', true)" not in qemu_workflow:
           raise SystemExit('QEMU runtime workflow must patch QEMU POSIX_MEMALIGN detection after the failed cross-file probe.')
       if "add_project_link_arguments('-Wl,-force_load,' + ios_compiler_rt, language: 'c')" not in qemu_workflow:
-          raise SystemExit('QEMU Meson targets must explicitly link the iOS compiler-rt archive.')
-      if '--extra-ldflags=-Wl,-force_load,$IOS_COMPILER_RT' in qemu_workflow:
-          raise SystemExit('Do not rely on LDFLAGS/force_load for QEMU Meson targets; use explicit project link arguments.')
+          raise SystemExit('QEMU Meson targets must retain the explicit compiler-rt link fallback.')
+      if '--extra-ldflags=-Wl,-force_load,$IOS_COMPILER_RT' not in qemu_workflow:
+          raise SystemExit('QEMU configure must receive the iOS compiler-rt force-load through --extra-ldflags because the previous actual link command omitted Meson project arguments.')
       if ".github/workflows/build-qemu-runtime.yml" not in qemu_workflow:
           raise SystemExit('QEMU dependency cache key must include the runtime workflow.')
       if "steps.utm-source.outputs.commit" not in qemu_workflow:

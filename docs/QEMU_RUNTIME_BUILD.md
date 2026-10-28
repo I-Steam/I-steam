@@ -82,3 +82,15 @@ The release workflow now invokes `.github/workflows/build-qemu-runtime.yml` as a
 - `.github/workflows/build-qemu-runtime.yml` now supports `workflow_call` while retaining standalone push/manual triggers for diagnostics.
 - Fixed the embedded Python patcher's escaping: the nested `source.find("\\\\n", project_end)` expression must remain escaped inside the outer Python string rather than becoming a literal line break in the inner script.
 - This structural fix does not prove upstream UTM/QEMU compiles. The next Actions run must confirm dependency compilation, archive packaging, artifact upload, and IPA integration. Physical-device guest boot remains unverified.
+
+
+## QEMU linker failure follow-up (2026-10-28)
+
+The combined same-run release run [40506308085](https://github.com/I-Steam/I-steam/actions/runs/40506308085) progressed through UTM dependency compilation but failed while linking `libqemu-x86_64-softmmu.dylib`. The actual link command did not contain the compiler-rt force-load option, despite the patcher adding `add_project_link_arguments(...)` to QEMU's Meson file. The terminal error was `Undefined symbols for architecture arm64: ___isPlatformVersionAtLeast`, followed by `ld: symbol(s) not found` and `make: *** [build] Error 2`.
+
+Fix: the patcher now adds `--extra-ldflags=-Wl,-force_load,$IOS_COMPILER_RT` directly to `QEMU_PLATFORM_BUILD_FLAGS` for QEMU's configure/build invocation. This puts the archive force-load into QEMU's own configured linker flags instead of relying only on Meson project-level arguments, which were absent from the observed link command. The previous Meson link argument remains as a fallback. The dependency cache key is bumped from v5 to v6 so the next run cannot reuse the old configured build tree.
+
+- **Failed combined run:** [40506308085](https://github.com/I-Steam/I-steam/actions/runs/40506308085)
+- **Job:** [QEMU runtime job 122196367460](https://github.com/I-Steam/I-steam/actions/runs/40506308085/job/122196367460)
+- **Observed failing target:** `libqemu-x86_64-softmmu.dylib`
+- **Status:** source fix committed below; new runtime compile/link and artifact upload still require a successful Actions run. App jobs correctly remained skipped because runtime failed.
