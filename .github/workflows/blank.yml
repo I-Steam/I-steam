@@ -5,9 +5,9 @@ name: Manual GitHub → GitLab Recovery Sync
 # Use workflow_dispatch only for an intentional one-off recovery operation.
 on:
   workflow_dispatch:
-
 permissions:
   contents: read
+  push:
 
 jobs:
   sync:
