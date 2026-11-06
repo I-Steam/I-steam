@@ -70,7 +70,6 @@ These are works in progress. Importing a file or inspecting its metadata does no
 
 The tvOS target is an early Siri Remote-friendly interface preview. Its Launch session, Steam Store, and Settings actions currently display explanatory notices. It does **not** boot an operating system or launch games.
 
-See [the tvOS status and roadmap](docs/TVOS.md).
 
 ### Runtime and native helpers
 
