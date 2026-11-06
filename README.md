@@ -157,6 +157,7 @@ These projects are research references; listing them does not mean their code is
 - [MeloNX](https://github.com/AzureDominus/melonx) — iOS emulator UI and performance reference.
 - [SharpEmu](https://github.com/sharpemu/sharpemu) — emulator architecture research reference.
 - [SideStore](https://sidestore.io/) — iOS signing and installation reference.
+- [xthrx](https://github.com/xthrx-chu) - main project maintainer and developer 
 
 Third-party projects retain their own licenses and copyrights. Review upstream licenses and notices before redistributing code. No endorsement is implied.
 
