@@ -1,16 +1,16 @@
 # i-Steam
 
-> [!DISCLAIMER]
+> [DISCLAIMER]
 >
 > **please read this before using this application**
-> **Important Notice Regarding I-steams current development stage**
+> **Important Notice Regarding I-steam’s current development stage**
 >
 > I-steam is still in development and is still highly unstable, which means **you may lose your data or get banned**.
 >
 > Furthermore, please note that we do not provide any support for issues of these development builds. and **we will not take responsibility for any possessions lost whilst using this application**. please use this application at your own risk
 > **by using this application you agree to all the notices above**
 
-> An experimental, community-driven iOS and tvOS project exploring a Steam-oriented library, guest-runtime architecture, and virtual-machine concepts.
+> An experimental, visionOS, iOS and tvOS project experimenting with, guest-runtime architecture, and virtual-machine concepts.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://makeapullrequest.com)
@@ -21,7 +21,7 @@
 
 ![Alt](https://repobeats.axiom.co/api/embed/60c92ea5e53d1048f89bf703d5444e243a2c5244.svg "Repobeats analytics image")
 
-i-Steam is a Steam-oriented game library and guest-runtime experience might look like on Apple mobile devices. The repository contains an iOS app, native helper code, runtime experiments, and an early Apple TV interface.
+i-Steam is what a Steam-oriented game library and guest-runtime experience might look like on Apple mobile devices. The repository contains an iOS app, native helper code, runtime experiments, and an early Apple TV interface.
 
 > [!WARNING]
 > **i-Steam is experimental and is not yet a working PC emulator.** It does not currently boot arbitrary Windows/Linux images through a fully integrated emulator or promise that Steam games will run. The tvOS interface is a prototype, not a game launcher. CI IPAs are unsigned; installation requires a compatible signing method, and packaging success does not prove the app works on a device.
