@@ -128,7 +128,7 @@ More details: [Installation](INSTALL.md) · [Release workflow](docs/RELEASES.md)
 
 ## Contributing
 
-Bug reports, documentation improvements, and focused pull requests are welcome. Please read the [contribution guide](CONTRIBUTING.md) before submitting changes.
+Bug reports, documentation improvements, and focused pull requests are welcome. Please read the [contributing.md](CONTRIBUTING.md) before submitting changes.
 
 ## Documentation
 
