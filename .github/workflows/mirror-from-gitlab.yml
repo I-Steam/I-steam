@@ -1,0 +1,95 @@
+name: GitLab to GitHub Mirror
+
+# GitLab is canonical. Poll it from GitHub so mirroring does not consume
+# GitLab shared-runner minutes or create a bidirectional push loop.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gitlab-to-github-mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: Mirror canonical GitLab main to GitHub main
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Require a mirror token
+        env:
+          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$MIRROR_TOKEN" ]; then
+            echo "::error::Missing MIRROR_TOKEN. Add a fine-grained token for I-Steam/I-steam with Contents and Workflows read/write."
+            exit 1
+          fi
+
+      - name: Check out GitHub mirror
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.MIRROR_TOKEN }}
+          persist-credentials: true
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "i-Steam GitLab Mirror"
+          git config user.email "i-steam-mirror[bot]@users.noreply.github.com"
+
+      - name: Fetch canonical GitLab main
+        run: |
+          set -euo pipefail
+          git remote add gitlab https://gitlab.com/chantinlongx/I-steam.git
+          git fetch --no-tags gitlab main
+
+      - name: Reconcile histories safely
+        id: reconcile
+        shell: bash
+        run: |
+          set -euo pipefail
+          GITHUB_SHA="$(git rev-parse origin/main)"
+          GITLAB_SHA="$(git rev-parse gitlab/main)"
+          echo "GitHub main: $GITHUB_SHA"
+          echo "GitLab main: $GITLAB_SHA"
+
+          if [ "$GITHUB_SHA" = "$GITLAB_SHA" ]; then
+            echo "Both repositories are already identical."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if git merge-base --is-ancestor "$GITHUB_SHA" "$GITLAB_SHA"; then
+            echo "GitLab is ahead; fast-forwarding the GitHub mirror."
+            git checkout -B sync-main "$GITLAB_SHA"
+          elif git merge-base --is-ancestor "$GITLAB_SHA" "$GITHUB_SHA"; then
+            echo "::warning::GitHub main contains commits not present in canonical GitLab main. Leaving it unchanged rather than force-pushing."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          else
+            echo "Histories diverged; merging GitLab main into GitHub main."
+            git checkout -B sync-main "$GITHUB_SHA"
+            if git merge --no-ff --no-edit -X theirs gitlab/main; then
+              echo "Merge completed; conflicting file contents prefer canonical GitLab."
+            else
+              git merge --abort || true
+              echo "::error::Could not reconcile histories. GitHub main was not changed."
+              exit 1
+            fi
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Push updated mirror
+        if: steps.reconcile.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          git push origin HEAD:refs/heads/main
+
+      - name: Report completion
+        run: echo "GitLab-to-GitHub mirror check completed."
