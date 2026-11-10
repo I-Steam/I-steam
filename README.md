@@ -169,4 +169,4 @@ i-Steam is not affiliated with, endorsed by, or sponsored by Valve Corporation. 
 
 ## Repository synchronization
 
-GitLab is the canonical development repository; GitHub is its mirror. Feature branches and merge requests stay in GitLab, and only updates to GitLab `main` are pushed directly to GitHub `main`. The GitHub-to-GitLab recovery workflow is manual-only to prevent sync loops and repeated pull requests. See [`docs/GIT_SYNC.md`](docs/GIT_SYNC.md).
+GitLab is the canonical development repository; GitHub is its mirror. GitHub Actions polls GitLab `main` every 15 minutes and can be run manually. This avoids relying on GitLab shared-runner quota for repository synchronization. GitHub-to-GitLab recovery remains manual-only to prevent sync loops. See [`docs/GIT_SYNC.md`](docs/GIT_SYNC.md) for the required `MIRROR_TOKEN` secret and activation steps.
