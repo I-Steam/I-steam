@@ -1,39 +1,41 @@
-# GitLab → GitHub push mirror and GitHub Actions CI/CD
+# GitLab ↔ GitHub synchronization and GitHub Actions CI/CD
 
 ## Repositories
 
-- **Source repository:** https://gitlab.com/chantinlongxthrx/I-steam
-- **GitHub mirror:** https://github.com/I-Steam/I-steam
-- **Mirrored branch:** `main`
+- **GitLab:** https://gitlab.com/chantinlongxthrx/I-steam
+- **GitHub:** https://github.com/I-Steam/I-steam
+- **Branch:** `main`
 
-GitLab is the source of truth. The repository owner has configured GitLab's built-in push mirror to push GitLab commits to GitHub. This is a server-side GitLab repository setting; it is not implemented by a scheduled GitHub Actions workflow.
+The project retains both configured synchronization directions:
 
-## One-way synchronization
+1. **GitLab → GitHub:** the owner-configured GitLab push mirror publishes GitLab commits to GitHub. This is configured in GitLab project settings, not by a repository workflow.
+2. **GitHub → GitLab:** `.github/workflows/blank.yml` pushes GitHub main commits to GitLab main using the existing `GITLAB_TOKEN` secret. This workflow has been restored byte-for-byte from the commit immediately before its accidental deletion and is intentionally left unchanged.
 
-1. Make source changes and commits in GitLab.
-2. GitLab's configured push mirror sends the GitLab branch to GitHub.
-3. GitHub Actions runs CI/CD from the mirrored GitHub branch.
-4. Do not push GitHub Actions-generated commits back to GitLab.
-5. Do not add a reverse GitHub-to-GitLab workflow or a scheduled GitHub workflow that polls GitLab.
+Do not edit, rename, disable, or delete `.github/workflows/blank.yml` without explicit owner approval. The scheduled `.github/workflows/mirror-from-gitlab.yml` polling workflow has been removed because the owner-configured GitLab push mirror already handles GitLab → GitHub synchronization. The GitLab CI configuration has also been removed; CI/CD runs on GitHub Actions.
 
-The old `.github/workflows/blank.yml` (GitHub → GitLab) and `.github/workflows/mirror-from-gitlab.yml` (scheduled GitLab polling from GitHub) are removed. The latter is redundant with the configured GitLab push mirror; the former would create a second, conflicting synchronization direction. The GitLab CI configuration is also removed so GitLab does not spend runner minutes dispatching GitHub workflows or duplicating validation.
+## Important bidirectional-mirror caution
 
-**Mirror configuration note:** the mirror itself is managed in GitLab project settings. This code change does not edit or verify that remote setting. Confirm in GitLab Settings → Repository → Mirroring repositories that the push mirror targets `https://github.com/I-Steam/I-steam`, is enabled, and reports a successful last update. Keep credentials in GitLab's protected mirror configuration, never in repository files.
+Two active push directions can race or create divergent histories if both sides receive independent commits. The GitHub → GitLab workflow contains ancestry checks and refuses some unsafe updates, but that is not a complete distributed synchronization protocol. Prefer making ordinary source commits in GitLab and letting its push mirror update GitHub. If GitHub-only commits are intentionally made, verify both refs and the sync workflow result before continuing. Never force-push either side to resolve a divergence without explicit review.
 
-## GitHub Actions responsibilities
+## GitHub Actions CI/CD
 
 All CI/CD definitions live in `.github/workflows/` and execute on GitHub:
 
-- `validate-repository.yml` — strict YAML/configuration validation, duplicate-key detection, QEMU source validation, and shell syntax checks.
+- `validate-repository.yml` — YAML/configuration validation, duplicate-key detection, QEMU source validation, and shell syntax checks.
 - `validate-ios-build.yml` — iOS, tvOS, and visionOS simulator compile checks.
 - `build-qemu-runtime.yml` — builds and packages the iOS arm64 QEMU/UTM runtime; supports manual and reusable-workflow calls.
 - `release.yml` — builds the runtime first, then platform packages, publishes combined GitHub releases, and optionally updates the AltStore website using `PAGES_TOKEN`.
+- `blank.yml` — synchronization only; not a build or validation job. Keep unchanged.
 
-Required GitHub secrets are only those used by the GitHub workflows, such as `PAGES_TOKEN` for website publishing. There is no longer a `GITLAB_TOKEN` secret requirement for repository synchronization and no `MIRROR_TOKEN` requirement for scheduled mirror polling.
+Required GitHub secrets are those used by workflows, including `GITLAB_TOKEN` for the retained GitHub → GitLab sync and `PAGES_TOKEN` for website publishing. The GitLab push-mirror credentials remain configured in GitLab settings and must not be committed to source.
+
+## Mirror verification
+
+The GitLab push mirror is external project configuration. Verify it in GitLab Settings → Repository → Mirroring repositories. Confirm the GitHub target, enabled status, and successful last update. This repository change does not alter those settings.
 
 ## Validation and limitations
 
 - A successful GitHub workflow run proves only the checks it actually executes.
 - Simulator compilation and IPA packaging do not prove physical-device installation, guest OS boot, persistence, or game compatibility.
 - The QEMU runtime build must produce and package its artifact in the same release workflow run before the iOS app packaging job can proceed.
-- The GitLab push mirror is external repository configuration. Its enabled state and last successful update must be checked in GitLab settings; deleting redundant workflows does not change that setting.
+- GitHub Actions sync success and GitLab push-mirror success must be checked independently.
