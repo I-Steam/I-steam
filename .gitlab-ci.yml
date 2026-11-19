@@ -96,9 +96,13 @@ validate_build_configuration:
       if 'git push origin HEAD:refs/heads/main' not in mirror_workflow:
           raise SystemExit('GitHub mirror workflow must push only to GitHub main.')
       reverse_sync = pathlib.Path('.github/workflows/blank.yml').read_text()
-      if '  push:' in reverse_sync:
-          raise SystemExit('Automatic GitHub-to-GitLab sync must stay disabled.')
-      print('CI YAML (duplicate-key strict), release requirements, QEMU cache invalidation, main-only sync, and source guards passed.')
+      if '  push:' not in reverse_sync or 'branches: [main]' not in reverse_sync:
+          raise SystemExit('GitHub-to-GitLab sync must trigger on pushes to main.')
+      if 'secrets.GITLAB_TOKEN' not in reverse_sync or 'git push gitlab HEAD:refs/heads/main' not in reverse_sync:
+          raise SystemExit('GitHub-to-GitLab sync must use the protected GitLab token and push only to GitLab main.')
+      if 'git push --force' in reverse_sync or 'git push -f' in reverse_sync:
+          raise SystemExit('GitHub-to-GitLab sync must never force-push.')
+      print('CI YAML (duplicate-key strict), release requirements, QEMU cache invalidation, and bidirectional sync safety guards passed.')
       PY
     - python3 scripts/validate-qemu-source.py
 

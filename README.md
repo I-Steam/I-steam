@@ -169,4 +169,4 @@ i-Steam is not affiliated with, endorsed by, or sponsored by Valve Corporation. 
 
 ## Repository synchronization
 
-GitLab is the canonical development repository; GitHub is its mirror. GitHub Actions polls GitLab `main` every 15 minutes and can be run manually. This avoids relying on GitLab shared-runner quota for repository synchronization. GitHub-to-GitLab recovery remains manual-only to prevent sync loops. See [`docs/GIT_SYNC.md`](docs/GIT_SYNC.md) for the required `MIRROR_TOKEN` secret and activation steps.
+GitHub commits to `main` are automatically pushed to GitLab, and GitHub Actions continues polling GitLab `main` every 15 minutes for GitLab-side changes. Both workflows use commit-ancestry checks, never force-push, and exit when the repositories already match. See [`docs/GIT_SYNC.md`](docs/GIT_SYNC.md) for the required `GITLAB_TOKEN` and `MIRROR_TOKEN` secrets and activation steps.
