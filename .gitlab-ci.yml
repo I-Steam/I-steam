@@ -6,7 +6,7 @@ spec:
       options: [Nightly, Main]
       default: Nightly
 ---
-stages: [validate, sync, dispatch]
+stages: [validate, dispatch]
 
 validate_build_configuration:
   stage: validate
@@ -17,14 +17,36 @@ validate_build_configuration:
     - |
       python3 - <<'PY'
       import pathlib, sys, yaml
-      workflow = pathlib.Path('.github/workflows/release.yml').read_text()
-      project = pathlib.Path('project.yml').read_text()
-      for name, text in [('release workflow', workflow), ('XcodeGen project', project)]:
+
+      class UniqueKeyLoader(yaml.SafeLoader):
+          def construct_mapping(self, node, deep=False):
+              self.flatten_mapping(node)
+              mapping = {}
+              for key_node, value_node in node.value:
+                  key = self.construct_object(key_node, deep=deep)
+                  if key in mapping:
+                      raise yaml.constructor.ConstructorError(
+                          "while constructing a mapping",
+                          node.start_mark,
+                          f"duplicate key {key!r}",
+                          key_node.start_mark,
+                      )
+                  mapping[key] = self.construct_object(value_node, deep=deep)
+              return mapping
+
+      for name in ('.gitlab-ci.yml', '.github/workflows/blank.yml', '.github/workflows/release.yml', '.github/workflows/build-qemu-runtime.yml', '.github/workflows/mirror-from-gitlab.yml', 'project.yml'):
+          text = pathlib.Path(name).read_text()
           try:
-              yaml.safe_load(text)
+              if name == '.gitlab-ci.yml':
+                  list(yaml.load_all(text, Loader=UniqueKeyLoader))
+              else:
+                  yaml.load(text, Loader=UniqueKeyLoader)
           except yaml.YAMLError as error:
               print(f'{name} YAML parse failed: {error}', file=sys.stderr)
               raise SystemExit(1)
+
+      workflow = pathlib.Path('.github/workflows/release.yml').read_text()
+      qemu_workflow = pathlib.Path('.github/workflows/build-qemu-runtime.yml').read_text()
       required = [
           'platform: [iOS, tvOS, visionOS]',
           'name: iSteam-${{ matrix.platform }}-${{ matrix.channel }}',
@@ -39,35 +61,46 @@ validate_build_configuration:
           raise SystemExit(1)
       if 'if-no-files-found: ignore' in workflow:
           raise SystemExit('Release artifacts must not silently ignore missing files.')
-      print('Release workflow and XcodeGen YAML parse; platform/artifact/token checks passed.')
+      if 'qemu-runtime:' not in workflow or 'uses: ./.github/workflows/build-qemu-runtime.yml' not in workflow:
+          raise SystemExit('Release must call the QEMU runtime as a job in the same workflow run.')
+      if 'needs: qemu-runtime' not in workflow or 'uses: actions/download-artifact@v4' not in workflow:
+          raise SystemExit('App builds must wait for and download the same-run QEMU artifact.')
+      if 'workflow_call:' not in qemu_workflow:
+          raise SystemExit('QEMU runtime workflow must support reusable-workflow calls.')
+      if '.github/workflows/release.yml' not in workflow:
+          raise SystemExit('Release workflow must not trigger itself on workflow-only changes.')
+      if "utm-ios-arm64-deps-v7-" not in qemu_workflow:
+          raise SystemExit('QEMU dependency cache key must be bumped when build-workflow patch logic changes.')
+      if "config_host_data.set('CONFIG_POSIX_MEMALIGN', true)" not in qemu_workflow:
+          raise SystemExit('QEMU runtime workflow must patch QEMU POSIX_MEMALIGN detection after the failed cross-file probe.')
+      if "add_project_link_arguments('-Wl,-force_load,' + ios_compiler_rt, language: 'c')" not in qemu_workflow:
+          raise SystemExit('QEMU Meson targets must retain the explicit compiler-rt link fallback.')
+      if "qemu_build_with_rt = qemu_build + ' --extra-ldflags=-Wl,-force_load,$IOS_COMPILER_RT'" not in qemu_workflow:
+          raise SystemExit('The actual QEMU configure invocation must append compiler-rt force-load; an earlier variable assignment was overwritten by UTM.')
+      if ".github/workflows/build-qemu-runtime.yml" not in qemu_workflow:
+          raise SystemExit('QEMU dependency cache key must include the runtime workflow.')
+      if "steps.utm-source.outputs.commit" not in qemu_workflow:
+          raise SystemExit('QEMU dependency cache key must include the checked-out upstream UTM commit.')
+      if "group: qemu-runtime-ios-arm64-${{ github.ref }}" not in qemu_workflow:
+          raise SystemExit('QEMU runtime concurrency must be isolated by Git ref.')
+      if 'workflow_dispatch:' not in qemu_workflow or 'workflow_call:' not in qemu_workflow:
+          raise SystemExit('QEMU runtime workflow must remain manually runnable and reusable by the release workflow.')
+      sync_job = pathlib.Path('.gitlab-ci.yml').read_text()
+      mirror_workflow = pathlib.Path('.github/workflows/mirror-from-gitlab.yml').read_text()
+      if 'sync_to_github:' in sync_job:
+          raise SystemExit('GitLab CI must not run a competing GitHub mirror push.')
+      if 'I-Steam/I-steam.git' not in mirror_workflow:
+          raise SystemExit('GitHub mirror workflow must fetch the actual i-Steam application repository.')
+      if 'secrets.MIRROR_TOKEN' not in mirror_workflow:
+          raise SystemExit('GitHub mirror workflow must use the dedicated mirror token.')
+      if 'git push origin HEAD:refs/heads/main' not in mirror_workflow:
+          raise SystemExit('GitHub mirror workflow must push only to GitHub main.')
+      reverse_sync = pathlib.Path('.github/workflows/blank.yml').read_text()
+      if '  push:' in reverse_sync:
+          raise SystemExit('Automatic GitHub-to-GitLab sync must stay disabled.')
+      print('CI YAML (duplicate-key strict), release requirements, QEMU cache invalidation, main-only sync, and source guards passed.')
       PY
-
-sync_to_github:
-  stage: sync
-  # Only main may update GitHub main. Feature branches must never overwrite it.
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-  resource_group: github-main-sync
-  image: alpine:latest
-  interruptible: false
-  before_script:
-    - apk add --no-cache git
-  script:
-    - |
-      set -eu
-      if [ -z "${GITHUB_SYNC_TOKEN:-}" ]; then
-        echo "GITHUB_SYNC_TOKEN is missing. Add a valid GitHub token as a masked GitLab CI/CD variable."
-        exit 1
-      fi
-      git config user.name "i-Steam Sync"
-      git config user.email "sync@i-steam.local"
-      git remote add github "https://x-access-token:${GITHUB_SYNC_TOKEN}@github.com/I-Steam/I-steam.git"
-      if ! git ls-remote github HEAD >/dev/null 2>&1; then
-        echo "GitHub authentication failed. Replace GITHUB_SYNC_TOKEN with a valid token that can write to I-Steam/I-steam."
-        exit 1
-      fi
-      # Never force-push: a divergent GitHub main must fail safely for manual reconciliation.
-      git push github HEAD:refs/heads/main
+    - python3 scripts/validate-qemu-source.py
 
 dispatch_manual_build:
   stage: dispatch
