@@ -1,8 +1,8 @@
 import Foundation
 
 /// Guest binary families understood by the runtime planner. This is metadata
-/// about the guest file/ABI, not the host device architecture.
-enum RuntimeGuestFormat: String, CaseIterable {
+/// about the guest ABI, not the host device architecture.
+enum RuntimeGuestFormat: String, CaseIterable, Hashable {
     case windowsX64PE
     case linuxX64ELF
     case linuxARM32ELF
@@ -10,8 +10,8 @@ enum RuntimeGuestFormat: String, CaseIterable {
     case unknown
 }
 
-enum RuntimeBackend: String, CaseIterable {
-    /// Planned PE/ELF ahead-of-time translation to AArch64.
+enum RuntimeBackend: String, CaseIterable, Hashable {
+    /// Ahead-of-time translated code, loaded from a validated translation cache.
     case staticAOT
     /// Linux x86-64 user-mode dynamic translator.
     case fexCore
@@ -19,25 +19,48 @@ enum RuntimeBackend: String, CaseIterable {
     case box64
     /// Full-machine emulation; not a user-mode translator.
     case qemuTCG
-    /// Small diagnostic interpreter; not a general-purpose game backend.
+    /// Small diagnostic interpreter; not a commercial-game backend.
     case x86Interpreter
     /// ARM32-to-ARM64 compatibility backend.
     case a32rt
-    /// Already-native ARM64 guest code, where its OS ABI is supported.
+    /// Native ARM64 code under a compatible guest ABI.
     case nativeARM64
-    /// Windows PE execution through a Windows compatibility stack plus
-    /// a Linux x86-64 translator. This is a composed backend, not Box64 alone.
+    /// Composed Windows user-mode compatibility + FEXCore route.
     case wineWithFEX
+    /// Composed Windows user-mode compatibility + Box64 route.
     case wineWithBox64
 }
 
-enum RuntimeCompatibilityLayer: String, CaseIterable {
+enum RuntimeCompatibilityLayer: String, CaseIterable, Hashable {
     case wineOrProton
     case win32AndNT
     case windowsDLLLoader
     case directXToVulkan
     case vulkanToMetal
     case linuxSyscallABI
+}
+
+/// These stages cooperate in one execution strategy. AOT and dynamic
+/// translation share a code cache: cached translated blocks run directly;
+/// misses, invalidated code and unsupported translation cases go to the
+/// selected dynamic engine. The diagnostic interpreter is a last-resort
+/// bring-up path, not a way to run arbitrary game code.
+enum RuntimeExecutionStage: String, CaseIterable {
+    case cachedStaticTranslation
+    case dynamicTranslation
+    case diagnosticInterpreter
+    case fullSystemEmulation
+}
+
+/// Services that are independent of CPU instruction execution and can operate
+/// alongside the selected CPU path once their concrete adapters are installed.
+enum RuntimeParallelSubsystem: String, CaseIterable {
+    case windowsCompatibility
+    case graphicsTranslation
+    case audio
+    case input
+    case networking
+    case storage
 }
 
 enum AntiCheatRuntimeAssessment: Equatable {
@@ -65,43 +88,83 @@ struct RuntimeExecutionRequest {
     }
 }
 
-/// Availability is supplied by concrete integrations. Nothing is assumed to
-/// exist merely because its adapter or planner case has been declared.
+/// Concrete adapters must populate this after checking the actual runtime
+/// binary, ABI, transitive libraries, platform support and required services.
+/// Merely having a source file or enum case never makes a backend available.
 struct RuntimeBackendAvailability {
     private let installed: Set<RuntimeBackend>
+    private let layers: Set<RuntimeCompatibilityLayer>
 
-    init(installed: Set<RuntimeBackend> = []) {
+    init(
+        installed: Set<RuntimeBackend> = [],
+        layers: Set<RuntimeCompatibilityLayer> = []
+    ) {
         self.installed = installed
+        self.layers = layers
     }
 
     func contains(_ backend: RuntimeBackend) -> Bool {
         installed.contains(backend)
     }
+
+    func contains(_ layer: RuntimeCompatibilityLayer) -> Bool {
+        layers.contains(layer)
+    }
+
+    func containsAll(_ required: [RuntimeCompatibilityLayer]) -> Bool {
+        required.allSatisfy(layers.contains)
+    }
 }
 
 struct RuntimeExecutionPlan {
-    /// First available candidate, if any. The caller must still ask the
-    /// backend to validate the binary and initialise successfully.
-    let selectedBackend: RuntimeBackend?
-    let candidateOrder: [RuntimeBackend]
+    /// Cached AOT code is preferred, with one compatible dynamic engine for
+    /// cache misses and code invalidation. They are complementary, not two
+    /// emulators executing the same instruction stream.
+    let staticTranslationBackend: RuntimeBackend?
+    let dynamicTranslationBackend: RuntimeBackend?
+    let architectureBackend: RuntimeBackend?
+    let diagnosticFallback: RuntimeBackend?
+    let fullSystemFallback: RuntimeBackend?
+
+    let executionStages: [RuntimeExecutionStage]
+    let parallelSubsystems: [RuntimeParallelSubsystem]
     let requiredLayers: [RuntimeCompatibilityLayer]
+    let optionalLayers: [RuntimeCompatibilityLayer]
     let antiCheatAssessment: AntiCheatRuntimeAssessment
     let explanation: [String]
+
+    /// Preferred installed backend for compatibility with existing callers.
+    var selectedBackend: RuntimeBackend? {
+        staticTranslationBackend
+            ?? dynamicTranslationBackend
+            ?? architectureBackend
+            ?? fullSystemFallback
+            ?? diagnosticFallback
+    }
+
+    var candidateOrder: [RuntimeBackend] {
+        [
+            staticTranslationBackend,
+            dynamicTranslationBackend,
+            architectureBackend,
+            fullSystemFallback,
+            diagnosticFallback
+        ].compactMap { $0 }
+    }
 
     var isExecutableWithInstalledBackends: Bool {
         selectedBackend != nil
     }
 }
 
-/// Central policy for choosing among static translation, dynamic translation,
-/// interpretation, and full-system emulation. This type only plans execution;
-/// it does not pretend to implement or launch missing backends.
+/// Builds a composable execution strategy. CPU engines are not all run in
+/// parallel: one dynamic translator owns a process at a time, while cached AOT
+/// blocks, compatibility services and graphics can cooperate around it.
 enum RuntimeBackendRouter {
     static func plan(
         for request: RuntimeExecutionRequest,
         availability: RuntimeBackendAvailability
     ) -> RuntimeExecutionPlan {
-        let layers = compatibilityLayers(for: request.format)
         let antiCheat: AntiCheatRuntimeAssessment
         if request.requiresKernelDriver {
             antiCheat = .kernelDriverRequiresSupportedWindowsKernel
@@ -111,71 +174,126 @@ enum RuntimeBackendRouter {
             antiCheat = .notRequested
         }
 
-        let candidates: [RuntimeBackend]
+        let windowsLayers: [RuntimeCompatibilityLayer] = [
+            .windowsDLLLoader, .win32AndNT, .wineOrProton
+        ]
+        let graphicsLayers: [RuntimeCompatibilityLayer] = [
+            .directXToVulkan, .vulkanToMetal
+        ]
+
+        var staticBackend: RuntimeBackend?
+        var dynamicBackend: RuntimeBackend?
+        var architectureBackend: RuntimeBackend?
+        var interpreter: RuntimeBackend?
+        var fullSystem: RuntimeBackend?
+        var stages: [RuntimeExecutionStage] = []
+        var parallel: [RuntimeParallelSubsystem] = []
+        var required: [RuntimeCompatibilityLayer] = []
+        var optional: [RuntimeCompatibilityLayer] = []
+        var explanation: [String] = []
+
         if request.requiresFullOperatingSystem || request.requiresKernelDriver {
-            // A process translator cannot provide a guest kernel or load a
-            // kernel driver. QEMU is the full-system fallback, not an EAC fix.
-            candidates = [.qemuTCG]
+            // A user-mode translator cannot provide a kernel or load a
+            // kernel-mode driver. QEMU is the only full-system candidate here.
+            if availability.contains(.qemuTCG) {
+                fullSystem = .qemuTCG
+                stages = [.fullSystemEmulation]
+            }
+            explanation.append("Full operating-system or kernel-driver workloads require a full-system backend; process translators are not substitutes.")
         } else {
             switch request.format {
             case .windowsX64PE:
-                // Static PE translation is the preferred future path.
-                // Wine/Proton + FEX/Box64 is a separate composed route; both
-                // components must be installed and mutually compatible.
-                candidates = [.staticAOT, .wineWithFEX, .wineWithBox64, .qemuTCG]
+                required = windowsLayers
+                optional = graphicsLayers
+                if availability.contains(.staticAOT) {
+                    staticBackend = .staticAOT
+                    stages.append(.cachedStaticTranslation)
+                }
+                // FEXCore and Box64 are mutually exclusive process engines.
+                // Pick one, never run both against the same process.
+                if availability.contains(.wineWithFEX) {
+                    dynamicBackend = .wineWithFEX
+                    stages.append(.dynamicTranslation)
+                } else if availability.contains(.wineWithBox64) {
+                    dynamicBackend = .wineWithBox64
+                    stages.append(.dynamicTranslation)
+                }
+                if !stages.isEmpty {
+                    parallel = [.windowsCompatibility, .graphicsTranslation, .audio, .input, .networking, .storage]
+                }
+                explanation.append("Windows PE requires a real PE/DLL loader and Win32/NT compatibility in addition to CPU translation.")
+                explanation.append("DirectX-to-Vulkan and Vulkan-to-Metal are independent graphics stages; they do not translate CPU instructions.")
             case .linuxX64ELF:
-                candidates = [.staticAOT, .fexCore, .box64, .qemuTCG, .x86Interpreter]
+                required = [.linuxSyscallABI]
+                if availability.contains(.staticAOT) {
+                    staticBackend = .staticAOT
+                    stages.append(.cachedStaticTranslation)
+                }
+                if availability.contains(.fexCore) {
+                    dynamicBackend = .fexCore
+                    stages.append(.dynamicTranslation)
+                } else if availability.contains(.box64) {
+                    dynamicBackend = .box64
+                    stages.append(.dynamicTranslation)
+                }
+                if availability.contains(.x86Interpreter) {
+                    interpreter = .x86Interpreter
+                    stages.append(.diagnosticInterpreter)
+                }
+                if !stages.isEmpty {
+                    parallel = [.audio, .input, .networking, .storage]
+                }
             case .linuxARM32ELF:
-                candidates = [.a32rt, .qemuTCG]
+                if availability.contains(.a32rt) {
+                    architectureBackend = .a32rt
+                    stages = [.dynamicTranslation]
+                    parallel = [.audio, .input, .networking, .storage]
+                }
             case .nativeARM64:
-                candidates = [.nativeARM64, .qemuTCG]
+                if availability.contains(.nativeARM64) {
+                    architectureBackend = .nativeARM64
+                    parallel = [.audio, .input, .networking, .storage]
+                }
             case .unknown:
-                candidates = []
+                explanation.append("The executable format is unknown; no execution backend is selected.")
             }
         }
 
-        let selected = candidates.first(where: availability.contains)
-        var explanation: [String] = []
+        // A backend without its mandatory ABI/OS layer is not a launchable
+        // candidate. Keep the plan's explanation explicit rather than silently
+        // pretending a translator can supply those services.
+        let selected = staticBackend ?? dynamicBackend ?? architectureBackend ?? fullSystem ?? interpreter
         if selected == nil {
-            explanation.append("No installed backend in this plan is currently marked available.")
-        } else if let selected {
-            explanation.append("Selected candidate: \(selected.rawValue). Backend startup and guest ABI checks are still required.")
+            explanation.append("No installed compatible backend is available. Missing integrations are not inferred from source files.")
+        } else {
+            explanation.append("Preferred backend candidate: \(selected!.rawValue). Its own startup and guest validation must still succeed.")
         }
-        if request.format == .windowsX64PE {
-            explanation.append("Windows PE execution also needs a Windows loader, DLL/import resolution, Win32/NT services, and a compatible graphics/audio/input stack.")
+        if !required.isEmpty && !availability.containsAll(required) {
+            explanation.append("Required compatibility layers are missing: " +
+                required.filter { !availability.contains($0) }.map(\.rawValue).joined(separator: ", "))
+        }
+        if !optional.isEmpty {
+            explanation.append("Optional graphics layers: " + optional.map(\.rawValue).joined(separator: " → "))
         }
         if request.antiCheatEnabled {
-            explanation.append("Anti-cheat must be supported and approved by its publisher for this exact runtime environment; CPU translation does not grant compatibility.")
+            explanation.append("Anti-cheat requires explicit publisher support for this exact runtime. CPU translation does not grant compatibility.")
         }
         if request.requiresKernelDriver {
-            explanation.append("Kernel-mode drivers require a supported Windows kernel environment; user-mode translation cannot provide one.")
+            explanation.append("Kernel anti-cheat drivers require a supported Windows kernel; this plan does not bypass or emulate away that requirement.")
         }
 
         return RuntimeExecutionPlan(
-            selectedBackend: selected,
-            candidateOrder: candidates,
-            requiredLayers: layers,
+            staticTranslationBackend: staticBackend,
+            dynamicTranslationBackend: dynamicBackend,
+            architectureBackend: architectureBackend,
+            diagnosticFallback: interpreter,
+            fullSystemFallback: fullSystem,
+            executionStages: stages,
+            parallelSubsystems: parallel,
+            requiredLayers: required,
+            optionalLayers: optional,
             antiCheatAssessment: antiCheat,
             explanation: explanation
         )
-    }
-
-    private static func compatibilityLayers(
-        for format: RuntimeGuestFormat
-    ) -> [RuntimeCompatibilityLayer] {
-        switch format {
-        case .windowsX64PE:
-            return [
-                .windowsDLLLoader,
-                .win32AndNT,
-                .wineOrProton,
-                .directXToVulkan,
-                .vulkanToMetal
-            ]
-        case .linuxX64ELF, .linuxARM32ELF:
-            return [.linuxSyscallABI]
-        case .nativeARM64, .unknown:
-            return []
-        }
     }
 }
