@@ -1,59 +1,47 @@
-# QEMU runtime component
+# QEMU runtime artifact contract
 
-i-Steam already contains a native loader bridge in `iSteam/QEMUNativeBridge.c`
-and a Swift session owner in `src/QEMU/QEMURuntime.swift`. This folder documents
-the runtime artifact contract and provides a validation script.
+This directory documents the runtime packaging contract and contains a validator. It does **not** implement or bundle the QEMU engine, and it is not a completed DroidDeck backend port.
 
-## Required runtime artifact
+## Runtime layout
 
-The bridge expects a **real, signed, arm64 iOS-compatible** dynamic library at one
-of these app-bundle locations:
+The build script `scripts/package-utm-qemu-runtime.sh` selects a loadable UTM/QEMU Mach-O binary by its exported lifecycle symbols. It writes the selected path to:
 
-- `Frameworks/libqemu-system-aarch64.dylib`
-- `runtime/qemu/libqemu-system-aarch64.dylib` (resource fallback)
+- `QEMU/runtime-library-path.txt`
 
-The library must export all four symbols:
+The release workflow embeds the complete `Frameworks/` and `QEMU/` directories into the iOS app. Do not assume a fixed QEMU library filename: the manifest is authoritative, and UTM may change its internal library name or layout.
+
+The library is an **iOS device arm64** binary that runs an **x86_64 system guest**. It must not be replaced with a macOS or simulator build.
+
+## Native bridge contract
+
+The native bridge in `iSteam/QEMUNativeBridge.c` requires these exported symbols:
 
 - `qemu_init`
 - `qemu_main_loop`
 - `qemu_cleanup`
-- `qemu_system_shutdown_request`
 
-An ordinary macOS QEMU build is not compatible. Do not rename a macOS dylib to
-make it appear to be an iOS runtime. The artifact must be built for the iOS device
-SDK and signed as nested app code; tvOS and visionOS need separately validated
-platform builds and must not reuse an iOS binary blindly.
+`qemu_system_shutdown_request` is optional. If it is absent, the bridge can start QEMU but cannot request graceful guest shutdown.
 
-## Current port status
+The Swift runtime locator is `src/QEMU/QEMURuntimeStatus.swift`; the lifecycle owner is `src/QEMU/QEMUNativeRuntime.swift`. The locator reads the generated manifest and resolves the library inside the app bundle. The native bridge then loads it with `dlopen` and resolves the lifecycle symbols with `dlsym`.
 
-- Native bridge loader and shutdown request: present.
-- Swift lifecycle adapter: present.
-- QEMU guest engine binary: **not included yet**.
-- Boot validation on physical iOS/tvOS/visionOS hardware: **not done**.
+## Validation
 
-This folder intentionally does not contain a fake or placeholder library. Until a
-compatible runtime is built and packaged, the adapter returns a clear missing-runtime
-error instead of claiming a guest has booted.
+Run:
 
-## Integration
-
-Call `try QEMURuntimeBackend.shared.start(arguments: [...])` from the guest
-launch path after validating the selected disk image and machine configuration.
-Call `stop()` to request shutdown, and use the app's existing UI refresh loop to
-call `refreshState()`. Do not block the main thread waiting for the guest.
-
-Example arguments for a basic AArch64 virtual machine (only after the runtime and
-all required device models are available):
-
-```swift
-try QEMURuntimeBackend.shared.start(arguments: [
-    "-machine", "virt",
-    "-cpu", "cortex-a72",
-    "-m", "2048",
-    "-nographic"
-])
+```sh
+bash scripts/validate-qemu-runtime.sh /path/to/the/manifest-selected-QEMU-library
 ```
 
-A bootable desktop guest additionally needs working storage, display, input, network,
-audio, and a supported boot image. Those device integrations are not supplied by
-this adapter alone.
+The validator requires Apple tooling and checks that the file is Mach-O, contains the device `arm64` architecture, exports all three required symbols as defined external symbols, and passes strict code-signature verification. It reports the optional shutdown symbol separately.
+
+This is a packaging check only. It does not prove that the library's dependencies load, that QEMU initializes, or that a guest boots.
+
+## Current status and limitations
+
+- Native bridge and Swift manifest-based runtime locator: present in source.
+- UTM/QEMU runtime binary: must be produced by the runtime workflow and embedded by the release workflow.
+- Physical-device runtime startup, guest boot, display, input, graceful shutdown, and disk persistence: not verified by this validator.
+- The current app runtime configuration is for x86_64 guests; this artifact is not an ARM64 guest runtime.
+- tvOS and visionOS need separately built and validated platform runtimes; the iOS binary must not be reused blindly.
+
+A simulator compile, source check, or successful artifact inspection is not evidence of a working physical-device emulator.
