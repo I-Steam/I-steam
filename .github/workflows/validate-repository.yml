@@ -1,0 +1,127 @@
+name: i-Steam repository and CI configuration validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repository-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-configuration:
+    name: Validate workflows, project configuration, and packaging scripts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install YAML validator
+        run: python -m pip install --disable-pip-version-check pyyaml
+
+      - name: Parse YAML with duplicate-key rejection
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import sys
+          import yaml
+
+          class UniqueKeyLoader(yaml.SafeLoader):
+              def construct_mapping(self, node, deep=False):
+                  self.flatten_mapping(node)
+                  mapping = {}
+                  for key_node, value_node in node.value:
+                      key = self.construct_object(key_node, deep=deep)
+                      if key in mapping:
+                          raise yaml.constructor.ConstructorError(
+                              "while constructing a mapping",
+                              node.start_mark,
+                              f"duplicate key {key!r}",
+                              key_node.start_mark,
+                          )
+                      mapping[key] = self.construct_object(value_node, deep=deep)
+                  return mapping
+
+          paths = sorted(Path(".github/workflows").glob("*.yml"))
+          paths += sorted(Path(".github/workflows").glob("*.yaml"))
+          paths += [Path("project.yml")]
+          if not paths:
+              raise SystemExit("No workflow or project configuration files were found.")
+          for path in paths:
+              try:
+                  with path.open() as stream:
+                      list(yaml.load_all(stream, Loader=UniqueKeyLoader))
+              except yaml.YAMLError as error:
+                  print(f"{path}: YAML validation failed: {error}", file=sys.stderr)
+                  raise SystemExit(1)
+              print(f"Validated {path}")
+          PY
+
+      - name: Enforce GitHub-only CI and one-way mirror layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e .gitlab-ci.yml || { echo "GitLab CI configuration must not be present; CI/CD runs on GitHub Actions." >&2; exit 1; }
+          test ! -e .github/workflows/blank.yml || { echo "Obsolete GitHub-to-GitLab sync workflow remains." >&2; exit 1; }
+          test ! -e .github/workflows/mirror-from-gitlab.yml || { echo "Scheduled GitLab polling workflow is redundant with GitLab's configured push mirror." >&2; exit 1; }
+
+      - name: Validate release and QEMU workflow contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import sys
+
+          release = Path(".github/workflows/release.yml").read_text()
+          qemu = Path(".github/workflows/build-qemu-runtime.yml").read_text()
+          required_release = [
+              "platform: [iOS, tvOS, visionOS]",
+              "uses: ./.github/workflows/build-qemu-runtime.yml",
+              "needs: qemu-runtime",
+              "actions/download-artifact@v4",
+              "name: iSteam-qemu-runtime-ios-arm64",
+              "if-no-files-found: error",
+              "PAGES_TOKEN: ${{ secrets.PAGES_TOKEN }}",
+          ]
+          missing = [item for item in required_release if item not in release]
+          if missing:
+              raise SystemExit("Missing release requirements: " + ", ".join(missing))
+          if "if-no-files-found: ignore" in release:
+              raise SystemExit("Release artifacts must not silently ignore missing files.")
+          if "workflow_call:" not in qemu or "workflow_dispatch:" not in qemu:
+              raise SystemExit("QEMU workflow must support both reusable and manual execution.")
+          if "utm-ios-arm64-deps-v7-" not in qemu:
+              raise SystemExit("QEMU dependency cache key must be versioned.")
+          if "steps.utm-source.outputs.commit" not in qemu:
+              raise SystemExit("QEMU cache key must include the checked-out UTM revision.")
+          if "group: qemu-runtime-ios-arm64-${{ github.ref }}-${{ github.workflow }}" not in qemu:
+              raise SystemExit("QEMU concurrency must isolate workflow/ref executions.")
+          if "qemu-runtime:" not in release or "needs: qemu-runtime" not in release:
+              raise SystemExit("App builds must wait for the same-run QEMU runtime artifact.")
+          if "git push" in release or "git push" in qemu:
+              raise SystemExit("Build workflows must not perform repository mirroring pushes.")
+          print("Release/QEMU reusable workflow and same-run artifact contracts passed.")
+          PY
+
+      - name: Validate QEMU upstream source patch assumptions
+        run: python3 scripts/validate-qemu-source.py
+
+      - name: Check shell script syntax
+        run: |
+          set -euo pipefail
+          bash -n scripts/package-utm-qemu-runtime.sh
+          bash -n scripts/validate-apple-package.sh

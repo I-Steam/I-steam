@@ -14,8 +14,7 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://makeapullrequest.com)
-[![i-Steam Build & Release](https://github.com/I-Steam/I-steam/actions/workflows/release.yml/badge.svg)](https://github.com/I-Steam/I-steam/actions/workflows/release.yml)
-[![GitLab pipeline](https://gitlab.com/chantinlongxthrx/I-steam/badges/main/pipeline.svg)](https://gitlab.com/chantinlongxthrx/I-steam/-/pipelines)
+[![i-Steam Build & Release](https://github.com/I-Steam/I-steam/actions/workflows/release.yml/badge.svg)](https://github.com/I-Steam/I-steam/actions/workflows/release.yml)(https://gitlab.com/chantinlongxthrx/I-steam/-/pipelines)
 
 [**GitHub**](https://github.com/I-Steam/I-steam) · [**All releases**](https://github.com/I-Steam/I-steam/releases) · [**Nightly builds**](https://github.com/I-Steam/I-steam/releases/tag/nightly) · [**GitLab mirror**](https://gitlab.com/chantinlongxthrx/I-steam) · [**AltStore source**](https://altdirect.app/?url=https://i-steam.github.io/AltSource.json)
 
@@ -117,7 +116,6 @@ For hosted builds, use the [Build & Release workflow](https://github.com/I-Steam
 - **Push to `main`:** starts the Nightly channel.
 - **Scheduled workflow:** runs daily at 02:00 UTC.
 - **Manual GitHub Actions run:** choose **Nightly** or **Main**.
-- **Manual GitLab pipeline:** can dispatch the GitHub workflow.
 - **Release assets:** iOS IPA, tvOS IPA, and SHA-256 checksum files.
 - **Older releases:** the workflow is configured not to automatically delete old releases.
 
@@ -169,4 +167,4 @@ i-Steam is not affiliated with, endorsed by, or sponsored by Valve Corporation. 
 
 ## Repository synchronization
 
-GitHub commits to `main` are automatically pushed to GitLab, and GitHub Actions continues polling GitLab `main` every 15 minutes for GitLab-side changes. Both workflows use commit-ancestry checks, never force-push, and exit when the repositories already match. See [`docs/GIT_SYNC.md`](docs/GIT_SYNC.md) for the required `GITLAB_TOKEN` and `MIRROR_TOKEN` secrets and activation steps.
+GitLab is the source repository and its configured push mirror publishes commits to GitHub. All CI/CD (validation, QEMU runtime builds, platform builds, releases, and AltStore publishing) runs through GitHub Actions. There are no GitLab CI jobs and no reverse GitHub-to-GitLab sync workflow. See [`docs/GIT_SYNC.md`](docs/GIT_SYNC.md) for the one-way mirror arrangement.
