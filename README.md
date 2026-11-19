@@ -69,10 +69,9 @@ These are works in progress. Importing a file or inspecting its metadata does no
 
 The tvOS target is an early Siri Remote-friendly interface preview. Its Launch session, Steam Store, and Settings actions currently display explanatory notices. It does **not** boot an operating system or launch games.
 
-
 ### Runtime and native helpers
 
-The repository contains exploratory components for guest memory, image/file inspection, storage, display, and host-device services. The QEMU/UTM runtime build is being developed in `.github/workflows/build-qemu-runtime.yml`; the previous runtime build failed on UTM's Meson cross-file patch. That marker has been corrected and the next device-arm64 runtime build is in progress; no verified runtime artifact is available yet. A working full-system emulator, Box64 execution environment, Wine/Proton, Windows API compatibility layer, functional guest networking/input path, and production-ready 3D GPU translation are not yet integrated. Android selection is a UI experiment. Compatibility with arbitrary games or anti-cheat systems is not promised.
+The repository contains exploratory components for guest memory, image/file inspection, storage, display, and host-device services. A hybrid backend-routing policy now describes how static AOT translation, FEXCore, Box64, QEMU TCG, the small x86 interpreter, a32rt, Wine/Proton, Windows API compatibility, and graphics translation fit together. This is orchestration scaffolding only: the router does not make missing backends available or launch them. The Windows PE parser is not yet a Windows x64-to-ARM64 instruction translator. The QEMU/UTM runtime build is being developed in `.github/workflows/build-qemu-runtime.yml`; no verified runtime artifact or physical-device guest boot is established here. A working full-system emulator, Box64 execution environment, Wine/Proton, Windows API compatibility layer, functional guest networking/input path, and production-ready 3D GPU translation are not yet integrated. Android selection is a UI experiment. Compatibility with arbitrary games or anti-cheat systems is not promised.
 
 The Android DroidDeck source is not a direct iOS runtime: FEX/Proton, Turnip, Gamescope, Linux package managers, and Android-specific device access need separate Apple-platform implementations. See [DroidDeck feature-port inventory](docs/DROIDDECK_PORT_PLAN.md) and [DroidDeck port status](docs/DROIDDECK_PORT_STATUS.md).
 
@@ -135,6 +134,7 @@ Bug reports, documentation improvements, and focused pull requests are welcome. 
 - [tvOS status and roadmap](docs/TVOS.md)
 - [Host-device bridge](docs/HOST_DEVICE_BRIDGE.md)
 - [Runtime architecture and roadmap](docs/SHARPEMU_REUSE_NOTES.md)
+- [Hybrid runtime routing architecture](docs/HYBRID_RUNTIME_ARCHITECTURE.md)
 - [QEMU runtime build and failure diagnostics](docs/QEMU_RUNTIME_BUILD.md)
 - [DroidDeck feature-port plan](docs/DROIDDECK_PORT_PLAN.md)
 - [DroidDeck port status](docs/DROIDDECK_PORT_STATUS.md)
@@ -149,12 +149,14 @@ These projects are research references; listing them does not mean their code is
 
 - [QEMU](https://www.qemu.org/) — full-system emulation reference.
 - [Box64](https://github.com/ptitSeb/box64) — x86-64 user-mode emulation reference.
+- [FEX-Emu](https://github.com/FEX-Emu/FEX) — x86-64 Linux user-mode translation reference.
+- [Wine](https://www.winehq.org/) and [Proton](https://github.com/ValveSoftware/Proton) — Windows user-mode compatibility references.
 - [StikDebug](https://github.com/StephenDev0/StikDebug) — JIT-related iOS development reference.
 - [LiveContainer](https://github.com/LiveContainer/LiveContainer) and [LiveExec32](https://github.com/LiveContainer/LiveExec32) — iOS app-container and binary-execution research reference.
 - [MeloNX](https://github.com/AzureDominus/melonx) — iOS emulator UI and performance reference.
 - [SharpEmu](https://github.com/sharpemu/sharpemu) — emulator architecture research reference.
 - [SideStore](https://sidestore.io/) — iOS signing and installation reference.
-- [xthrx](https://github.com/xthrx-chu) - main project maintainer and developer 
+- [xthrx](https://github.com/xthrx-chu) - main project maintainer and developer
 
 Third-party projects retain their own licenses and copyrights. Review upstream licenses and notices before redistributing code. No endorsement is implied.
 
@@ -163,7 +165,6 @@ Third-party projects retain their own licenses and copyrights. Review upstream l
 i-Steam is licensed under the **GNU General Public License v3.0 (GPL-3.0)**. See [LICENSE](LICENSE).
 
 i-Steam is not affiliated with, endorsed by, or sponsored by Valve Corporation. Steam is a trademark of Valve Corporation. No particular game or operating system is guaranteed to run. AI assistants, including ChatGPT and Claude, have been used as development aids; all changes are still being reviewed and tested by maintainers.
-
 
 ## Repository synchronization
 
