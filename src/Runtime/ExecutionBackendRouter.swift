@@ -129,6 +129,7 @@ struct RuntimeExecutionPlan {
     let executionStages: [RuntimeExecutionStage]
     let parallelSubsystems: [RuntimeParallelSubsystem]
     let requiredLayers: [RuntimeCompatibilityLayer]
+    let missingRequiredLayers: [RuntimeCompatibilityLayer]
     let optionalLayers: [RuntimeCompatibilityLayer]
     let antiCheatAssessment: AntiCheatRuntimeAssessment
     let explanation: [String]
@@ -153,7 +154,7 @@ struct RuntimeExecutionPlan {
     }
 
     var isExecutableWithInstalledBackends: Bool {
-        selectedBackend != nil
+        selectedBackend != nil && missingRequiredLayers.isEmpty
     }
 }
 
@@ -282,6 +283,8 @@ enum RuntimeBackendRouter {
             explanation.append("Kernel anti-cheat drivers require a supported Windows kernel; this plan does not bypass or emulate away that requirement.")
         }
 
+        let missingRequiredLayers = required.filter { !availability.contains($0) }
+
         return RuntimeExecutionPlan(
             staticTranslationBackend: staticBackend,
             dynamicTranslationBackend: dynamicBackend,
@@ -291,6 +294,7 @@ enum RuntimeBackendRouter {
             executionStages: stages,
             parallelSubsystems: parallel,
             requiredLayers: required,
+            missingRequiredLayers: missingRequiredLayers,
             optionalLayers: optional,
             antiCheatAssessment: antiCheat,
             explanation: explanation
