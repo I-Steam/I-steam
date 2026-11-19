@@ -164,7 +164,9 @@ struct WindowsPEImage {
                     let nameRVA = UInt32(value)
                     let nameOffset = try fileOffset(forRVA: nameRVA, length: 2)
                     let hint = try Self.u16(file, nameOffset)
-                    result.append(Import(library: library, name: try readCString(atRVA: nameRVA + 2, limit: 4096), ordinal: nil, hint: hint))
+                    let (stringRVA, stringOverflow) = nameRVA.addingReportingOverflow(2)
+                    guard !stringOverflow else { throw ParseError.malformed("import string RVA overflow") }
+                    result.append(Import(library: library, name: try readCString(atRVA: stringRVA, limit: 4096), ordinal: nil, hint: hint))
                 }
                 if result.count > 250_000 { throw ParseError.resourceLimit("too many imports") }
             }
