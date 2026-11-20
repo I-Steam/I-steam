@@ -1,4 +1,4 @@
-# i-Steam
+# Akatsubaki Emu
 
 > DISCLAIMER
 >
@@ -20,10 +20,10 @@
 
 ![Alt](https://repobeats.axiom.co/api/embed/60c92ea5e53d1048f89bf703d5444e243a2c5244.svg "Repobeats analytics image")
 
-i-Steam is what a Steam-oriented game library and guest-runtime experience might look like on Apple mobile devices. The repository contains an iOS app, native helper code, runtime experiments, and an early Apple TV interface.
+**Akatsubaki Emu** is a Steam-oriented game library and experimental guest-runtime project for Apple platforms. The repository remains named **i-Steam**; Akatsubaki Emu is the app's display brand.
 
 > [!WARNING]
-> **i-Steam is experimental and is not yet a working PC emulator.** It does not currently boot arbitrary Windows/Linux images through a fully integrated emulator or promise that Steam games will run. The tvOS interface is a prototype, not a game launcher. CI IPAs are unsigned; installation requires a compatible signing method, and packaging success does not prove the app works on a device.
+> **Akatsubaki Emu is experimental and is not yet a working PC emulator.** It does not currently boot arbitrary Windows/Linux images through a fully integrated emulator or promise that Steam games will run. The tvOS interface is a prototype, not a game launcher. CI IPAs are unsigned; installation requires a compatible signing method, and packaging success does not prove the app works on a device.
 
 ## Downloads
 
@@ -63,7 +63,7 @@ The source includes separate entries for iOS Main, iOS Nightly, tvOS Main, and t
 - Research into app-container and binary-execution approaches used by projects such as LiveContainer.
 - Native DroidDeck-inspired library backup/restore, per-game profile defaults, artwork caching, local compatibility records, and runtime component integrity verification.
 
-These are works in progress. Importing a file or inspecting its metadata does not execute it, and a storage prototype is not a complete virtual storage controller. JIT behavior depends on iOS version, device, signing, entitlements, and supported tooling; i-Steam does not enable JIT for every app.
+These are works in progress. Importing a file or inspecting its metadata does not execute it, and a storage prototype is not a complete virtual storage controller. JIT behavior depends on iOS version, device, signing, entitlements, and supported tooling; Akatsubaki Emu does not enable JIT for every app.
 
 ### tvOS app
 
@@ -71,7 +71,9 @@ The tvOS target is an early Siri Remote-friendly interface preview. Its Launch s
 
 ### Runtime and native helpers
 
-The repository contains exploratory components for guest memory, image/file inspection, storage, display, and host-device services. The Windows game-launch boundary now invokes a hybrid execution planner that composes cached static translation, one selected dynamic translator, diagnostic fallback, Windows compatibility, independent graphics translation, and host services. QEMU remains the full-system route; a32rt and native ARM64 remain architecture-specific paths. This is still orchestration scaffolding: the planner does not make missing backends available, and launch remains blocked until concrete runtime adapters and required ABI layers are installed. The Windows PE parser is not yet a Windows x64-to-ARM64 instruction translator. The QEMU/UTM runtime build is being developed in `.github/workflows/build-qemu-runtime.yml`; no verified runtime artifact or physical-device guest boot is established here. A working full-system emulator, Box64 execution environment, Wine/Proton, Windows API compatibility layer, functional guest networking/input path, and production-ready 3D GPU translation are not yet integrated. Android selection is a UI experiment. Compatibility with arbitrary games or anti-cheat systems is not promised.
+The hybrid execution architecture is named **Kenran Butō (絢爛舞踏)**. Its planned components are Kenran Butō AOT (static x86-64 → ARM64 translation), Kenran Butō Cache (translated-code cache), Kenran Butō Router (backend selection and fallback), Kenran Butō Runtime (execution orchestration), and Kenran Butō Graphics (graphics translation). These names describe architectural responsibilities, not a claim that the corresponding engines are complete or integrated.
+
+The repository contains exploratory components for guest memory, image/file inspection, storage, display, and host-device services. The Windows game-launch boundary now invokes the **Kenran Butō** hybrid execution planner that composes cached static translation, one selected dynamic translator, diagnostic fallback, Windows compatibility, independent graphics translation, and host services. QEMU remains the full-system route; a32rt and native ARM64 remain architecture-specific paths. This is still orchestration scaffolding: the planner does not make missing backends available, and launch remains blocked until concrete runtime adapters and required ABI layers are installed. The Windows PE parser is not yet a Windows x64-to-ARM64 instruction translator. The QEMU/UTM runtime build is being developed in `.github/workflows/build-qemu-runtime.yml`; no verified runtime artifact or physical-device guest boot is established here. A working full-system emulator, Box64 execution environment, Wine/Proton, Windows API compatibility layer, functional guest networking/input path, and production-ready 3D GPU translation are not yet integrated. Android selection is a UI experiment. Compatibility with arbitrary games or anti-cheat systems is not promised.
 
 The Android DroidDeck source is not a direct iOS runtime: FEX/Proton, Turnip, Gamescope, Linux package managers, and Android-specific device access need separate Apple-platform implementations. See [DroidDeck feature-port inventory](docs/DROIDDECK_PORT_PLAN.md) and [DroidDeck port status](docs/DROIDDECK_PORT_STATUS.md).
 
@@ -162,9 +164,9 @@ Third-party projects retain their own licenses and copyrights. Review upstream l
 
 ## License and disclaimer
 
-i-Steam is licensed under the **GNU General Public License v3.0 (GPL-3.0)**. See [LICENSE](LICENSE).
+The i-Steam repository and Akatsubaki Emu are licensed under the **GNU General Public License v3.0 (GPL-3.0)**. See [LICENSE](LICENSE).
 
-i-Steam is not affiliated with, endorsed by, or sponsored by Valve Corporation. Steam is a trademark of Valve Corporation. No particular game or operating system is guaranteed to run. AI assistants, including ChatGPT and Claude, have been used as development aids; all changes are still being reviewed and tested by maintainers.
+Akatsubaki Emu is not affiliated with, endorsed by, or sponsored by Valve Corporation. Steam is a trademark of Valve Corporation. No particular game or operating system is guaranteed to run. AI assistants, including ChatGPT and Claude, have been used as development aids; all changes are still being reviewed and tested by maintainers.
 
 ## Repository synchronization
 

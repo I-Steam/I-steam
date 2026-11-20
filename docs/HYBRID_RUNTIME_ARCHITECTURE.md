@@ -1,6 +1,8 @@
-# Hybrid runtime composition
+# Kenran Butō (絢爛舞踏) — Hybrid runtime composition
 
+- **System name:** Kenran Butō (絢爛舞踏).
 - **Status:** composable execution-policy prototype; most specialist runtimes are not integrated.
+- **Component naming:** Kenran Butō AOT is the static x86-64 → ARM64 translator; Kenran Butō Cache stores translated code; Kenran Butō Router selects backends and fallback; Kenran Butō Runtime orchestrates execution; Kenran Butō Graphics owns graphics translation. These are architectural labels and do not imply that the implementations are complete.
 - **Planner:** `src/Runtime/ExecutionBackendRouter.swift`
 - **Launch entry point:** `src/Steam/GameLauncher.swift` → `src/Runtime/WindowsRuntime.swift`
 - **Related code:** `src/Runtime/WindowsPEImage.swift`, `src/Runtime/WindowsPELoader.swift`, `src/Runtime/X86_64Interpreter.swift`, `iSteam/Box64Bridge.*`, `src/QEMU/`, `src/Windows/`, `src/GPU/`.

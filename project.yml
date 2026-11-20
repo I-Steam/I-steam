@@ -30,7 +30,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.xthrx.isteam
         PRODUCT_NAME: iSteam
-        INFOPLIST_KEY_CFBundleDisplayName: i-Steam Release
+        INFOPLIST_KEY_CFBundleDisplayName: Akatsubaki Emu
         INFOPLIST_FILE: iSteam/Info.plist
         CODE_SIGN_ENTITLEMENTS: iSteam/iSteam.entitlements
         SWIFT_OBJC_BRIDGING_HEADER: iSteam/iSteam-Bridging-Header.h
@@ -53,7 +53,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.xthrx.isteam.nightly
         PRODUCT_NAME: iSteam
-        INFOPLIST_KEY_CFBundleDisplayName: i-Steam Nightly
+        INFOPLIST_KEY_CFBundleDisplayName: Akatsubaki Emu Nightly
         INFOPLIST_FILE: iSteam/Info.plist
         CODE_SIGN_ENTITLEMENTS: iSteam/iSteam.entitlements
         SWIFT_OBJC_BRIDGING_HEADER: iSteam/iSteam-Bridging-Header.h
@@ -67,7 +67,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.xthrx.isteam.tvos
         PRODUCT_NAME: iSteamTV
-        INFOPLIST_KEY_CFBundleDisplayName: i-Steam tvOS
+        INFOPLIST_KEY_CFBundleDisplayName: Akatsubaki Emu tvOS
         INFOPLIST_FILE: iSteam/Info-tvOS.plist
 
   iSteamVision:
@@ -88,7 +88,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.xthrx.isteam.visionos
         PRODUCT_NAME: iSteamVision
-        INFOPLIST_KEY_CFBundleDisplayName: i-Steam visionOS
+        INFOPLIST_KEY_CFBundleDisplayName: Akatsubaki Emu visionOS
         INFOPLIST_FILE: iSteam/Info.plist
         CODE_SIGN_ENTITLEMENTS: iSteam/iSteam.entitlements
         SWIFT_OBJC_BRIDGING_HEADER: iSteam/iSteam-Bridging-Header.h
