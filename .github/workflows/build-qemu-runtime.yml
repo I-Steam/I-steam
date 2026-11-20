@@ -93,17 +93,9 @@ jobs:
         run: |
           set -euo pipefail
           cd UTM
-          # Apply compiler-rt only to QEMU's link flags, not every third-party
-          # dependency; globally force-loading it bloats or breaks other builds.
+          # Patch QEMU's own Meson project and verify the generated QEMU dylib link edge
+          # before any of its 2,000+ compile/link tasks can start.
           python3 "$GITHUB_WORKSPACE/scripts/patch_utm_qemu_ios.py" scripts/build_dependencies.sh
-          if [ "${{ inputs.rebuild_dependencies }}" = "true" ] || [ ! -f build-iOS-arm64/BUILD_SUCCESS ]; then
-            ./scripts/build_dependencies.sh -p ios -a arm64
-          else
-            echo "Using the cached iOS arm64 dependency build."
-          fi
-          test -f build-iOS-arm64/BUILD_SUCCESS
-          test -d sysroot-iOS-arm64
-          grep -F 'has_function_posix_memalign = true' scripts/build_dependencies.sh
           if [ "${{ inputs.rebuild_dependencies }}" = "true" ] || [ ! -f build-iOS-arm64/BUILD_SUCCESS ]; then
             ./scripts/build_dependencies.sh -p ios -a arm64
           else
