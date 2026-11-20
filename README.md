@@ -3,14 +3,14 @@
 > DISCLAIMER
 >
 > **please read this before using this application**
-> **Important Notice Regarding I-steam’s current development stage**
+> **Important Notice Regarding Akatsubaki Emu’s current development stage**
 >
-> I-steam is still in development and is still highly unstable, which means **you may lose your data or get banned**.
+> Akatsubaki Emu is still in development and is highly unstable, which means **you may lose your data or get banned**.
 >
 > Furthermore, please note that we do not provide any support for issues of these development builds. and **we will not take responsibility for any possessions lost whilst using this application**. please use this application at your own risk
 > **by using this application you agree to all the notices above**
 
-> An experimental, visionOS, iOS and tvOS project experimenting with, guest-runtime architecture, and virtual-machine concepts.
+> Akatsubaki Emu is an experimental iOS, tvOS, and visionOS game-library and guest-runtime project.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://makeapullrequest.com)
@@ -52,7 +52,7 @@ The source includes separate entries for iOS Main, iOS Nightly, tvOS Main, and t
 
 ## Features and project status
 
-### iOS app
+### iOS app — Akatsubaki Emu
 
 - Experimental library and import flows for executable and operating-system files.
 - Local VM/session configuration and last-session metadata.
