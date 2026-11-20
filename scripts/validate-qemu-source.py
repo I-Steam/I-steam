@@ -35,8 +35,11 @@ required = {
     ],
     "src/Runtime/RuntimeCapabilityRegistry.swift": [
         "enum RuntimeCapabilityLevel: String, CaseIterable",
+        "case notProbed",
+        "static let current = inspect(probeQEMU: false)",
         "level: .loadable",
         "level == .operational",
+        "if probeQEMU",
         "QEMURuntimeStatus.inspect(bundle: bundle)",
     ],
     "src/Steam/GameLauncher.swift": [

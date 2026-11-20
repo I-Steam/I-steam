@@ -4,6 +4,7 @@ import Foundation
 /// be offered to the execution router. A loadable dylib is not proof that a
 /// guest can boot or execute a workload correctly.
 enum RuntimeCapabilityLevel: String, CaseIterable {
+    case notProbed
     case missing
     case artifactPresent
     case loadable
@@ -26,9 +27,10 @@ struct RuntimeCapabilityRegistry {
 
     /// The app bundle is immutable for this process, so cache the first probe
     /// rather than repeatedly dlopen/close QEMU on every game launch.
-    static let current = inspect()
+    static let current = inspect(probeQEMU: false)
 
-    static func inspect(bundle: Bundle = .main) -> RuntimeCapabilityRegistry {
+    static func inspect(bundle: Bundle = .main,
+                        probeQEMU: Bool = false) -> RuntimeCapabilityRegistry {
         var records: [RuntimeBackend: RuntimeCapabilityRecord] = [:]
         for backend in RuntimeBackend.allCases {
             records[backend] = RuntimeCapabilityRecord(
@@ -37,16 +39,23 @@ struct RuntimeCapabilityRegistry {
             )
         }
 
-        switch QEMURuntimeStatus.inspect(bundle: bundle) {
-        case .ready:
+        if probeQEMU {
+            switch QEMURuntimeStatus.inspect(bundle: bundle) {
+            case .ready:
+                records[.qemuTCG] = RuntimeCapabilityRecord(
+                    level: .loadable,
+                    detail: "The bundled library loads and required lifecycle exports resolve; guest boot and device operation are not yet verified."
+                )
+            case .unavailable(let reason):
+                records[.qemuTCG] = RuntimeCapabilityRecord(
+                    level: .missing,
+                    detail: reason
+                )
+            }
+        } else {
             records[.qemuTCG] = RuntimeCapabilityRecord(
-                level: .loadable,
-                detail: "The bundled library loads and required lifecycle exports resolve; guest boot and device operation are not yet verified."
-            )
-        case .unavailable(let reason):
-            records[.qemuTCG] = RuntimeCapabilityRecord(
-                level: .missing,
-                detail: reason
+                level: .notProbed,
+                detail: "Deferred to the VM launch path to avoid loading the large QEMU dependency graph during a game-process launch."
             )
         }
 
