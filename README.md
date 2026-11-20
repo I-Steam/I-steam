@@ -14,7 +14,7 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://makeapullrequest.com)
-[![i-Steam Build & Release](https://github.com/I-Steam/I-steam/actions/workflows/release.yml/badge.svg)](https://github.com/I-Steam/I-steam/actions/workflows/release.yml)(https://gitlab.com/chantinlongxthrx/I-steam/-/pipelines)
+[![i-Steam Build & Release](https://github.com/I-Steam/I-steam/actions/workflows/release.yml/badge.svg)](https://github.com/I-Steam/I-steam/actions/workflows/release.yml)
 
 [**GitHub**](https://github.com/I-Steam/I-steam) · [**All releases**](https://github.com/I-Steam/I-steam/releases) · [**Nightly builds**](https://github.com/I-Steam/I-steam/releases/tag/nightly) · [**GitLab mirror**](https://gitlab.com/chantinlongxthrx/I-steam) · [**AltStore source**](https://altdirect.app/?url=https://i-steam.github.io/AltSource.json)
 
