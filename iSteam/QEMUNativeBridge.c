@@ -121,7 +121,7 @@ bool isteam_qemu_validate_library(const char *library_path,
         return false;
     }
 
-    if (error_buffer && error_capacity > 0) error_buffer[0] = '\\0';
+    if (error_buffer && error_capacity > 0) error_buffer[0] = '\0';
     return true;
 }
 

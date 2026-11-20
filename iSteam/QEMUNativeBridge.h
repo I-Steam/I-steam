@@ -7,14 +7,13 @@
 extern "C" {
 #endif
 
-/// Loads an app-bundled, code-signed QEMU runtime and starts its in-process
-/// system emulator. Returns false with a diagnostic if the runtime or required
-/// QEMU lifecycle symbols are unavailable.
 /// Loads the candidate library with RTLD_NOW and verifies the required
 /// QEMU lifecycle exports without starting a guest or consuming the one-shot
 /// QEMU session lifecycle.
 bool isteam_qemu_validate_library(const char * _Nonnull library_path,
                                   char * _Nonnull error_buffer, int error_capacity);
+/// Starts the in-process QEMU system emulator. Returns false with a diagnostic
+/// if the runtime or required lifecycle symbols are unavailable.
 bool isteam_qemu_start(int argc, const char * _Nonnull const * _Nonnull argv,
                        const char * _Nonnull library_path,
                        char * _Nonnull error_buffer, int error_capacity);

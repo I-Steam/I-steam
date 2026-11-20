@@ -22,9 +22,16 @@ required = {
         "QEMURuntimeStatus.inspect()", "isteam_qemu_start", "isteam_qemu_request_stop"
     ],
     "iSteam/QEMUNativeBridge.c": [
+        "bool isteam_qemu_validate_library(",
+        "dlopen(library_path, RTLD_NOW | RTLD_LOCAL)",
         'dlsym(library, "qemu_init")',
         'dlsym(library, "qemu_main_loop")',
         'dlsym(library, "qemu_cleanup")',
+    ],
+    "src/QEMU/QEMURuntimeStatus.swift": [
+        "isteam_qemu_validate_library(",
+        "validateLoadableLibrary(library, dataDirectory: dataDirectory)",
+        "The bundled QEMU library failed its load/export validation.",
     ],
     "iSteam/LaunchSetupViewController.swift": [
         '"SteamOS Gaming Mode"', "VMConfiguration.defaultSteamOS",
