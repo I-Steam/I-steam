@@ -18,6 +18,8 @@ def verify_link(ninja_text: str, runtime_path: str) -> None:
         block.append(line)
 
     link_edge = "\n".join(block)
+    if "LINK_ARGS =" not in link_edge:
+        raise SystemExit("QEMU Ninja target has no explicit LINK_ARGS entry to validate")
     expected = "-Wl,-force_load," + runtime_path
     if expected not in link_edge:
         raise SystemExit(
