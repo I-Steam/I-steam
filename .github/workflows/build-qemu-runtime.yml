@@ -43,11 +43,16 @@ jobs:
           fetch-depth: 1
 
       - name: Select Xcode
+        id: xcode
+        shell: bash
         run: |
           set -euo pipefail
           xcode-select -p
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
+          XCODE_VERSION="$(xcodebuild -version | awk '/^Xcode / {print $2}')"
+          IOS_SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version)"
+          echo "version=${XCODE_VERSION}-ios-${IOS_SDK_VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Install UTM build dependencies
         run: |
@@ -82,7 +87,7 @@ jobs:
             UTM/sysroot-iOS-arm64
           # Include the workflow itself: Meson cross-file fixes change build configuration.
           # A workflow-only fix must not reuse a QEMU build tree configured without it.
-          key: utm-ios-arm64-deps-v8-${{ steps.utm-source.outputs.commit }}-${{ hashFiles('.github/workflows/build-qemu-runtime.yml', 'scripts/package-utm-qemu-runtime.sh', 'scripts/patch_utm_qemu_ios.py', 'scripts/patch_qemu_meson_ios.py', 'scripts/verify_qemu_meson_link.py') }}
+          key: utm-ios-arm64-deps-v8-${{ steps.utm-source.outputs.commit }}-${{ steps.xcode.outputs.version }}-${{ hashFiles('.github/workflows/build-qemu-runtime.yml', 'scripts/package-utm-qemu-runtime.sh', 'scripts/patch_utm_qemu_ios.py', 'scripts/patch_qemu_meson_ios.py', 'scripts/verify_qemu_meson_link.py') }}
 
       - name: Build UTM dependencies for physical iOS arm64
         shell: bash
