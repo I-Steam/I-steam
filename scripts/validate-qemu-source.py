@@ -47,6 +47,16 @@ required = {
         "capabilities.backendAvailability",
         '"[runtime-capability] "',
     ],
+    "src/Runtime/WindowsPEImage.swift": [
+        "Section(name: name,\n                virtualAddress:",
+        "virtualSize: try u32(data, offset + 8)",
+        "rawOffset: try u32(data, offset + 20)",
+    ],
+    "src/QEMU/QEMUVNCClient.swift": [
+        "private final class QEMUOneShotCompletion: @unchecked Sendable",
+        "private func withStateLock<T>",
+        "let completion = QEMUOneShotCompletion()",
+    ],
     "iSteam/LaunchSetupViewController.swift": [
         '"SteamOS Gaming Mode"', "VMConfiguration.defaultSteamOS",
     ],
