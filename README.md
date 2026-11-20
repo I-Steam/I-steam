@@ -169,3 +169,8 @@ i-Steam is not affiliated with, endorsed by, or sponsored by Valve Corporation. 
 ## Repository synchronization
 
 GitLab's configured push mirror publishes GitLab commits to GitHub, and the existing GitHub Actions workflow also retains GitHub-to-GitLab synchronization. All CI/CD (validation, QEMU runtime builds, platform builds, releases, and AltStore publishing) runs through GitHub Actions. GitLab CI is removed. See [`docs/GIT_SYNC.md`](docs/GIT_SYNC.md) for the synchronization details and cautions.
+
+
+## QEMU runtime build workflow
+
+See [QEMU_BUILD_WORKFLOW.md](docs/QEMU_BUILD_WORKFLOW.md) for the UTM/QEMU iOS build patching, early link verification, regression tests, cache behavior, and failure diagnosis.
