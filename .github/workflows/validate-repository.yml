@@ -119,6 +119,7 @@ jobs:
               "scripts/verify_qemu_meson_link.py",
               "ISTEAM_QEMU_LINK_VERIFIER",
               "build.ninja",
+              "steps.xcode.outputs.version",
               "utm-ios-arm64-deps-v8-",
           ]:
               if token not in qemu:

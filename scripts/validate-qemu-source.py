@@ -97,6 +97,7 @@ for token in [
     "scripts/patch_qemu_meson_ios.py",
     "scripts/verify_qemu_meson_link.py",
     "utm-ios-arm64-deps-v8-",
+    "steps.xcode.outputs.version",
 ]:
     if token not in qemu_workflow:
         print(f"QEMU workflow: missing build-integrity step {token!r}", file=sys.stderr)
