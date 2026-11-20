@@ -71,7 +71,7 @@ required = {
         "has_function_posix_memalign = true",
         "--target-list=x86_64-softmmu",
         'python3 "$ISTEAM_QEMU_MESON_PATCHER" "$QEMU_DIR/meson.build"',
-        'python3 "$ISTEAM_QEMU_LINK_VERIFIER" "$DIR/build/build.ninja" "$IOS_COMPILER_RT"',
+        'python3 "$ISTEAM_QEMU_LINK_VERIFIER" "$PWD/build/build.ninja" "$IOS_COMPILER_RT"',
     ],
     "scripts/patch_qemu_meson_ios.py": [
         "CONFIG_POSIX_MEMALIGN', true)",
@@ -106,7 +106,7 @@ for token in [
     "scripts/patch_utm_qemu_ios.py",
     "scripts/patch_qemu_meson_ios.py",
     "scripts/verify_qemu_meson_link.py",
-    "utm-ios-arm64-deps-v8-",
+    "utm-ios-arm64-deps-v9-",
     "steps.xcode.outputs.version",
 ]:
     if token not in qemu_workflow:

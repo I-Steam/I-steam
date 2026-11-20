@@ -44,7 +44,7 @@ def patch_script(source: str) -> str:
         '    if [ "$DIR" = "$QEMU_DIR" ]; then\n'
         '        : "${IOS_COMPILER_RT:?IOS_COMPILER_RT is required for the QEMU link check}"\n'
         '        : "${ISTEAM_QEMU_LINK_VERIFIER:?ISTEAM_QEMU_LINK_VERIFIER is required}"\n'
-        '        python3 "$ISTEAM_QEMU_LINK_VERIFIER" "$DIR/build/build.ninja" "$IOS_COMPILER_RT"\n'
+        '        python3 "$ISTEAM_QEMU_LINK_VERIFIER" "$PWD/build/build.ninja" "$IOS_COMPILER_RT"\n'
         '    fi\n'
         '    echo "${GREEN}Building ${NAME}...${NC}"'
     )
@@ -54,7 +54,7 @@ def patch_script(source: str) -> str:
         cross_override,
         "--target-list=x86_64-softmmu",
         'python3 "$ISTEAM_QEMU_MESON_PATCHER" "$QEMU_DIR/meson.build"',
-        'python3 "$ISTEAM_QEMU_LINK_VERIFIER" "$DIR/build/build.ninja" "$IOS_COMPILER_RT"',
+        'python3 "$ISTEAM_QEMU_LINK_VERIFIER" "$PWD/build/build.ninja" "$IOS_COMPILER_RT"',
     ]
     missing = [item for item in required if item not in source]
     if missing:
