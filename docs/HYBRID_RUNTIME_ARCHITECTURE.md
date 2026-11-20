@@ -35,13 +35,13 @@
 - **FEXCore:** not integrated or packaged.
 - **Box64:** a C/Swift bridge can look for an already-loaded Box64 entry point. It does not bundle Box64, provide a Linux rootfs/syscall ABI, or prove game execution.
 - **Wine/Proton:** not integrated.
-- **QEMU:** the native full-system runtime has a launch path, but the packaged device runtime and physical guest boot must be verified. It is not a PE process translator.
+- **QEMU:** `QEMURuntimeStatus` now asks the native bridge to `dlopen` the candidate with `RTLD_NOW` and resolve `qemu_init`, `qemu_main_loop` and `qemu_cleanup` before reporting it ready. This validates the loader, transitive dylibs and required exports; it does not prove guest boot, firmware compatibility, graceful stop, display/input or persistence. QEMU remains full-system only, not a PE process translator.
 - **Interpreter:** tiny x86-64 diagnostic subset only.
 - **a32rt:** not integrated.
 - **Graphics:** Metal framebuffer presentation exists; DirectX→Vulkan→Metal guest translation is not integrated.
 - **Audio/input/network/storage:** host and prototype services exist in parts, but complete guest-device adapters are not proven.
 
-The planner's availability set must be populated only by concrete runtime probes that validate the binary, architecture, ABI, transitive libraries, required compatibility services and platform constraints. A source file or enum case is not proof that a backend is installed. Empty availability is deliberately safe.
+The planner's availability set must be populated only by concrete runtime probes that validate the binary, architecture, ABI, transitive libraries, required compatibility services and platform constraints. The QEMU probe now validates loadability and lifecycle exports, but the higher-level planner is not yet wired to populate availability from this probe. A source file or enum case is not proof that a backend is installed. Empty availability is deliberately safe.
 
 ## Performance policy
 

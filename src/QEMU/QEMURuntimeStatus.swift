@@ -2,7 +2,7 @@ import Foundation
 
 /// Locates the UTM-built QEMU dynamic library and companion data directory.
 /// The packaging workflow writes the exact library path because UTM changes
-/// library names/layout between revisions. The bridge validates exports at dlopen.
+/// library names/layout between revisions. The bridge performs an explicit load/dependency/export probe before reporting ready.
 enum QEMURuntimeStatus {
     case unavailable(String)
     case ready(libraryURL: URL, dataDirectory: URL)
@@ -26,7 +26,7 @@ enum QEMURuntimeStatus {
                 var isDirectory: ObjCBool = false
                 if fm.fileExists(atPath: library.path, isDirectory: &isDirectory),
                    !isDirectory.boolValue {
-                    return .ready(libraryURL: library, dataDirectory: dataDirectory)
+                    return validateLoadableLibrary(library, dataDirectory: dataDirectory)
                 }
             }
         }
@@ -64,6 +64,30 @@ enum QEMURuntimeStatus {
         }) else {
             return .unavailable("No embedded x86_64 QEMU device library was found. Run the UTM runtime packaging workflow, embed its Frameworks and QEMU directories, and code-sign nested code.")
         }
+        return validateLoadableLibrary(library, dataDirectory: dataDirectory)
+    }
+
+    /// A file's existence is not proof that it is a usable runtime. dlopen with
+    /// RTLD_NOW checks the device loader, code signature and transitive dylibs;
+    /// dlsym verifies the lifecycle exports required by our native bridge.
+    /// This does not boot a guest or prove firmware/device support.
+    private static func validateLoadableLibrary(_ library: URL,
+                                                dataDirectory: URL) -> QEMURuntimeStatus {
+        var errorBuffer = [CChar](repeating: 0, count: 512)
+        let valid = library.path.withCString { libraryPath in
+            errorBuffer.withUnsafeMutableBufferPointer { buffer -> Bool in
+                guard let baseAddress = buffer.baseAddress else { return false }
+                return isteam_qemu_validate_library(
+                    libraryPath, baseAddress, Int32(buffer.count)
+                )
+            }
+        }
+        guard valid else {
+            let message = String(cString: errorBuffer)
+            return .unavailable(message.isEmpty
+                ? "The bundled QEMU library failed its load/export validation."
+                : message)
+        }
         return .ready(libraryURL: library, dataDirectory: dataDirectory)
     }
 
@@ -71,7 +95,7 @@ enum QEMURuntimeStatus {
         switch inspect() {
         case .unavailable(let reason): return reason
         case .ready(let libraryURL, let dataDirectory):
-            return "QEMU library located at \(libraryURL.path); data at \(dataDirectory.path). The bridge will validate lifecycle exports at startup."
+            return "QEMU library located at \(libraryURL.path); data at \(dataDirectory.path). The bridge load/dependency/export probe passed; guest boot is not verified."
         }
     }
 }
