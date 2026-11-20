@@ -90,9 +90,12 @@ struct WindowsPEImage {
             let offset = table + index * 40
             let nameData = data.subdata(in: offset..<(offset + 8))
             let name = String(bytes: nameData.prefix { $0 != 0 }, encoding: .ascii) ?? "section\(index)"
-            let section = Section(name: name, virtualSize: try u32(data, offset + 8),
-                virtualAddress: try u32(data, offset + 12), rawSize: try u32(data, offset + 16),
-                rawOffset: try u32(data, offset + 20), characteristics: try u32(data, offset + 36))
+            let section = Section(name: name,
+                virtualAddress: try u32(data, offset + 12),
+                virtualSize: try u32(data, offset + 8),
+                rawOffset: try u32(data, offset + 20),
+                rawSize: try u32(data, offset + 16),
+                characteristics: try u32(data, offset + 36))
             guard UInt64(section.rawOffset) + UInt64(section.rawSize) <= UInt64(data.count) else {
                 throw ParseError.malformed("section \(name) extends beyond file")
             }
