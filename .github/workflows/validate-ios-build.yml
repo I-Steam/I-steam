@@ -31,6 +31,8 @@ jobs:
             destination: generic/platform=visionOS Simulator
     steps:
       - uses: actions/checkout@v4
+      - name: Validate runtime bridge and packaging contracts
+        run: python3 scripts/validate-qemu-source.py
       - name: Install XcodeGen
         run: brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
       - name: Generate Xcode project

@@ -1,6 +1,21 @@
 import Foundation
 import Network
 
+/// Thread-safe one-shot gate for NWConnection callbacks that may arrive
+/// concurrently while an async continuation is waiting.
+private final class QEMUOneShotCompletion: @unchecked Sendable {
+    private let lock = NSLock()
+    private var completed = false
+
+    func claim() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !completed else { return false }
+        completed = true
+        return true
+    }
+}
+
 /// Minimal RFB 3.8 client for the loopback-only QEMU VNC server.
 /// This provides real guest pixels without requiring UTM's full SPICE renderer.
 /// It deliberately supports raw framebuffer rectangles only.
@@ -18,6 +33,14 @@ final class QEMUVNCClient {
     private let queue = DispatchQueue(label: "com.xthrx.isteam.qemu-vnc")
     private let lock = NSLock()
     private var connection: NWConnection?
+
+    /// Keep NSLock operations in a synchronous helper. Calling lock()/unlock()
+    /// directly from async contexts is rejected by Swift 6 concurrency checking.
+    private func withStateLock<T>(_ body: () throws -> T) rethrows -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return try body()
+    }
     private var readerTask: Task<Void, Never>?
     private var framebuffer = Data()
     private var framebufferWidth = 0
@@ -41,15 +64,15 @@ final class QEMUVNCClient {
             for attempt in 0..<40 {
                 if Task.isCancelled { return }
                 let candidate = NWConnection(host: "127.0.0.1", port: endpointPort, using: .tcp)
-                self.lock.lock()
-                self.connection = candidate
-                self.lock.unlock()
+                self.withStateLock {
+                    self.connection = candidate
+                }
                 do {
                     try await self.waitUntilReady(candidate)
                     try await self.performHandshake(candidate)
-                    self.lock.lock()
-                    self.isConnected = true
-                    self.lock.unlock()
+                    self.withStateLock {
+                        self.isConnected = true
+                    }
                     self.onStatus?("Guest display connected • local VNC")
                     try await self.readServerMessages(candidate)
                     break
@@ -62,9 +85,9 @@ final class QEMUVNCClient {
                     }
                 }
             }
-            self.lock.lock()
-            self.isConnected = false
-            self.lock.unlock()
+            self.withStateLock {
+                self.isConnected = false
+            }
             self.onStatus?("Guest display unavailable: \(lastError.localizedDescription)")
         }
     }
@@ -72,28 +95,29 @@ final class QEMUVNCClient {
     func stop() {
         readerTask?.cancel()
         readerTask = nil
-        connection?.cancel()
-        connection = nil
-        lock.lock()
-        isConnected = false
-        pressedKeys.removeAll()
-        lock.unlock()
+        let previousConnection = withStateLock { () -> NWConnection? in
+            let previous = connection
+            connection = nil
+            isConnected = false
+            pressedKeys.removeAll()
+            return previous
+        }
+        previousConnection?.cancel()
     }
 
     private func waitUntilReady(_ connection: NWConnection) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            var completed = false
+            let completion = QEMUOneShotCompletion()
             connection.stateUpdateHandler = { state in
-                guard !completed else { return }
                 switch state {
                 case .ready:
-                    completed = true
+                    guard completion.claim() else { return }
                     continuation.resume()
                 case .failed(let error):
-                    completed = true
+                    guard completion.claim() else { return }
                     continuation.resume(throwing: ClientError.connection(error.localizedDescription))
                 case .cancelled:
-                    completed = true
+                    guard completion.claim() else { return }
                     continuation.resume(throwing: ClientError.connection("The local QEMU display connection was cancelled."))
                 default:
                     break
@@ -286,11 +310,12 @@ final class QEMUVNCClient {
             abs(x) > 0.25 ? (x < 0 ? "A" : "D") : "",
             abs(y) > 0.25 ? (y < 0 ? "W" : "S") : ""
         ].filter { !$0.isEmpty })
-        lock.lock()
-        let previous = pressedKeys
-        let next = Set(desired.compactMap { Self.keysym(for: $0) })
-        pressedKeys = next
-        lock.unlock()
+        let (previous, next) = withStateLock { () -> (Set<UInt32>, Set<UInt32>) in
+            let previous = pressedKeys
+            let next = Set(desired.compactMap { Self.keysym(for: $0) })
+            pressedKeys = next
+            return (previous, next)
+        }
         for key in previous.subtracting(next) { sendKeysym(key, down: false) }
         for key in next.subtracting(previous) { sendKeysym(key, down: true) }
     }

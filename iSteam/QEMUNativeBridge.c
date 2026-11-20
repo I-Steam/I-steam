@@ -87,6 +87,44 @@ static void *qemu_thread_main(void *unused) {
     return NULL;
 }
 
+bool isteam_qemu_validate_library(const char *library_path,
+                                  char *error_buffer, int error_capacity) {
+    if (!library_path || !library_path[0]) {
+        if (error_buffer && error_capacity > 0)
+            snprintf(error_buffer, (size_t)error_capacity, "QEMU library path is empty");
+        return false;
+    }
+
+    /* RTLD_NOW validates transitive load dependencies as well as the image. */
+    void *library = dlopen(library_path, RTLD_NOW | RTLD_LOCAL);
+    if (!library) {
+        const char *reason = dlerror();
+        if (error_buffer && error_capacity > 0)
+            snprintf(error_buffer, (size_t)error_capacity,
+                     "Could not load bundled QEMU or one of its dependencies: %s",
+                     reason ? reason : "unknown loader error");
+        return false;
+    }
+
+    bool has_init = dlsym(library, "qemu_init") != NULL;
+    bool has_main_loop = dlsym(library, "qemu_main_loop") != NULL;
+    bool has_cleanup = dlsym(library, "qemu_cleanup") != NULL;
+    dlclose(library);
+
+    if (!has_init || !has_main_loop || !has_cleanup) {
+        if (error_buffer && error_capacity > 0)
+            snprintf(error_buffer, (size_t)error_capacity,
+                     "QEMU library is missing required lifecycle exports: %s%s%s",
+                     has_init ? "" : "qemu_init ",
+                     has_main_loop ? "" : "qemu_main_loop ",
+                     has_cleanup ? "" : "qemu_cleanup");
+        return false;
+    }
+
+    if (error_buffer && error_capacity > 0) error_buffer[0] = '\0';
+    return true;
+}
+
 bool isteam_qemu_start(int argc, const char * const *argv,
                        const char *library_path, char *error_buffer, int error_capacity) {
     if (argc < 1 || !argv || !library_path || !library_path[0]) {

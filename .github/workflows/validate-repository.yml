@@ -70,12 +70,15 @@ jobs:
               print(f"Validated {path}")
           PY
 
-      - name: Enforce GitHub-only CI and one-way mirror layout
+      - name: Enforce GitHub Actions CI and preserve both sync directions
         shell: bash
         run: |
           set -euo pipefail
           test ! -e .gitlab-ci.yml || { echo "GitLab CI configuration must not be present; CI/CD runs on GitHub Actions." >&2; exit 1; }
-          test ! -e .github/workflows/blank.yml || { echo "Obsolete GitHub-to-GitLab sync workflow remains." >&2; exit 1; }
+          test -f .github/workflows/blank.yml || { echo "The owner-required GitHub-to-GitLab sync workflow is missing." >&2; exit 1; }
+          grep -Fq "GitHub to GitLab Push Sync" .github/workflows/blank.yml
+          grep -Fq "GITLAB_TOKEN" .github/workflows/blank.yml
+          grep -Fq "git push gitlab HEAD:refs/heads/main" .github/workflows/blank.yml
           test ! -e .github/workflows/mirror-from-gitlab.yml || { echo "Scheduled GitLab polling workflow is redundant with GitLab's configured push mirror." >&2; exit 1; }
 
       - name: Validate release and QEMU workflow contract
@@ -104,12 +107,25 @@ jobs:
               raise SystemExit("Release artifacts must not silently ignore missing files.")
           if "workflow_call:" not in qemu or "workflow_dispatch:" not in qemu:
               raise SystemExit("QEMU workflow must support both reusable and manual execution.")
-          if "utm-ios-arm64-deps-v7-" not in qemu:
+          if "utm-ios-arm64-deps-v8-" not in qemu:
               raise SystemExit("QEMU dependency cache key must be versioned.")
           if "steps.utm-source.outputs.commit" not in qemu:
               raise SystemExit("QEMU cache key must include the checked-out UTM revision.")
           if "group: qemu-runtime-ios-arm64-${{ github.ref }}-${{ github.workflow }}" not in qemu:
               raise SystemExit("QEMU concurrency must isolate workflow/ref executions.")
+          for token in [
+              "scripts/patch_utm_qemu_ios.py",
+              "scripts/patch_qemu_meson_ios.py",
+              "scripts/verify_qemu_meson_link.py",
+              "ISTEAM_QEMU_LINK_VERIFIER",
+              "build.ninja",
+              "steps.xcode.outputs.version",
+              "utm-ios-arm64-deps-v8-",
+          ]:
+              if token not in qemu:
+                  raise SystemExit("QEMU build patch contract is missing: " + token)
+          if "--extra-ldflags=-Wl,-force_load" in qemu:
+              raise SystemExit("Do not rely on QEMU configure LDFLAGS; verify the Meson target LINK_ARGS instead.")
           if "qemu-runtime:" not in release or "needs: qemu-runtime" not in release:
               raise SystemExit("App builds must wait for the same-run QEMU runtime artifact.")
           if "git push" in release or "git push" in qemu:
@@ -119,6 +135,9 @@ jobs:
 
       - name: Validate QEMU upstream source patch assumptions
         run: python3 scripts/validate-qemu-source.py
+
+      - name: Test idempotent QEMU build patchers and link guard
+        run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'
 
       - name: Check shell script syntax
         run: |

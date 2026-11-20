@@ -22,9 +22,40 @@ required = {
         "QEMURuntimeStatus.inspect()", "isteam_qemu_start", "isteam_qemu_request_stop"
     ],
     "iSteam/QEMUNativeBridge.c": [
+        "bool isteam_qemu_validate_library(",
+        "dlopen(library_path, RTLD_NOW | RTLD_LOCAL)",
         'dlsym(library, "qemu_init")',
         'dlsym(library, "qemu_main_loop")',
         'dlsym(library, "qemu_cleanup")',
+    ],
+    "src/QEMU/QEMURuntimeStatus.swift": [
+        "isteam_qemu_validate_library(",
+        "validateLoadableLibrary(library, dataDirectory: dataDirectory)",
+        "The bundled QEMU library failed its load/export validation.",
+    ],
+    "src/Runtime/RuntimeCapabilityRegistry.swift": [
+        "enum RuntimeCapabilityLevel: String, CaseIterable",
+        "case notProbed",
+        "static let current = inspect(probeQEMU: false)",
+        "level: .loadable",
+        "level == .operational",
+        "if probeQEMU",
+        "QEMURuntimeStatus.inspect(bundle: bundle)",
+    ],
+    "src/Steam/GameLauncher.swift": [
+        "RuntimeCapabilityRegistry.current",
+        "capabilities.backendAvailability",
+        '"[runtime-capability] "',
+    ],
+    "src/Runtime/WindowsPEImage.swift": [
+        "Section(name: name,\n                virtualAddress:",
+        "virtualSize: try u32(data, offset + 8)",
+        "rawOffset: try u32(data, offset + 20)",
+    ],
+    "src/QEMU/QEMUVNCClient.swift": [
+        "private final class QEMUOneShotCompletion: @unchecked Sendable",
+        "private func withStateLock<T>",
+        "let completion = QEMUOneShotCompletion()",
     ],
     "iSteam/LaunchSetupViewController.swift": [
         '"SteamOS Gaming Mode"', "VMConfiguration.defaultSteamOS",
@@ -35,6 +66,22 @@ required = {
         "control.center.y / bounds.height",
         "if bounds.size != lastBoundsSize",
         "installEditGesturesIfNeeded()",
+    ],
+    "scripts/patch_utm_qemu_ios.py": [
+        "has_function_posix_memalign = true",
+        "--target-list=x86_64-softmmu",
+        'python3 "$ISTEAM_QEMU_MESON_PATCHER" "$QEMU_DIR/meson.build"',
+        'python3 "$ISTEAM_QEMU_LINK_VERIFIER" "$DIR/build/build.ninja" "$IOS_COMPILER_RT"',
+    ],
+    "scripts/patch_qemu_meson_ios.py": [
+        "CONFIG_POSIX_MEMALIGN', true)",
+        "add_project_link_arguments('-Wl,-force_load,' + ios_compiler_rt, language: 'c')",
+        "IOS_COMPILER_RT is required for the i-Steam iOS build",
+    ],
+    "scripts/verify_qemu_meson_link.py": [
+        "build libqemu-x86_64-softmmu.dylib:",
+        "LINK_ARGS",
+        "-Wl,-force_load,",
     ],
 }
 failed = False
@@ -49,6 +96,24 @@ for name, tokens in required.items():
 builder = Path("src/QEMU/QEMUCommandBuilder.swift").read_text(encoding="utf-8")
 if r"\n" in builder:
     print("src/QEMU/QEMUCommandBuilder.swift: literal escaped newline found in source", file=sys.stderr)
+    failed = True
+
+
+# The QEMU dependency build must patch Meson and verify the actual link edge
+# before running the expensive QEMU compile.
+qemu_workflow = Path(".github/workflows/build-qemu-runtime.yml").read_text(encoding="utf-8")
+for token in [
+    "scripts/patch_utm_qemu_ios.py",
+    "scripts/patch_qemu_meson_ios.py",
+    "scripts/verify_qemu_meson_link.py",
+    "utm-ios-arm64-deps-v8-",
+    "steps.xcode.outputs.version",
+]:
+    if token not in qemu_workflow:
+        print(f"QEMU workflow: missing build-integrity step {token!r}", file=sys.stderr)
+        failed = True
+if "--extra-ldflags=-Wl,-force_load" in qemu_workflow:
+    print("QEMU workflow: obsolete configure-level compiler-rt workaround remains", file=sys.stderr)
     failed = True
 
 
