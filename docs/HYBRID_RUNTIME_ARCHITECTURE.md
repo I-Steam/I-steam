@@ -35,7 +35,7 @@
 - **FEXCore:** not integrated or packaged.
 - **Box64:** a C/Swift bridge can look for an already-loaded Box64 entry point. It does not bundle Box64, provide a Linux rootfs/syscall ABI, or prove game execution.
 - **Wine/Proton:** not integrated.
-- **QEMU:** `QEMURuntimeStatus` now asks the native bridge to `dlopen` the candidate with `RTLD_NOW` and resolve `qemu_init`, `qemu_main_loop` and `qemu_cleanup` before reporting it ready. This validates the loader, transitive dylibs and required exports; it does not prove guest boot, firmware compatibility, graceful stop, display/input or persistence. QEMU remains full-system only, not a PE process translator.
+- **QEMU:** `QEMURuntimeStatus` asks the native bridge to `dlopen` the candidate with `RTLD_NOW` and resolve `qemu_init`, `qemu_main_loop` and `qemu_cleanup`. `RuntimeCapabilityRegistry` records this as `loadable`, not `operational`, so it cannot yet make QEMU selectable in the planner. Guest boot, firmware compatibility, graceful stop, display/input and persistence remain unverified. QEMU remains full-system only, not a PE process translator.
 - **Interpreter:** tiny x86-64 diagnostic subset only.
 - **a32rt:** not integrated.
 - **Graphics:** Metal framebuffer presentation exists; DirectX→Vulkan→Metal guest translation is not integrated.

@@ -16,10 +16,15 @@ final class GameLauncher {
         SteamLibrary.shared.prepare()
         WindowsRuntime.shared.prepare()
 
+        let capabilities = RuntimeCapabilityRegistry.current
+        for message in capabilities.diagnostics {
+            EmulationLog.shared.write("[runtime-capability] " + message)
+        }
+
         let request = RuntimeExecutionRequest(format: .windowsX64PE)
         let plan = RuntimeBackendRouter.plan(
             for: request,
-            availability: RuntimeBackendAvailability()
+            availability: capabilities.backendAvailability
         )
         for message in plan.explanation {
             EmulationLog.shared.write("[runtime-plan] " + message)

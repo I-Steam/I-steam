@@ -33,6 +33,17 @@ required = {
         "validateLoadableLibrary(library, dataDirectory: dataDirectory)",
         "The bundled QEMU library failed its load/export validation.",
     ],
+    "src/Runtime/RuntimeCapabilityRegistry.swift": [
+        "enum RuntimeCapabilityLevel: String, CaseIterable",
+        "level: .loadable",
+        "level == .operational",
+        "QEMURuntimeStatus.inspect(bundle: bundle)",
+    ],
+    "src/Steam/GameLauncher.swift": [
+        "RuntimeCapabilityRegistry.current",
+        "capabilities.backendAvailability",
+        '"[runtime-capability] "',
+    ],
     "iSteam/LaunchSetupViewController.swift": [
         '"SteamOS Gaming Mode"', "VMConfiguration.defaultSteamOS",
     ],
