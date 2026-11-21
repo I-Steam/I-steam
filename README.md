@@ -14,9 +14,9 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://makeapullrequest.com)
-[![i-Steam Build & Release](https://github.com/I-Steam/I-steam/actions/workflows/release.yml/badge.svg)](https://github.com/I-Steam/I-steam/actions/workflows/release.yml)
+[![Akatsubaki Emu Build & Release](https://github.com/Akatsubaki-Emu/Akatsubaki-Emu/actions/workflows/release.yml/badge.svg)](https://github.com/Akatsubaki-Emu/Akatsubaki-Emu/actions/workflows/release.yml)
 
-[**GitHub**](https://github.com/I-Steam/I-steam) · [**All releases**](https://github.com/I-Steam/I-steam/releases) · [**Nightly builds**](https://github.com/I-Steam/I-steam/releases/tag/nightly) · [**GitLab mirror**](https://gitlab.com/chantinlongxthrx/I-steam) · [**AltStore source**](https://altdirect.app/?url=https://i-steam.github.io/AltSource.json)
+[**GitHub**](https://github.com/Akatsubaki-Emu/Akatsubaki-Emu) · [**All releases**](https://github.com/Akatsubaki-Emu/Akatsubaki-Emu/releases) · [**Nightly builds**](https://github.com/Akatsubaki-Emu/Akatsubaki-Emu/releases/tag/nightly) · [**GitLab mirror**](https://gitlab.com/chantinlongxthrx/I-steam) · [**AltStore source**](https://altdirect.app/?url=https://akatsubaki-emu.github.io/AltSource.json)
 
 ![Alt](https://repobeats.axiom.co/api/embed/60c92ea5e53d1048f89bf703d5444e243a2c5244.svg "Repobeats analytics image")
 
@@ -31,20 +31,20 @@ Choose the build channel and platform below. Nightly builds contain recent chang
 
 | Channel | iOS | tvOS |
 | --- | --- | --- |
-| **Main** | [Download iOS IPA](https://github.com/I-Steam/I-steam/releases/tag/main) | [Download tvOS IPA](https://github.com/I-Steam/I-steam/releases/tag/main) |
-| **Nightly** | [Download nightly IPA](https://github.com/I-Steam/I-steam/releases/tag/nightly) | [Download nightly IPA](https://github.com/I-Steam/I-steam/releases/tag/nightly) |
+| **Main** | [Download iOS IPA](https://github.com/Akatsubaki-Emu/Akatsubaki-Emu/releases/tag/main) | [Download tvOS IPA](https://github.com/Akatsubaki-Emu/Akatsubaki-Emu/releases/tag/main) |
+| **Nightly** | [Download nightly IPA](https://github.com/Akatsubaki-Emu/Akatsubaki-Emu/releases/tag/nightly) | [Download nightly IPA](https://github.com/Akatsubaki-Emu/Akatsubaki-Emu/releases/tag/nightly) |
 
 Each release contains both platform packages and SHA-256 checksum files. Open the release page and choose the asset for your device. These are unsigned prototype packages and must be signed before installation.
 
 ### Add the AltStore source
 
-Use the source URL below in a compatible AltStore-based app. Source availability depends on the website publishing workflow and the configured repository token.
+Use the source URL below in a compatible AltStore-based app. Source availability depends on the GitHub Pages website publishing workflow and its configured repository token.
 
 ```text
-https://i-steam.github.io/AltSource.json
+https://akatsubaki-emu.github.io/AltSource.json
 ```
 
-<a href="https://altdirect.app/?url=https://i-steam.github.io/AltSource.json" target="_blank"><img src="https://altdirect.app/assets/png/AltSource_Blue.png" alt="Add AltSource" width="200"></a>
+<a href="https://altdirect.app/?url=https://akatsubaki-emu.github.io/AltSource.json" target="_blank"><img src="https://altdirect.app/assets/png/AltSource_Blue.png" alt="Add AltSource" width="200"></a>
 
 [SideStore installation guide](https://docs.sidestore.io/)
 
@@ -91,7 +91,7 @@ The project currently declares iOS 16 and tvOS 17 deployment targets. Confirm th
 ### Installation notes
 
 - **Unsigned IPA:** use a compatible signer and follow that tool's installation instructions.
-- **AltStore source:** add `https://i-steam.github.io/AltSource.json` in a compatible app.
+- **AltStore source:** add `https://akatsubaki-emu.github.io/AltSource.json` in a compatible app.
 - **Troubleshooting:** include your device/OS version and the relevant build or crash log when reporting an issue.
 - **File access:** iOS file-picker access and persistent bookmark access are different; a selected file may not remain accessible if its security-scoped bookmark cannot be created or reopened.
 
@@ -110,7 +110,7 @@ Open `iSteam.xcodeproj` in Xcode and choose a scheme:
 - `iSteamNightly` — iOS nightly build.
 - `iSteamTV` — tvOS prototype.
 
-For hosted builds, use the [Build & Release workflow](https://github.com/I-Steam/I-steam/actions/workflows/release.yml).
+For hosted builds, use the [Build & Release workflow](https://github.com/Akatsubaki-Emu/Akatsubaki-Emu/actions/workflows/release.yml).
 
 ## Build and release channels
 
@@ -120,7 +120,7 @@ For hosted builds, use the [Build & Release workflow](https://github.com/I-Steam
 - **Release assets:** iOS IPA, tvOS IPA, and SHA-256 checksum files.
 - **Older releases:** the workflow is configured not to automatically delete old releases.
 
-Website/AltStore-source publishing requires the `PAGES_TOKEN` secret to have suitable write access to [the website repository](https://github.com/I-Steam/I-steam.github.io). Builds are unsigned prototypes. ZIP and checksum validation verify packaging integrity only, not installability, runtime behavior, or guest OS compatibility.
+Website/AltStore-source publishing requires the `PAGES_TOKEN` secret to have suitable write access to [the website repository](https://github.com/Akatsubaki-Emu/Akatsubaki-Emu.github.io). Builds are unsigned prototypes. ZIP and checksum validation verify packaging integrity only, not installability, runtime behavior, or guest OS compatibility.
 
 More details: [Installation](INSTALL.md) · [Release workflow](docs/RELEASES.md) · [tvOS roadmap](docs/TVOS.md).
 
@@ -137,7 +137,7 @@ Bug reports, documentation improvements, and focused pull requests are welcome. 
 - [Host-device bridge](docs/HOST_DEVICE_BRIDGE.md)
 - [Runtime architecture and roadmap](docs/SHARPEMU_REUSE_NOTES.md)
 - [Hybrid runtime routing architecture](docs/HYBRID_RUNTIME_ARCHITECTURE.md)
-- [QEMU runtime build and failure diagnostics](docs/QEMU_RUNTIME_BUILD.md)
+- [QEMU runtime build and failure diagnostics](docs/QEMU_BUILD_WORKFLOW.md)
 - [DroidDeck feature-port plan](docs/DROIDDECK_PORT_PLAN.md)
 - [DroidDeck port status](docs/DROIDDECK_PORT_STATUS.md)
 - Portable library transfer, per-game profile defaults, and feature readiness services: `src/Steam/DroidDeckFeatureServices.swift`
@@ -164,13 +164,13 @@ Third-party projects retain their own licenses and copyrights. Review upstream l
 
 ## License and disclaimer
 
-The i-Steam repository and Akatsubaki Emu are licensed under the **GNU General Public License v3.0 (GPL-3.0)**. See [LICENSE](LICENSE).
+The Akatsubaki Emu project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**. See [LICENSE](LICENSE).
 
 Akatsubaki Emu is not affiliated with, endorsed by, or sponsored by Valve Corporation. Steam is a trademark of Valve Corporation. No particular game or operating system is guaranteed to run. AI assistants, including ChatGPT and Claude, have been used as development aids; all changes are still being reviewed and tested by maintainers.
 
 ## Repository synchronization
 
-GitLab's configured push mirror publishes GitLab commits to GitHub, and the existing GitHub Actions workflow also retains GitHub-to-GitLab synchronization. All CI/CD (validation, QEMU runtime builds, platform builds, releases, and AltStore publishing) runs through GitHub Actions. GitLab CI is removed. See [`docs/GIT_SYNC.md`](docs/GIT_SYNC.md) for the synchronization details and cautions.
+GitHub is the canonical source repository: [Akatsubaki-Emu/Akatsubaki-Emu](https://github.com/Akatsubaki-Emu/Akatsubaki-Emu). GitLab at [chantinlongxthrx/I-steam](https://gitlab.com/chantinlongxthrx/I-steam) is the mirror. The configured GitLab-to-GitHub push mirror and the existing GitHub-to-GitLab synchronization are retained; avoid making competing edits on both hosts and check the latest commit before changing either side. CI/CD (validation, QEMU runtime builds, platform builds, releases, and AltStore publishing) runs through GitHub Actions; GitLab CI is not used. See [`docs/GIT_SYNC.md`](docs/GIT_SYNC.md) for synchronization details and cautions.
 
 
 ## QEMU runtime build workflow
